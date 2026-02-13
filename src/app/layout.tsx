@@ -3,6 +3,7 @@ import "./globals.css";
 //import VisualEditsMessenger from "../visual-edits/VisualEditsMessenger";
 import ErrorReporter from "@/components/ErrorReporter";
 import Script from "next/script";
+import DatabaseInitializer from "@/components/DatabaseInitializer"; // ✅ ADD THIS LINE
 
 export const metadata: Metadata = {
   title: "Ocean Brew Drink Control",
@@ -17,6 +18,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased">
+        <DatabaseInitializer /> {/* ✅ ADD THIS LINE - INITIALIZES DATABASE */}
         <Script
           id="orchids-browser-logs"
           src="https://slelguoygbfzlpylpxfs.supabase.co/storage/v1/object/public/scripts/orchids-browser-logs.js"

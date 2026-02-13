@@ -50,6 +50,31 @@ export interface Order {
   status: 'pending' | 'done';
 }
 
+export interface PrinterSettings {
+  id: string;
+  name: string;
+  address?: string; // Bluetooth MAC address or device ID
+  isDefault: boolean;
+}
+
+export interface StoreSettings {
+  storeName: string;
+  storeAddress: string;
+  storePhone: string;
+  storeEmail: string;
+  taxNumber?: string;
+  wifiSSID: string;
+  wifiPassword: string;
+  receiptFooter: string;
+  printerSettings: PrinterSettings[];
+}
+
+export interface ReceiptPrintJob {
+  order: Order;
+  settings: StoreSettings;
+  copies?: number;
+}
+
 export const CATEGORIES = [
   'Add Ons',
   'Add Ons (Espresso)',

@@ -1,6 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import PrinterService from '@/lib/printerService';
+import { getStoreSettings } from '@/lib/store';
+import PrinterSettingsModal from '@/components/PrinterSettingsModal';
+import DateRangePicker from '@/components/DateRangePicker';
+
 import {
   MenuItem,
   Order,
@@ -55,7 +60,7 @@ function NavBar({ screen, setScreen }: { screen: Screen; setScreen: (s: Screen) 
 }
 
 // ─────────────────────────────────────────────
-// CUSTOMIZATION MODAL
+// CUSTOMIZATION MODAL - WITH FIX FOR ESPRESSO (NO ICE)
 // ─────────────────────────────────────────────
 const SUGAR_LEVELS: SugarLevel[] = ['0%', '25%', '50%', '75%', '100%'];
 const ICE_LEVELS: IceLevel[] = ['No Ice', 'Less Ice', 'Normal Ice'];
@@ -72,7 +77,7 @@ function CustomizationModal({
   onCancel: () => void;
 }) {
   const [size, setSize] = useState<Size>('R');
-  const [temperature, setTemperature] = useState<'Hot' | 'Cold'>('Hot'); // NEW: Hot/Cold state
+  const [temperature, setTemperature] = useState<'Hot' | 'Cold'>('Hot');
   const [sugar, setSugar] = useState<SugarLevel>('100%');
   const [ice, setIce] = useState<IceLevel>('Normal Ice');
   const [selectedAddOns, setSelectedAddOns] = useState<Set<string>>(new Set());
@@ -100,9 +105,9 @@ function CustomizationModal({
   const handleConfirm = () => {
     const cust: OrderItemCustomization = {
       size,
-      temperature: item.category === 'Espresso' ? temperature : undefined, // NEW: Only for Espresso
+      temperature: item.category === 'Espresso' ? temperature : undefined,
       sugar,
-      ice,
+      ice: item.category === 'Espresso' ? 'Normal Ice' : ice,
       addOns: addOnItems
         .filter(a => selectedAddOns.has(a.id))
         .map(a => ({ id: a.id, name: a.name, price: a.priceR })),
@@ -121,10 +126,12 @@ function CustomizationModal({
     onConfirm(oi);
   };
 
-  // Determine if drink customizations apply
-  const isDrink = item.category !== 'Appetizers' && item.category !== 'Cheesecake' && item.category !== 'Merchandise' && item.category !== 'Supplies' && item.category !== 'Add Ons';
+  const isDrink = item.category !== 'Appetizers' && 
+                  item.category !== 'Cheesecake' && 
+                  item.category !== 'Merchandise' && 
+                  item.category !== 'Supplies' && 
+                  item.category !== 'Add Ons';
   
-  // NEW: Check if item is from Espresso category
   const isEspresso = item.category === 'Espresso';
 
   return (
@@ -158,7 +165,7 @@ function CustomizationModal({
             </div>
           )}
 
-          {/* NEW: Hot/Cold toggle - ONLY for Espresso */}
+          {/* Hot/Cold toggle - ONLY for Espresso */}
           {isEspresso && (
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">Temperature</label>
@@ -202,8 +209,8 @@ function CustomizationModal({
             </div>
           )}
 
-          {/* Ice */}
-          {isDrink && (
+          {/* Ice - NOT for Espresso! */}
+          {isDrink && !isEspresso && (
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">Ice Level</label>
               <div className="flex flex-wrap gap-2">
@@ -311,6 +318,175 @@ function CustomizationModal({
 }
 
 // ─────────────────────────────────────────────
+// PRINTER SETTINGS BUTTON (for Order Screen)
+// ─────────────────────────────────────────────
+function PrinterStatusBar({ onOpenSettings }: { onOpenSettings: () => void }) {
+  const [isConnected, setIsConnected] = useState(false);
+  const [deviceName, setDeviceName] = useState('');
+  const [connectionType, setConnectionType] = useState<'thermal' | 'test' | 'none'>('none');
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIsConnected(PrinterService.isConnected());
+      setDeviceName(PrinterService.getDeviceName());
+      setConnectionType(PrinterService.getConnectionType());
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const getStatusText = () => {
+    if (!isConnected) return 'No Device Connected';
+    if (connectionType === 'thermal') return `🖨️ ${deviceName}`;
+    if (connectionType === 'test') return `📱 ${deviceName} (Test Mode)`;
+    return `📱 ${deviceName}`;
+  };
+
+  return (
+    <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
+      <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+      <span className="text-xs font-medium text-gray-600">
+        {getStatusText()}
+      </span>
+      <button
+        onClick={onOpenSettings}
+        className="ml-1 px-2 py-1 text-xs bg-sky-100 text-sky-700 rounded-md hover:bg-sky-200"
+      >
+        🖨️ Settings
+      </button>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// PRINT CONFIRMATION MODAL
+// ─────────────────────────────────────────────
+function PrintConfirmationModal({
+  order,
+  onConfirm,
+  onCancel,
+  onSkip,
+  onOpenPrinterSettings,
+}: {
+  order: Order;
+  onConfirm: () => void;
+  onCancel: () => void;
+  onSkip: () => void;
+  onOpenPrinterSettings: () => void;
+}) {
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [printError, setPrintError] = useState('');
+  const [isPrinterConnected, setIsPrinterConnected] = useState(PrinterService.isConnected());
+
+  useEffect(() => {
+    setIsPrinterConnected(PrinterService.isConnected());
+  }, []);
+
+  const handlePrint = async () => {
+    if (!PrinterService.isConnected()) {
+      setPrintError('Printer not connected. Please connect printer first.');
+      return;
+    }
+
+    setIsPrinting(true);
+    setPrintError('');
+
+    try {
+      const settings = getStoreSettings();
+      await PrinterService.printReceipt(order, settings);
+      onConfirm();
+    } catch (error) {
+      setPrintError('Failed to print: ' + error);
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-12 h-12 rounded-full bg-sky-100 flex items-center justify-center">
+              <span className="text-2xl">🖨️</span>
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-800">Print Receipt</h2>
+              <p className="text-gray-500">Order #{order.orderNumber}</p>
+            </div>
+          </div>
+
+          <div className="bg-gray-50 rounded-xl p-4 mb-4">
+            <p className="text-sm text-gray-600 mb-2">Total Amount:</p>
+            <p className="text-3xl font-bold text-sky-700">₱{order.total.toFixed(2)}</p>
+            <p className="text-xs text-gray-500 mt-2">
+              {new Date(order.createdAt).toLocaleString()}
+            </p>
+          </div>
+
+          {!isPrinterConnected && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+              <div className="flex items-start gap-2">
+                <span className="text-amber-600 text-lg">⚠️</span>
+                <div>
+                  <p className="text-sm font-semibold text-amber-800">Printer Not Connected</p>
+                  <p className="text-xs text-amber-700 mt-1">
+                    Please click the <span className="font-bold">"Printer Settings"</span> button below to connect your Bluetooth printer.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {printError && (
+            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl mb-4 text-sm">
+              {printError}
+            </div>
+          )}
+
+          <div className="flex flex-col gap-2">
+            {!isPrinterConnected && (
+              <button
+                onClick={onOpenPrinterSettings}
+                className="w-full py-3 rounded-xl bg-amber-500 font-semibold text-white hover:bg-amber-600 transition-colors flex items-center justify-center gap-2"
+              >
+                🖨️ Printer Settings
+              </button>
+            )}
+            
+            <div className="flex gap-3">
+              <button
+                onClick={onSkip}
+                className="flex-1 py-3 rounded-xl bg-gray-200 font-semibold text-gray-700 hover:bg-gray-300 transition-colors"
+              >
+                Skip
+              </button>
+              <button
+                onClick={handlePrint}
+                disabled={isPrinting || !isPrinterConnected}
+                className="flex-1 py-3 rounded-xl bg-sky-600 font-semibold text-white hover:bg-sky-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isPrinting ? (
+                  <>Printing...</>
+                ) : (
+                  <>🖨️ Print Receipt</>
+                )}
+              </button>
+            </div>
+            
+            <button
+              onClick={onCancel}
+              className="w-full mt-1 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
 // SCREEN 1: ORDER TAKING
 // ─────────────────────────────────────────────
 function OrderScreen({ onOrderPlaced }: { onOrderPlaced: () => void }) {
@@ -319,6 +495,11 @@ function OrderScreen({ onOrderPlaced }: { onOrderPlaced: () => void }) {
   const [cart, setCart] = useState<OrderItem[]>([]);
   const [modalItem, setModalItem] = useState<MenuItem | null>(null);
   const [addOnItems, setAddOnItems] = useState<MenuItem[]>([]);
+  const [showPrintSuccess, setShowPrintSuccess] = useState(false);
+  const [printError, setPrintError] = useState('');
+  const [pendingOrder, setPendingOrder] = useState<Order | null>(null);
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [showPrinterSettings, setShowPrinterSettings] = useState(false);
 
   useEffect(() => {
     setMenu(getMenu());
@@ -347,8 +528,9 @@ function OrderScreen({ onOrderPlaced }: { onOrderPlaced: () => void }) {
 
   const cancelOrder = () => setCart([]);
 
-  const generateOrder = () => {
+  const generateOrder = async () => {
     if (cart.length === 0) return;
+    
     const order: Order = {
       id: crypto.randomUUID(),
       orderNumber: getNextOrderNumber(),
@@ -359,13 +541,96 @@ function OrderScreen({ onOrderPlaced }: { onOrderPlaced: () => void }) {
       createdAt: new Date().toISOString(),
       status: 'pending',
     };
-    saveOrder(order);
+    
+    await saveOrder(order);
+    setPendingOrder(order);
+    setShowPrintModal(true);
+  };
+
+  const handlePrintConfirm = async () => {
+    if (!pendingOrder) return;
+    
+    try {
+      const settings = getStoreSettings();
+      await PrinterService.printReceipt(pendingOrder, settings);
+      setShowPrintSuccess(true);
+      setTimeout(() => setShowPrintSuccess(false), 3000);
+    } catch (error) {
+      setPrintError('Failed to print: ' + error);
+      setTimeout(() => setPrintError(''), 3000);
+    }
+    
+    setShowPrintModal(false);
+    setPendingOrder(null);
     setCart([]);
     onOrderPlaced();
   };
 
+  const handlePrintSkip = () => {
+    setShowPrintModal(false);
+    setPendingOrder(null);
+    setCart([]);
+    onOrderPlaced();
+  };
+
+  const handlePrintCancel = () => {
+    setShowPrintModal(false);
+  };
+
+  const testPrint = async () => {
+    if (!PrinterService.isConnected()) {
+      setPrintError('Printer not connected. Please connect printer first.');
+      setTimeout(() => setPrintError(''), 3000);
+      return;
+    }
+
+    try {
+      const settings = getStoreSettings();
+      const testOrder = {
+        orderNumber: 'TEST',
+        items: [{ 
+          name: 'TEST PRINT', 
+          quantity: 1, 
+          lineTotal: 0,
+          customization: { 
+            size: 'R', 
+            addOns: [],
+            temperature: undefined,
+            sugar: '100%',
+            ice: 'Normal Ice',
+            discount: null
+          }
+        }],
+        subtotal: 0,
+        discount: 0,
+        total: 0,
+        createdAt: new Date().toISOString(),
+        id: 'test',
+        status: 'pending'
+      };
+      await PrinterService.printReceipt(testOrder, settings);
+      setShowPrintSuccess(true);
+      setTimeout(() => setShowPrintSuccess(false), 3000);
+    } catch (error) {
+      setPrintError('Failed to print: ' + error);
+      setTimeout(() => setPrintError(''), 3000);
+    }
+  };
+
   return (
-    <div className="flex flex-1 overflow-hidden">
+    <div className="flex flex-1 overflow-hidden relative">
+      {/* Print Status Messages */}
+      {showPrintSuccess && (
+        <div className="absolute top-4 right-4 bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded-lg z-50 shadow-lg">
+          ✓ Receipt printed successfully!
+        </div>
+      )}
+      {printError && (
+        <div className="absolute top-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded-lg z-50 shadow-lg">
+          {printError}
+        </div>
+      )}
+
       {/* Left: Categories */}
       <div className="w-40 bg-gray-50 border-r overflow-y-auto shrink-0">
         {categories.map(cat => (
@@ -406,71 +671,81 @@ function OrderScreen({ onOrderPlaced }: { onOrderPlaced: () => void }) {
       </div>
 
       {/* Right: Order Summary */}
-      <div className="w-72 bg-white border-l flex flex-col shrink-0">
-        <div className="px-4 py-3 border-b bg-sky-600 text-white">
+      <div className="w-80 bg-white border-l flex flex-col shrink-0">
+        <div className="px-4 py-3 border-b bg-sky-600 text-white flex justify-between items-center">
           <h2 className="font-bold text-base">Current Order</h2>
+          <div className="flex items-center gap-2">
+            {PrinterService.isConnected() && (
+              <button
+                onClick={testPrint}
+                className="px-2 py-1 bg-purple-500 rounded-lg text-xs font-semibold hover:bg-purple-600 transition-colors"
+                title="Test Printer"
+              >
+                🖨️ Test
+              </button>
+            )}
+            <PrinterStatusBar onOpenSettings={() => setShowPrinterSettings(true)} />
+          </div>
         </div>
         <div className="flex-1 overflow-y-auto p-3 space-y-2">
           {cart.length === 0 && (
             <p className="text-gray-400 text-sm text-center py-8">Tap an item to start</p>
           )}
-{cart.map(item => (
-  <div key={item.id} className="bg-white rounded-lg p-3 border border-gray-200 text-sm hover:bg-gray-50 transition-colors">
-    <div className="flex justify-between items-start">
-      <div className="flex-1">
-        <div className="flex items-center gap-2">
-          <span className="font-bold text-gray-800">{item.quantity}x {item.name}</span>
-          <button 
-            onClick={() => removeFromCart(item.id)} 
-            className="text-white bg-red-500 hover:bg-red-600 text-xs px-2 py-0.5 rounded-full transition-colors"
-            title="Remove item"
-          >
-            ×
-          </button>
-        </div>
-        <div className="text-xs text-gray-500 mt-1.5 pl-1">
-          <div className="flex flex-wrap gap-1">
-            <span className="bg-gray-100 px-1.5 py-0.5 rounded">{item.customization.size}</span>
-            {/* ADD THIS LINE HERE - Temperature display */}
-            {item.customization.temperature && (
-              <span className="bg-gray-100 px-1.5 py-0.5 rounded">{item.customization.temperature}</span>
-            )}
-            {item.customization.sugar !== '100%' && (
-              <span className="bg-gray-100 px-1.5 py-0.5 rounded">{item.customization.sugar} sugar</span>
-            )}
-            {item.customization.ice !== 'Normal Ice' && (
-              <span className="bg-gray-100 px-1.5 py-0.5 rounded">{item.customization.ice}</span>
-            )}
-            {item.customization.addOns.length > 0 && (
-              <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
-                +{item.customization.addOns.map(a => a.name).join(', ')}
-              </span>
-            )}
-            {item.customization.discount && (
-              <span className="bg-red-100 text-red-600 px-1.5 py-0.5 rounded">
-                -{item.customization.discount.type === 'percent' ? `${item.customization.discount.value}%` : `₱${item.customization.discount.value}`}
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-      <div className="ml-2">
-        <span className="font-bold text-sky-700 text-base">₱{item.lineTotal.toFixed(0)}</span>
-      </div>
-    </div>
-  </div>
-))}
-{/* Add this after the cart items and before the subtotal section */}
-{cart.length > 0 && (
-  <div className="p-3 border-t border-gray-200">
-    <button
-      onClick={() => setCart([])}
-      className="w-full py-2.5 rounded-lg bg-red-50 text-red-600 font-semibold text-sm hover:bg-red-100 active:bg-red-200 transition-colors border border-red-200"
-    >
-      🗑️ Clear All Items
-    </button>
-  </div>
-)}
+          {cart.map(item => (
+            <div key={item.id} className="bg-white rounded-lg p-3 border border-gray-200 text-sm hover:bg-gray-50 transition-colors">
+              <div className="flex justify-between items-start">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-gray-800">{item.quantity}x {item.name}</span>
+                    <button 
+                      onClick={() => removeFromCart(item.id)} 
+                      className="text-white bg-red-500 hover:bg-red-600 text-xs px-2 py-0.5 rounded-full transition-colors"
+                      title="Remove item"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1.5 pl-1">
+                    <div className="flex flex-wrap gap-1">
+                      <span className="bg-gray-100 px-1.5 py-0.5 rounded">{item.customization.size}</span>
+                      {item.customization.temperature && (
+                        <span className="bg-gray-100 px-1.5 py-0.5 rounded">{item.customization.temperature}</span>
+                      )}
+                      {item.customization.sugar !== '100%' && (
+                        <span className="bg-gray-100 px-1.5 py-0.5 rounded">{item.customization.sugar} sugar</span>
+                      )}
+                      {item.customization.ice !== 'Normal Ice' && (
+                        <span className="bg-gray-100 px-1.5 py-0.5 rounded">{item.customization.ice}</span>
+                      )}
+                      {item.customization.addOns.length > 0 && (
+                        <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
+                          +{item.customization.addOns.map(a => a.name).join(', ')}
+                        </span>
+                      )}
+                      {item.customization.discount && (
+                        <span className="bg-red-100 text-red-600 px-1.5 py-0.5 rounded">
+                          -{item.customization.discount.type === 'percent' ? `${item.customization.discount.value}%` : `₱${item.customization.discount.value}`}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="ml-2">
+                  <span className="font-bold text-sky-700 text-base">₱{item.lineTotal.toFixed(0)}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+          {cart.length > 0 && (
+            <div className="p-3 border-t border-gray-200">
+              <button
+                onClick={() => setCart([])}
+                className="w-full py-2.5 rounded-lg bg-red-50 text-red-600 font-semibold text-sm hover:bg-red-100 active:bg-red-200 transition-colors border border-red-200"
+              >
+                🗑️ Clear All Items
+              </button>
+            </div>
+          )}
         </div>
         <div className="p-3 border-t space-y-1 text-sm">
           <div className="flex justify-between text-gray-600">
@@ -485,24 +760,25 @@ function OrderScreen({ onOrderPlaced }: { onOrderPlaced: () => void }) {
             <span>Total</span><span>₱{total.toFixed(2)}</span>
           </div>
         </div>
-        <div className="p-3 border-t flex gap-2">
-          <button
-            onClick={cancelOrder}
-            className="flex-1 py-3 rounded-xl bg-gray-200 font-semibold text-gray-700 text-sm active:bg-gray-300"
-          >
-            Cancel
-          </button>
+        <div className="p-3 border-t">
           <button
             onClick={generateOrder}
             disabled={cart.length === 0}
-            className="flex-1 py-3 rounded-xl bg-sky-600 font-semibold text-white text-sm active:bg-sky-700 disabled:opacity-40"
+            className="w-full py-3 rounded-xl bg-sky-600 font-semibold text-white text-sm active:bg-sky-700 disabled:opacity-40 transition-colors"
           >
             Generate Order
+          </button>
+          <button
+            onClick={cancelOrder}
+            disabled={cart.length === 0}
+            className="w-full mt-2 py-2 rounded-lg text-gray-500 font-semibold text-sm hover:text-gray-700 disabled:opacity-40 transition-colors"
+          >
+            Cancel Order
           </button>
         </div>
       </div>
 
-      {/* Modal */}
+      {/* Customization Modal */}
       {modalItem && (
         <CustomizationModal
           item={modalItem}
@@ -511,28 +787,101 @@ function OrderScreen({ onOrderPlaced }: { onOrderPlaced: () => void }) {
           onCancel={() => setModalItem(null)}
         />
       )}
+
+      {/* Print Confirmation Modal */}
+      {showPrintModal && pendingOrder && (
+        <PrintConfirmationModal
+          order={pendingOrder}
+          onConfirm={handlePrintConfirm}
+          onCancel={handlePrintCancel}
+          onSkip={handlePrintSkip}
+          onOpenPrinterSettings={() => {
+            setShowPrintModal(false);
+            setShowPrinterSettings(true);
+          }}
+        />
+      )}
+
+      {/* Printer Settings Modal */}
+      {showPrinterSettings && (
+        <PrinterSettingsModal 
+          isOpen={showPrinterSettings}
+          onClose={() => setShowPrinterSettings(false)}
+          onSave={() => {
+            alert('Printer settings saved successfully!');
+          }}
+        />
+      )}
     </div>
   );
 }
 
 // ─────────────────────────────────────────────
-// SCREEN 2: BARISTA QUEUE
+// SCREEN 2: BARISTA QUEUE - FIXED WITH ASYNC/AWAIT
 // ─────────────────────────────────────────────
 function QueueScreen({ refreshKey }: { refreshKey: number }) {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [showPrinterSettings, setShowPrinterSettings] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setOrders(getOrders().filter(o => o.status === 'pending'));
+    loadPendingOrders();
   }, [refreshKey]);
 
-  const markDone = (id: string) => {
-    updateOrder(id, { status: 'done' });
+  const loadPendingOrders = async () => {
+    setLoading(true);
+    try {
+      const all = await getOrders();
+      setOrders(all.filter(o => o.status === 'pending'));
+    } catch (error) {
+      console.error('Failed to load orders:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const printReceipt = async (order: Order) => {
+    if (!PrinterService.isConnected()) {
+      alert('Printer not connected. Please click the Printer Settings button to connect.');
+      return;
+    }
+
+    try {
+      const settings = getStoreSettings();
+      await PrinterService.printReceipt(order, settings);
+      alert(`Receipt #${order.orderNumber} sent to printer!`);
+    } catch (error) {
+      alert('Failed to print: ' + error);
+    }
+  };
+
+  const markDone = async (id: string) => {
+    await updateOrder(id, { status: 'done' });
     setOrders(prev => prev.filter(o => o.id !== id));
   };
 
+  if (loading) {
+    return (
+      <div className="flex-1 p-4 overflow-y-auto bg-gray-100">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-gray-500">Loading queue...</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 p-4 overflow-y-auto bg-gray-100">
-      <h1 className="text-2xl font-bold text-gray-800 mb-4">Barista Queue</h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold text-gray-800">Barista Queue</h1>
+        <button
+          onClick={() => setShowPrinterSettings(true)}
+          className="px-4 py-2 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 transition-colors flex items-center gap-2"
+        >
+          <span>🖨️</span> Printer Settings
+        </button>
+      </div>
+
       {orders.length === 0 && (
         <p className="text-gray-400 text-center py-12 text-lg">No pending orders</p>
       )}
@@ -551,7 +900,6 @@ function QueueScreen({ refreshKey }: { refreshKey: number }) {
                   <span className="font-semibold">{item.quantity}x {item.name}</span>
                   <div className="text-xs text-gray-500 ml-4">
                     {item.customization.size}
-                    {/* ADD THIS LINE HERE - Temperature display */}
                     {item.customization.temperature && ` | ${item.customization.temperature}`}
                     {item.customization.sugar !== '100%' && ` | ${item.customization.sugar} sugar`}
                     {item.customization.ice !== 'Normal Ice' && ` | ${item.customization.ice}`}
@@ -560,21 +908,40 @@ function QueueScreen({ refreshKey }: { refreshKey: number }) {
                 </div>
               ))}
             </div>
-            <button
-              onClick={() => markDone(order.id)}
-              className="w-full py-3 rounded-xl bg-green-500 text-white font-bold text-lg active:bg-green-600"
-            >
-              MARK AS DONE
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => printReceipt(order)}
+                className="flex-1 py-2 rounded-xl bg-blue-500 text-white font-semibold text-sm hover:bg-blue-600 transition-colors flex items-center justify-center gap-1"
+              >
+                🖨️ Print
+              </button>
+              <button
+                onClick={() => markDone(order.id)}
+                className="flex-1 py-2 rounded-xl bg-green-500 text-white font-bold text-sm hover:bg-green-600 transition-colors"
+              >
+                DONE
+              </button>
+            </div>
           </div>
         ))}
       </div>
+
+      {/* Printer Settings Modal */}
+      {showPrinterSettings && (
+        <PrinterSettingsModal 
+          isOpen={showPrinterSettings}
+          onClose={() => setShowPrinterSettings(false)}
+          onSave={() => {
+            alert('Printer settings saved successfully!');
+          }}
+        />
+      )}
     </div>
   );
 }
 
 // ─────────────────────────────────────────────
-// SCREEN 3: ADMIN MENU
+// SCREEN 3: ADMIN MENU (Owner Only - No Printer Settings)
 // ─────────────────────────────────────────────
 function AdminScreen() {
   const [menu, setMenuState] = useState<MenuItem[]>([]);
@@ -624,7 +991,7 @@ function AdminScreen() {
   return (
     <div className="flex-1 p-4 overflow-y-auto bg-gray-100">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold text-gray-800">Menu Manager</h1>
+        <h1 className="text-2xl font-bold text-gray-800">Menu Manager (Admin Only)</h1>
         <button onClick={startNew} className="px-5 py-2 rounded-xl bg-sky-600 text-white font-semibold active:bg-sky-700">
           + Add Item
         </button>
@@ -757,21 +1124,34 @@ function AdminEditModal({
 }
 
 // ─────────────────────────────────────────────
-// SCREEN 4: TODAY'S DASHBOARD
+// SCREEN 4: TODAY'S DASHBOARD - FIXED WITH ASYNC/AWAIT
 // ─────────────────────────────────────────────
 function DashboardScreen() {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [showPrinterSettings, setShowPrinterSettings] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const all = getOrders();
-    const today = new Date().toISOString().slice(0, 10);
-    setOrders(all.filter(o => o.createdAt.slice(0, 10) === today));
+    loadTodayOrders();
   }, []);
+
+  const loadTodayOrders = async () => {
+    setLoading(true);
+    try {
+      const all = await getOrders();
+      const today = new Date().toISOString().slice(0, 10);
+      const todayOrders = all.filter((o: Order) => o.createdAt.slice(0, 10) === today);
+      setOrders(todayOrders);
+    } catch (error) {
+      console.error('Failed to load orders:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const totalSales = orders.filter(o => o.status === 'done').reduce((s, o) => s + o.total, 0);
   const totalOrders = orders.length;
 
-  // Best selling item
   const itemCounts: Record<string, { name: string; count: number }> = {};
   orders.forEach(o => {
     o.items.forEach(i => {
@@ -781,9 +1161,28 @@ function DashboardScreen() {
   });
   const bestSelling = Object.values(itemCounts).sort((a, b) => b.count - a.count)[0];
 
+  if (loading) {
+    return (
+      <div className="flex-1 p-6 overflow-y-auto bg-gray-100">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-gray-500">Loading dashboard...</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 p-6 overflow-y-auto bg-gray-100">
-      <h1 className="text-2xl font-bold text-gray-800 mb-6">Today&apos;s Dashboard</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-gray-800">Today&apos;s Dashboard</h1>
+        <button
+          onClick={() => setShowPrinterSettings(true)}
+          className="px-4 py-2 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 transition-colors flex items-center gap-2"
+        >
+          <span>🖨️</span> Printer Settings
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white rounded-2xl shadow-sm border p-6 text-center">
           <p className="text-gray-500 text-sm mb-1">Total Sales Today</p>
@@ -798,21 +1197,86 @@ function DashboardScreen() {
           <p className="text-2xl font-bold text-sky-700">{bestSelling ? `${bestSelling.name} (${bestSelling.count})` : '—'}</p>
         </div>
       </div>
+
+      {/* Printer Settings Modal */}
+      {showPrinterSettings && (
+        <PrinterSettingsModal 
+          isOpen={showPrinterSettings}
+          onClose={() => setShowPrinterSettings(false)}
+          onSave={() => {
+            alert('Printer settings saved successfully!');
+          }}
+        />
+      )}
     </div>
   );
 }
 
 // ─────────────────────────────────────────────
-// SCREEN 5: REPORTS (30 DAYS)
+// SCREEN 5: REPORTS WITH EXPORT - ULTIMATE FIX
 // ─────────────────────────────────────────────
 function ReportsScreen() {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [exportSuccess, setExportSuccess] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setOrders(getOrders().filter(o => o.status === 'done'));
+    loadOrders();
   }, []);
 
-  // Sales by day
+  const loadOrders = async () => {
+    setLoading(true);
+    try {
+      const allOrders = await getOrders();
+      console.log('📦 Loaded orders:', allOrders.length);
+      setOrders(allOrders);
+    } catch (error) {
+      console.error('Failed to load orders:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+const handleExport = async (startDate: Date, endDate: Date, type: 'csv' | 'json') => {
+  const { getOrdersByDateRange } = await import('@/lib/store');
+  const ExcelExport = (await import('@/lib/excelExport')).default;
+  
+  // Get ALL orders
+  const allOrders = await getOrders();
+  
+  // Convert dates to YYYY-MM-DD for comparison
+  const startStr = startDate.toISOString().split('T')[0];
+  const endStr = endDate.toISOString().split('T')[0];
+  
+  console.log('🔍 Searching from', startStr, 'to', endStr);
+  
+  // Filter by date (compare just the date part)
+  const ordersInRange = allOrders.filter(order => {
+    const orderDate = order.createdAt.split('T')[0]; // Gets "2026-02-13"
+    return orderDate >= startStr && orderDate <= endStr;
+  });
+  
+  console.log('📊 Found orders:', ordersInRange.length);
+  
+  if (ordersInRange.length === 0) {
+    alert(`❌ No orders found from ${startStr} to ${endStr}`);
+    return;
+  }
+
+  const filename = `ocean-brew-orders_${startStr}_to_${endStr}`;
+  
+  if (type === 'csv') {
+    ExcelExport.exportToCSV(ordersInRange, filename);
+  } else {
+    ExcelExport.exportToJSON(ordersInRange, filename);
+  }
+
+  setExportSuccess(`✅ Exported ${ordersInRange.length} orders from ${startStr} to ${endStr}`);
+  setTimeout(() => setExportSuccess(''), 5000);
+  setShowDatePicker(false);
+};
+  // Sales calculations
   const salesByDay: Record<string, number> = {};
   orders.forEach(o => {
     const day = o.createdAt.slice(0, 10);
@@ -820,7 +1284,6 @@ function ReportsScreen() {
   });
   const sortedDays = Object.entries(salesByDay).sort((a, b) => b[0].localeCompare(a[0]));
 
-  // Sales by item
   const salesByItem: Record<string, { name: string; qty: number; revenue: number }> = {};
   orders.forEach(o => {
     o.items.forEach(i => {
@@ -831,7 +1294,6 @@ function ReportsScreen() {
   });
   const sortedItems = Object.values(salesByItem).sort((a, b) => b.revenue - a.revenue);
 
-  // Sales by category
   const salesByCat: Record<string, number> = {};
   orders.forEach(o => {
     o.items.forEach(i => {
@@ -844,12 +1306,57 @@ function ReportsScreen() {
   const maxItemRevenue = sortedItems.length > 0 ? Math.max(...sortedItems.map(i => i.revenue)) : 1;
   const maxCatRevenue = sortedCats.length > 0 ? Math.max(...sortedCats.map(c => c[1])) : 1;
 
+  if (loading) {
+    return (
+      <div className="flex-1 p-6 overflow-y-auto bg-gray-100">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-gray-500">Loading reports...</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 p-6 overflow-y-auto bg-gray-100">
-      <h1 className="text-2xl font-bold text-gray-800 mb-6">Reports (Last 30 Days)</h1>
+      {/* HEADER WITH EXPORT BUTTONS */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800">Sales Reports</h1>
+          <p className="text-sm text-gray-500 mt-1">Last 30 days • {orders.length} total orders</p>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={async () => {
+              const { getDatabaseStats } = await import('@/lib/store');
+              const stats = await getDatabaseStats();
+              alert(`📊 Database Stats\n\nTotal Orders: ${stats.totalOrders}\nOldest: ${stats.dateRange.oldest.toLocaleDateString()}\nNewest: ${stats.dateRange.newest.toLocaleDateString()}`);
+            }}
+            className="px-4 py-2 rounded-xl bg-purple-600 text-white font-semibold hover:bg-purple-700 transition-colors flex items-center gap-2"
+          >
+            <span>📊</span> DB Stats
+          </button>
+          <button
+            onClick={() => setShowDatePicker(true)}
+            className="px-4 py-2 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 transition-colors flex items-center gap-2"
+          >
+            <span>⬇️</span> Export Orders
+          </button>
+        </div>
+      </div>
 
+      {/* EXPORT SUCCESS MESSAGE */}
+      {exportSuccess && (
+        <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded-lg">
+          {exportSuccess}
+        </div>
+      )}
+
+      {/* NO ORDERS MESSAGE */}
       {orders.length === 0 && (
-        <p className="text-gray-400 text-center py-12 text-lg">No completed orders to report</p>
+        <div className="bg-white rounded-2xl shadow-sm border p-12 text-center">
+          <p className="text-gray-400 text-lg">No orders to report</p>
+          <p className="text-gray-400 text-sm mt-2">Orders will appear here after you generate them</p>
+        </div>
       )}
 
       {/* Sales by Day */}
@@ -915,10 +1422,17 @@ function ReportsScreen() {
           </div>
         </div>
       )}
+
+      {/* DATE RANGE PICKER MODAL */}
+      {showDatePicker && (
+        <DateRangePicker
+          onExport={handleExport}
+          onClose={() => setShowDatePicker(false)}
+        />
+      )}
     </div>
   );
 }
-
 // ─────────────────────────────────────────────
 // MAIN APP
 // ─────────────────────────────────────────────
