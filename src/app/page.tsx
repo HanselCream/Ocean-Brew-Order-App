@@ -5,6 +5,7 @@ import PrinterService from '@/lib/printerService';
 import { getStoreSettings } from '@/lib/store';
 import PrinterSettingsModal from '@/components/PrinterSettingsModal';
 import DateRangePicker from '@/components/DateRangePicker';
+import AdminPasswordModal from '@/components/AdminPasswordModal';
 
 import {
   MenuItem,
@@ -941,14 +942,30 @@ function QueueScreen({ refreshKey }: { refreshKey: number }) {
 }
 
 // ─────────────────────────────────────────────
-// SCREEN 3: ADMIN MENU (Owner Only - No Printer Settings)
+// SCREEN 3: ADMIN MENU (Password Protected)
 // ─────────────────────────────────────────────
 function AdminScreen() {
   const [menu, setMenuState] = useState<MenuItem[]>([]);
   const [editing, setEditing] = useState<MenuItem | null>(null);
   const [isNew, setIsNew] = useState(false);
+  const [isLocked, setIsLocked] = useState(true);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
 
-  useEffect(() => { setMenuState(getMenu()); }, []);
+  useEffect(() => { 
+    setMenuState(getMenu());
+    // Show password modal when admin screen loads
+    setShowPasswordModal(true);
+  }, []);
+
+  const handlePasswordSuccess = () => {
+    setShowPasswordModal(false);
+    setIsLocked(false);
+  };
+
+  const handlePasswordCancel = () => {
+    setShowPasswordModal(false);
+    setIsLocked(true);
+  };
 
   const save = (item: MenuItem) => {
     let updated: MenuItem[];
@@ -988,10 +1005,39 @@ function AdminScreen() {
     setIsNew(true);
   };
 
+  // If locked, show password modal
+  if (isLocked) {
+    return (
+      <>
+        <div className="flex-1 p-4 overflow-y-auto bg-gray-100 flex items-center justify-center">
+          <div className="bg-white rounded-2xl shadow-sm border p-8 text-center max-w-md">
+            <div className="w-20 h-20 rounded-full bg-sky-100 flex items-center justify-center mx-auto mb-4">
+              <span className="text-4xl">🔒</span>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">Admin Area Locked</h2>
+            <p className="text-gray-500 mb-6">Enter password to access menu management</p>
+            <button
+              onClick={() => setShowPasswordModal(true)}
+              className="px-6 py-3 rounded-xl bg-sky-600 text-white font-semibold hover:bg-sky-700"
+            >
+              Enter Password
+            </button>
+          </div>
+        </div>
+
+        <AdminPasswordModal
+          isOpen={showPasswordModal}
+          onSuccess={handlePasswordSuccess}
+          onCancel={handlePasswordCancel}
+        />
+      </>
+    );
+  }
+
   return (
     <div className="flex-1 p-4 overflow-y-auto bg-gray-100">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold text-gray-800">Menu Manager (Admin Only)</h1>
+        <h1 className="text-2xl font-bold text-gray-800">Menu Manager (Admin)</h1>
         <button onClick={startNew} className="px-5 py-2 rounded-xl bg-sky-600 text-white font-semibold active:bg-sky-700">
           + Add Item
         </button>
