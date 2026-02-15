@@ -16,15 +16,15 @@ export default function DateRangePicker({ onExport, onClose }: DateRangePickerPr
   );
   const [exportType, setExportType] = useState<'csv' | 'json'>('csv');
 
-  const presetRanges = [
-    { label: 'Today', days: 0 },
-    { label: 'Last 3 Days', days: 3 },
-    { label: 'Last 7 Days', days: 7 },
-    { label: 'Last 15 Days', days: 15 },
-    { label: 'Last 30 Days', days: 30 },
-    { label: 'This Month', days: 'month' },
-    { label: 'Last Month', days: 'lastMonth' }
-  ];
+const presetRanges: { label: string; days: number | 'month' | 'lastMonth' }[] = [
+  { label: 'Today', days: 0 },
+  { label: 'Last 3 Days', days: 3 },
+  { label: 'Last 7 Days', days: 7 },
+  { label: 'Last 15 Days', days: 15 },
+  { label: 'Last 30 Days', days: 30 },
+  { label: 'This Month', days: 'month' },
+  { label: 'Last Month', days: 'lastMonth' }
+];
 
   const handlePreset = (preset: { label: string; days: number | 'month' | 'lastMonth' }) => {
     const end = new Date();

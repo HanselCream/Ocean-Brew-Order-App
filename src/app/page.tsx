@@ -61,10 +61,19 @@ function NavBar({ screen, setScreen }: { screen: Screen; setScreen: (s: Screen) 
 }
 
 // ─────────────────────────────────────────────
-// CUSTOMIZATION MODAL - WITH FIX FOR ESPRESSO (NO ICE)
+// CUSTOMIZATION MODAL - WITH FIX FOR ESPRESSO (NO SUGAR, SPECIAL ADD-ONS)
 // ─────────────────────────────────────────────
 const SUGAR_LEVELS: SugarLevel[] = ['0%', '25%', '50%', '75%', '100%'];
 const ICE_LEVELS: IceLevel[] = ['No Ice', 'Less Ice', 'Normal Ice'];
+
+// Espresso-specific add-ons
+const ESPRESSO_ADDONS = [
+  { id: 'es-addon-1', name: 'Whipped Cream', price: 25 },
+  { id: 'es-addon-2', name: 'Extra Syrup', price: 25 },
+  { id: 'es-addon-3', name: 'Extra Sauce', price: 25 },
+  { id: 'es-addon-4', name: 'Espresso Shot', price: 55 },
+  { id: 'es-addon-5', name: 'Cold Foam', price: 30 },
+];
 
 function CustomizationModal({
   item,
@@ -87,9 +96,23 @@ function CustomizationModal({
   const [quantity, setQuantity] = useState(1);
 
   const basePrice = size === 'L' && item.priceL ? item.priceL : item.priceR;
-  const addOnsTotal = addOnItems
-    .filter(a => selectedAddOns.has(a.id))
-    .reduce((s, a) => s + a.priceR, 0);
+  
+  // Calculate add-ons total based on item type
+  const addOnsTotal = (() => {
+    const isEspresso = item.category === 'Espresso';
+    if (isEspresso) {
+      // Use espresso-specific add-ons
+      return ESPRESSO_ADDONS
+        .filter(a => selectedAddOns.has(a.id))
+        .reduce((s, a) => s + a.price, 0);
+    } else {
+      // Use regular add-ons from store
+      return addOnItems
+        .filter(a => selectedAddOns.has(a.id))
+        .reduce((s, a) => s + a.priceR, 0);
+    }
+  })();
+
   const subtotal = (basePrice + addOnsTotal) * quantity;
   const dv = parseFloat(discountValue) || 0;
   const discountAmt = discountType === 'percent' ? subtotal * (dv / 100) : dv;
@@ -104,16 +127,27 @@ function CustomizationModal({
   };
 
   const handleConfirm = () => {
+    const isEspresso = item.category === 'Espresso';
+    
+    // Build add-ons array based on item type
+    const addOnsArray = isEspresso
+      ? ESPRESSO_ADDONS
+          .filter(a => selectedAddOns.has(a.id))
+          .map(a => ({ id: a.id, name: a.name, price: a.price }))
+      : addOnItems
+          .filter(a => selectedAddOns.has(a.id))
+          .map(a => ({ id: a.id, name: a.name, price: a.priceR }));
+
     const cust: OrderItemCustomization = {
       size,
-      temperature: item.category === 'Espresso' ? temperature : undefined,
-      sugar,
-      ice: item.category === 'Espresso' ? 'Normal Ice' : ice,
-      addOns: addOnItems
-        .filter(a => selectedAddOns.has(a.id))
-        .map(a => ({ id: a.id, name: a.name, price: a.priceR })),
+      temperature: isEspresso ? temperature : undefined,
+      // For Espresso: no sugar level
+      sugar: isEspresso ? undefined : sugar,
+      ice: isEspresso ? 'Normal Ice' : ice,
+      addOns: addOnsArray,
       discount: dv > 0 ? { type: discountType, value: dv } : null,
     };
+    
     const oi: OrderItem = {
       id: crypto.randomUUID(),
       menuItemId: item.id,
@@ -188,8 +222,8 @@ function CustomizationModal({
             </div>
           )}
 
-          {/* Sugar */}
-          {isDrink && (
+          {/* Sugar - NOT for Espresso! */}
+          {isDrink && !isEspresso && (
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">Sugar Level</label>
               <div className="flex flex-wrap gap-2">
@@ -232,24 +266,44 @@ function CustomizationModal({
             </div>
           )}
 
-          {/* Add-ons */}
-          {isDrink && addOnItems.length > 0 && (
+          {/* Add-ons - Different for Espresso vs Regular */}
+          {isDrink && (
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Add-ons</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                {isEspresso ? 'Espresso Add-ons' : 'Add-ons'}
+              </label>
               <div className="flex flex-wrap gap-2">
-                {addOnItems.map(a => (
-                  <button
-                    key={a.id}
-                    onClick={() => toggleAddOn(a.id)}
-                    className={`px-4 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${
-                      selectedAddOns.has(a.id)
-                        ? 'border-sky-600 bg-sky-50 text-sky-700'
-                        : 'border-gray-200 text-gray-600'
-                    }`}
-                  >
-                    {a.name} +₱{a.priceR}
-                  </button>
-                ))}
+                {isEspresso ? (
+                  // Espresso-specific add-ons
+                  ESPRESSO_ADDONS.map(a => (
+                    <button
+                      key={a.id}
+                      onClick={() => toggleAddOn(a.id)}
+                      className={`px-4 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${
+                        selectedAddOns.has(a.id)
+                          ? 'border-sky-600 bg-sky-50 text-sky-700'
+                          : 'border-gray-200 text-gray-600'
+                      }`}
+                    >
+                      {a.name} +₱{a.price}
+                    </button>
+                  ))
+                ) : (
+                  // Regular add-ons
+                  addOnItems.map(a => (
+                    <button
+                      key={a.id}
+                      onClick={() => toggleAddOn(a.id)}
+                      className={`px-4 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${
+                        selectedAddOns.has(a.id)
+                          ? 'border-sky-600 bg-sky-50 text-sky-700'
+                          : 'border-gray-200 text-gray-600'
+                      }`}
+                    >
+                      {a.name} +₱{a.priceR}
+                    </button>
+                  ))
+                )}
               </div>
             </div>
           )}
@@ -1259,7 +1313,7 @@ function DashboardScreen() {
 }
 
 // ─────────────────────────────────────────────
-// SCREEN 5: REPORTS WITH EXPORT - ULTIMATE FIX
+// SCREEN 5: REPORTS WITH EXPORT - WITH MONTHLY TOTAL
 // ─────────────────────────────────────────────
 function ReportsScreen() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -1284,44 +1338,45 @@ function ReportsScreen() {
     }
   };
 
-const handleExport = async (startDate: Date, endDate: Date, type: 'csv' | 'json') => {
-  const { getOrdersByDateRange } = await import('@/lib/store');
-  const ExcelExport = (await import('@/lib/excelExport')).default;
-  
-  // Get ALL orders
-  const allOrders = await getOrders();
-  
-  // Convert dates to YYYY-MM-DD for comparison
-  const startStr = startDate.toISOString().split('T')[0];
-  const endStr = endDate.toISOString().split('T')[0];
-  
-  console.log('🔍 Searching from', startStr, 'to', endStr);
-  
-  // Filter by date (compare just the date part)
-  const ordersInRange = allOrders.filter(order => {
-    const orderDate = order.createdAt.split('T')[0]; // Gets "2026-02-13"
-    return orderDate >= startStr && orderDate <= endStr;
-  });
-  
-  console.log('📊 Found orders:', ordersInRange.length);
-  
-  if (ordersInRange.length === 0) {
-    alert(`❌ No orders found from ${startStr} to ${endStr}`);
-    return;
-  }
+  const handleExport = async (startDate: Date, endDate: Date, type: 'csv' | 'json') => {
+    const { getOrdersByDateRange } = await import('@/lib/store');
+    const ExcelExport = (await import('@/lib/excelExport')).default;
+    
+    // Get ALL orders
+    const allOrders = await getOrders();
+    
+    // Convert dates to YYYY-MM-DD for comparison
+    const startStr = startDate.toISOString().split('T')[0];
+    const endStr = endDate.toISOString().split('T')[0];
+    
+    console.log('🔍 Searching from', startStr, 'to', endStr);
+    
+    // Filter by date (compare just the date part)
+    const ordersInRange = allOrders.filter(order => {
+      const orderDate = order.createdAt.split('T')[0]; // Gets "2026-02-13"
+      return orderDate >= startStr && orderDate <= endStr;
+    });
+    
+    console.log('📊 Found orders:', ordersInRange.length);
+    
+    if (ordersInRange.length === 0) {
+      alert(`❌ No orders found from ${startStr} to ${endStr}`);
+      return;
+    }
 
-  const filename = `ocean-brew-orders_${startStr}_to_${endStr}`;
-  
-  if (type === 'csv') {
-    ExcelExport.exportToCSV(ordersInRange, filename);
-  } else {
-    ExcelExport.exportToJSON(ordersInRange, filename);
-  }
+    const filename = `ocean-brew-orders_${startStr}_to_${endStr}`;
+    
+    if (type === 'csv') {
+      ExcelExport.exportToCSV(ordersInRange, filename);
+    } else {
+      ExcelExport.exportToJSON(ordersInRange, filename);
+    }
 
-  setExportSuccess(`✅ Exported ${ordersInRange.length} orders from ${startStr} to ${endStr}`);
-  setTimeout(() => setExportSuccess(''), 5000);
-  setShowDatePicker(false);
-};
+    setExportSuccess(`✅ Exported ${ordersInRange.length} orders from ${startStr} to ${endStr}`);
+    setTimeout(() => setExportSuccess(''), 5000);
+    setShowDatePicker(false);
+  };
+
   // Sales calculations
   const salesByDay: Record<string, number> = {};
   orders.forEach(o => {
@@ -1329,6 +1384,27 @@ const handleExport = async (startDate: Date, endDate: Date, type: 'csv' | 'json'
     salesByDay[day] = (salesByDay[day] || 0) + o.total;
   });
   const sortedDays = Object.entries(salesByDay).sort((a, b) => b[0].localeCompare(a[0]));
+
+  // Calculate monthly totals
+  const salesByMonth: Record<string, number> = {};
+  orders.forEach(o => {
+    const month = o.createdAt.slice(0, 7); // Gets "2026-02"
+    salesByMonth[month] = (salesByMonth[month] || 0) + o.total;
+  });
+  const sortedMonths = Object.entries(salesByMonth).sort((a, b) => b[0].localeCompare(a[0]));
+
+  // Calculate current month total
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const currentMonthTotal = salesByMonth[currentMonth] || 0;
+
+  // Previous month total (for comparison)
+  const prevDate = new Date();
+  prevDate.setMonth(prevDate.getMonth() - 1);
+  const prevMonth = prevDate.toISOString().slice(0, 7);
+  const prevMonthTotal = salesByMonth[prevMonth] || 0;
+  const monthOverMonthChange = prevMonthTotal > 0 
+    ? ((currentMonthTotal - prevMonthTotal) / prevMonthTotal * 100).toFixed(1)
+    : '0';
 
   const salesByItem: Record<string, { name: string; qty: number; revenue: number }> = {};
   orders.forEach(o => {
@@ -1360,7 +1436,7 @@ const handleExport = async (startDate: Date, endDate: Date, type: 'csv' | 'json'
         </div>
       </div>
     );
-  }
+ }
 
   return (
     <div className="flex-1 p-6 overflow-y-auto bg-gray-100">
@@ -1405,10 +1481,44 @@ const handleExport = async (startDate: Date, endDate: Date, type: 'csv' | 'json'
         </div>
       )}
 
+      {/* MONTHLY SUMMARY CARDS */}
+      {sortedMonths.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          {/* Current Month Card */}
+          <div className="bg-gradient-to-br from-sky-500 to-sky-600 rounded-2xl shadow-sm p-5 text-white">
+            <p className="text-sm opacity-90 mb-1">Current Month</p>
+            <p className="text-3xl font-bold">{currentMonth}</p>
+            <p className="text-2xl font-bold mt-2">₱{currentMonthTotal.toFixed(2)}</p>
+            <div className="flex items-center mt-2 text-sm">
+              <span className={`${monthOverMonthChange >= '0' ? 'text-green-200' : 'text-red-200'}`}>
+                {monthOverMonthChange}% vs last month
+              </span>
+            </div>
+          </div>
+
+          {/* Monthly Breakdown */}
+          <div className="bg-white rounded-2xl shadow-sm border p-5 col-span-2">
+            <h3 className="font-semibold text-gray-700 mb-3">Monthly Totals</h3>
+            <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
+              {sortedMonths.map(([month, total]) => {
+                const [year, mon] = month.split('-');
+                const monthName = new Date(parseInt(year), parseInt(mon)-1).toLocaleString('default', { month: 'short' });
+                return (
+                  <div key={month} className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600">{monthName} {year}</span>
+                    <span className="font-semibold text-gray-800">₱{total.toFixed(2)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sales by Day */}
       {sortedDays.length > 0 && (
         <div className="bg-white rounded-2xl shadow-sm border p-5 mb-6">
-          <h2 className="font-bold text-lg text-gray-800 mb-4">Sales Summary by Day</h2>
+          <h2 className="font-bold text-lg text-gray-800 mb-4">Daily Sales</h2>
           <div className="space-y-2">
             {sortedDays.map(([day, total]) => (
               <div key={day} className="flex items-center gap-3">

@@ -7,9 +7,26 @@ declare global {
 }
 
 interface Bluetooth {
-  requestDevice(options: RequestDeviceOptions): Promise<BluetoothDevice>;
+  requestDevice(options: {
+    acceptAllDevices?: boolean;
+    filters?: Array<{
+      services?: string[];
+      name?: string;
+      namePrefix?: string;
+      manufacturerData?: Array<{
+        companyIdentifier: number;
+        dataPrefix?: BufferSource;
+        mask?: BufferSource;
+      }>;
+      serviceData?: Array<{
+        service: string;
+        dataPrefix?: BufferSource;
+        mask?: BufferSource;
+      }>;
+    }>;
+    optionalServices?: string[];
+  }): Promise<BluetoothDevice>;
 }
-
 interface BluetoothDevice {
   id: string;
   name?: string;

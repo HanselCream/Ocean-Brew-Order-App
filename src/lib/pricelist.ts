@@ -4,19 +4,12 @@ import { MenuItem } from './types';
 // hasSizeOption: true means R/L sizes available
 // priceR = Regular (or single price), priceL = Large
 export const DEFAULT_MENU: MenuItem[] = [
-  // ── Add Ons ──
+  // ── Add Ons (Regular) ──
   { id: 'ao-1', name: 'Rock Salt and Cheese', category: 'Add Ons', priceR: 35, priceL: null, available: true, hasSizeOption: false },
   { id: 'ao-2', name: 'Nata de Coco', category: 'Add Ons', priceR: 10, priceL: null, available: true, hasSizeOption: false },
   { id: 'ao-3', name: 'Crushed Oreos', category: 'Add Ons', priceR: 10, priceL: null, available: true, hasSizeOption: false },
   { id: 'ao-4', name: 'Cheesecake', category: 'Add Ons', priceR: 55, priceL: null, available: true, hasSizeOption: false },
   { id: 'ao-5', name: 'Black Pearls', category: 'Add Ons', priceR: 10, priceL: null, available: true, hasSizeOption: false },
-
-  // ── Add Ons (Espresso) ──
-  { id: 'aoe-1', name: 'Whipped Cream', category: 'Add Ons (Espresso)', priceR: 25, priceL: null, available: true, hasSizeOption: false },
-  { id: 'aoe-2', name: 'Extra Syrup', category: 'Add Ons (Espresso)', priceR: 25, priceL: null, available: true, hasSizeOption: false },
-  { id: 'aoe-3', name: 'Extra Sauce', category: 'Add Ons (Espresso)', priceR: 25, priceL: null, available: true, hasSizeOption: false },
-  { id: 'aoe-4', name: 'Espresso Shot', category: 'Add Ons (Espresso)', priceR: 55, priceL: null, available: true, hasSizeOption: false },
-  { id: 'aoe-5', name: 'Cold Foam', category: 'Add Ons (Espresso)', priceR: 30, priceL: null, available: true, hasSizeOption: false },
 
   // ── Appetizers ──
   { id: 'ap-1', name: 'Hotdog Roll (1)', category: 'Appetizers', priceR: 30, priceL: null, available: true, hasSizeOption: false },

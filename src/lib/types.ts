@@ -21,8 +21,8 @@ export type Size = 'R' | 'L';
 
 export interface OrderItemCustomization {
   size: Size;
-  temperature?: 'Hot' | 'Cold'; // NEW: Optional, only for Espresso
-  sugar: SugarLevel;
+  temperature?: 'Hot' | 'Cold';
+  sugar?: SugarLevel;  // Made optional for Espresso
   ice: IceLevel;
   addOns: { id: string; name: string; price: number }[];
   discount: { type: 'percent' | 'fixed'; value: number } | null;
@@ -53,7 +53,7 @@ export interface Order {
 export interface PrinterSettings {
   id: string;
   name: string;
-  address?: string; // Bluetooth MAC address or device ID
+  address?: string;
   isDefault: boolean;
 }
 
@@ -77,7 +77,6 @@ export interface ReceiptPrintJob {
 
 export const CATEGORIES = [
   'Add Ons',
-  'Add Ons (Espresso)',
   'Appetizers',
   'Barako Coffee',
   'Cheesecake',
