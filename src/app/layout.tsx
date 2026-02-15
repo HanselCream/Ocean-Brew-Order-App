@@ -8,6 +8,11 @@ import SimplePassword from "@/components/SimplePassword";
 export const metadata: Metadata = {
   title: "Ocean Brew POS",
   description: "Point of Sale System",
+  manifest: "/manifest.json", // ✅ ADD THIS
+  icons: {
+    icon: "/logo.jpg", // ✅ Points to your public/logo.jpg
+    apple: "/logo.jpg", // ✅ For iOS
+  },
 };
 
 export default function RootLayout({
@@ -18,8 +23,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>☕</text></svg>" />
-        {/* Simple emoji icon like Baby app */}
+        <link rel="icon" href="/logo.jpg" /> {/* ✅ Use your logo */}
+        <link rel="apple-touch-icon" href="/logo.jpg" /> {/* ✅ iOS home screen */}
+        <link rel="manifest" href="/manifest.json" /> {/* ✅ PWA manifest */}
+        <meta name="apple-mobile-web-app-capable" content="yes" />
       </head>
       <body className="antialiased">
         <SimplePassword>

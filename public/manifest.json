@@ -1,7 +1,7 @@
 {
   "name": "Ocean Brew POS",
   "short_name": "Ocean Brew",
-  "description": "Point of Sale System for Ocean Brew Coffee Shop",
+  "description": "Point of Sale System",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0284c7",
@@ -10,14 +10,12 @@
     {
       "src": "/logo.jpg",
       "sizes": "192x192",
-      "type": "image/jpeg",
-      "purpose": "any maskable"
+      "type": "image/jpeg"
     },
     {
       "src": "/logo.jpg",
       "sizes": "512x512",
-      "type": "image/jpeg",
-      "purpose": "any maskable"
+      "type": "image/jpeg"
     }
   ]
 }
