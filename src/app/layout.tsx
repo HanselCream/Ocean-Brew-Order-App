@@ -8,6 +8,7 @@ import SimplePassword from "@/components/SimplePassword";
 export const metadata: Metadata = {
   title: "Ocean Brew Drink Control",
   description: "Order Taking, Barista Queue & Sales Tracking",
+  manifest: "/manifest.json", // ✅ ADD THIS
   icons: {
     icon: '/logo.jpg',
     apple: '/logo.jpg',
@@ -24,6 +25,9 @@ export default function RootLayout({
       <head>
         <link rel="icon" href="/logo.jpg" />
         <link rel="apple-touch-icon" href="/logo.jpg" />
+        <link rel="manifest" href="/manifest.json" /> {/* ✅ ADD THIS */}
+        <meta name="apple-mobile-web-app-capable" content="yes" /> {/* ✅ ADD THIS */}
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" /> {/* ✅ ADD THIS */}
       </head>
       <body className="antialiased">
         <SimplePassword>
@@ -45,6 +49,16 @@ export default function RootLayout({
               data-debug="true"
               data-custom-data='{"appName": "YourApp", "version": "1.0.0", "greeting": "hi"}'
             />
+            {/* Register Service Worker */}
+            <Script id="register-sw" strategy="afterInteractive">
+              {`
+                if ('serviceWorker' in navigator) {
+                  navigator.serviceWorker.register('/sw.js')
+                    .then(reg => console.log('✅ Service Worker registered'))
+                    .catch(err => console.log('❌ Service Worker error:', err));
+                }
+              `}
+            </Script>
             {children}
           </DatabaseInitializer>
         </SimplePassword>
