@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import PrinterService from '@/lib/printerService';
-import { getStoreSettings } from '@/lib/store';
 import PrinterSettingsModal from '@/components/PrinterSettingsModal';
 import DateRangePicker from '@/components/DateRangePicker';
 import AdminPasswordModal from '@/components/AdminPasswordModal';
+import ExcelExport from '@/lib/excelExport';
 
 import {
   MenuItem,
@@ -25,7 +25,11 @@ import {
   updateOrder,
   getNextOrderNumber,
   getAddOnItems,
-} from '@/lib/store';
+  getDatabaseStats,
+  getOrdersByDateRange,
+  getStoreSettings,  // ← ADD THIS LINE
+} from '@/lib/supabaseStore';
+import { supabase } from '@/lib/supabaseClient';
 
 // ─────────────────────────────────────────────
 // NAV BAR
@@ -446,7 +450,7 @@ function PrintConfirmationModal({
     setPrintError('');
 
     try {
-      const settings = getStoreSettings();
+      const settings = getStoreSettings(); // ← This is failing
       await PrinterService.printReceipt(order, settings);
       onConfirm();
     } catch (error) {
@@ -556,12 +560,51 @@ function OrderScreen({ onOrderPlaced }: { onOrderPlaced: () => void }) {
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [showPrinterSettings, setShowPrinterSettings] = useState(false);
 
-  useEffect(() => {
-    setMenu(getMenu());
-    setAddOnItems(getAddOnItems());
-  }, []);
+useEffect(() => {
+  const loadMenu = async () => {
+    try {
+      const menuData = await getMenu();
+      console.log('📋 Menu loaded:', menuData);
+      setMenu(Array.isArray(menuData) ? menuData : []);
+      
+      const addOnsData = await getAddOnItems();
+      setAddOnItems(Array.isArray(addOnsData) ? addOnsData : []);
+    } catch (error) {
+      console.error('Failed to load menu:', error);
+      setMenu([]); // Always set to array even on error
+      setAddOnItems([]);
+    }
+  };
+  
+  loadMenu();
+}, []);
 
-  const categories = Array.from(new Set(menu.map(m => m.category)));
+// Define your desired category order
+const CATEGORY_ORDER = [
+  'Add Ons',
+  'Appetizers', 
+  'Barako Coffee',
+  'Cheesecake',
+  'Classic',
+  'Cream Soda',
+  'Espresso',
+  'Iced Tea',
+  'Island Pop',
+  'Refreshers',
+  'Rock Salt and Cheese',
+  'Merchandise',
+  'Supplies'
+];
+
+// Get unique categories from menu and sort by your custom order
+const categories = Array.from(new Set(menu.map(m => m.category)))
+  .sort((a, b) => {
+    const indexA = CATEGORIES.indexOf(a as any);
+    const indexB = CATEGORIES.indexOf(b as any);
+    if (indexA === -1) return 1;
+    if (indexB === -1) return -1;
+    return indexA - indexB;
+  });
   const filteredItems = menu.filter(m => m.category === activeCategory && m.available);
 
   const addToCart = (orderItem: OrderItem) => {
@@ -583,12 +626,16 @@ function OrderScreen({ onOrderPlaced }: { onOrderPlaced: () => void }) {
 
   const cancelOrder = () => setCart([]);
 
-  const generateOrder = async () => {
-    if (cart.length === 0) return;
+const generateOrder = async () => {
+  if (cart.length === 0) return;
+  
+  try {
+    const nextOrderNumberStr = await getNextOrderNumber();
+    const nextOrderNumber = parseInt(nextOrderNumberStr);
     
     const order: Order = {
-      id: crypto.randomUUID(),
-      orderNumber: getNextOrderNumber(),
+      id: '', // Temporary - will be replaced by database
+      orderNumber: nextOrderNumber,
       items: cart,
       subtotal,
       discount: totalDiscount,
@@ -597,10 +644,17 @@ function OrderScreen({ onOrderPlaced }: { onOrderPlaced: () => void }) {
       status: 'pending',
     };
     
+    console.log('📝 Order to save:', order);
+    
     await saveOrder(order);
     setPendingOrder(order);
     setShowPrintModal(true);
-  };
+    setCart([]);
+  } catch (error) {
+    console.error('❌ Failed to save order:', error);
+    alert('Failed to save order. Check console for details.');
+  }
+};
 
   const handlePrintConfirm = async () => {
     if (!pendingOrder) return;
@@ -881,6 +935,22 @@ function QueueScreen({ refreshKey }: { refreshKey: number }) {
 
   useEffect(() => {
     loadPendingOrders();
+
+    // Subscribe to real-time changes
+    const subscription = supabase
+      .channel('orders_channel')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        () => {
+          loadPendingOrders(); // refresh when any order changes
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe(); // cleanup
+    };
   }, [refreshKey]);
 
   const loadPendingOrders = async () => {
@@ -999,18 +1069,42 @@ function QueueScreen({ refreshKey }: { refreshKey: number }) {
 // SCREEN 3: ADMIN MENU (Password Protected)
 // ─────────────────────────────────────────────
 function AdminScreen() {
-  const [menu, setMenuState] = useState<MenuItem[]>([]);
-  const [editing, setEditing] = useState<MenuItem | null>(null);
-  const [isNew, setIsNew] = useState(false);
-  const [isLocked, setIsLocked] = useState(true);
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
+ const [menu, setMenuState] = useState<MenuItem[]>([]);
+const [editing, setEditing] = useState<MenuItem | null>(null);
+const [isNew, setIsNew] = useState(false);
+const [isLocked, setIsLocked] = useState(true);
+const [showPasswordModal, setShowPasswordModal] = useState(false);
+const [loading, setLoading] = useState(true);
 
-  useEffect(() => { 
-    setMenuState(getMenu());
-    // Show password modal when admin screen loads
-    setShowPasswordModal(true);
-  }, []);
+useEffect(() => { 
+  const loadMenu = async () => {
+    setLoading(true);
+    try {
+      console.log('🔄 Loading menu in AdminScreen...');
+      const menuData = await getMenu();
+      console.log('✅ Menu loaded:', menuData);
+      console.log('📊 Is array?', Array.isArray(menuData));
+      console.log('🔢 Length:', menuData?.length);
+      
+      // Ensure menuData is an array
+      setMenuState(Array.isArray(menuData) ? menuData : []);
+    } catch (error) {
+      console.error('❌ Failed to load menu:', error);
+      setMenuState([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  loadMenu();
+  // Show password modal when admin screen loads
+  setShowPasswordModal(true);
+}, []);
 
+// In render, add loading state:
+if (loading) {
+  return <div>Loading menu...</div>;
+}
   const handlePasswordSuccess = () => {
     setShowPasswordModal(false);
     setIsLocked(false);
@@ -1034,10 +1128,27 @@ function AdminScreen() {
     setIsNew(false);
   };
 
-  const deleteItem = (id: string) => {
-    const updated = menu.filter(m => m.id !== id);
-    saveMenu(updated);
-    setMenuState(updated);
+  const deleteItem = async (id: string) => {
+    try {
+      // Delete from Supabase directly
+      const { error } = await supabase
+        .from('menu_items')
+        .delete()
+        .eq('id', id);
+      
+      if (error) {
+        console.error('❌ Error deleting item:', error);
+        return;
+      }
+      
+      // Update local state
+      const updated = menu.filter(m => m.id !== id);
+      setMenuState(updated);
+      
+      console.log('✅ Deleted item:', id);
+    } catch (err) {
+      console.error('❌ Error in deleteItem:', err);
+    }
   };
 
   const toggleAvailability = (id: string) => {
@@ -1060,33 +1171,42 @@ function AdminScreen() {
   };
 
   // If locked, show password modal
-  if (isLocked) {
-    return (
-      <>
-        <div className="flex-1 p-4 overflow-y-auto bg-gray-100 flex items-center justify-center">
-          <div className="bg-white rounded-2xl shadow-sm border p-8 text-center max-w-md">
-            <div className="w-20 h-20 rounded-full bg-sky-100 flex items-center justify-center mx-auto mb-4">
-              <span className="text-4xl">🔒</span>
-            </div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">Admin Area Locked</h2>
-            <p className="text-gray-500 mb-6">Enter password to access menu management</p>
-            <button
-              onClick={() => setShowPasswordModal(true)}
-              className="px-6 py-3 rounded-xl bg-sky-600 text-white font-semibold hover:bg-sky-700"
-            >
-              Enter Password
-            </button>
+if (isLocked) {
+  return (
+    <>
+      <div className="flex-1 p-4 overflow-y-auto bg-gray-100 flex items-center justify-center">
+        <div className="bg-white rounded-2xl shadow-sm border p-8 text-center max-w-md">
+          <div className="w-20 h-20 rounded-full bg-sky-100 flex items-center justify-center mx-auto mb-4">
+            <span className="text-4xl">🔒</span>
           </div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Admin Area Locked</h2>
+          <p className="text-gray-500 mb-6">Enter password to access menu management</p>
+          <button
+            onClick={() => setShowPasswordModal(true)}
+            className="px-6 py-3 rounded-xl bg-sky-600 text-white font-semibold hover:bg-sky-700"
+          >
+            Enter Password
+          </button>
         </div>
+      </div>
 
-        <AdminPasswordModal
-          isOpen={showPasswordModal}
-          onSuccess={handlePasswordSuccess}
-          onCancel={handlePasswordCancel}
-        />
-      </>
-    );
-  }
+      <AdminPasswordModal
+        isOpen={showPasswordModal}
+        onSuccess={handlePasswordSuccess}
+        onCancel={handlePasswordCancel}
+      />
+    </>
+  );
+}
+
+// Add loading state here
+if (loading) {
+  return (
+    <div className="flex-1 p-4 overflow-y-auto bg-gray-100 flex items-center justify-center">
+      <div className="text-gray-500">Loading menu...</div>
+    </div>
+  );
+}
 
   return (
     <div className="flex-1 p-4 overflow-y-auto bg-gray-100">
@@ -1261,15 +1381,15 @@ function DashboardScreen() {
   });
   const bestSelling = Object.values(itemCounts).sort((a, b) => b.count - a.count)[0];
 
-  if (loading) {
-    return (
-      <div className="flex-1 p-6 overflow-y-auto bg-gray-100">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-gray-500">Loading dashboard...</div>
-        </div>
+if (loading) {
+  return (
+    <div className="flex-1 p-6 overflow-y-auto bg-gray-100">
+      <div className="flex items-center justify-center h-64">
+        <div className="text-gray-500">Loading reports...</div>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   return (
     <div className="flex-1 p-6 overflow-y-auto bg-gray-100">
@@ -1339,32 +1459,14 @@ function ReportsScreen() {
   };
 
   const handleExport = async (startDate: Date, endDate: Date, type: 'csv' | 'json') => {
-    const { getOrdersByDateRange } = await import('@/lib/store');
-    const ExcelExport = (await import('@/lib/excelExport')).default;
-    
-    // Get ALL orders
-    const allOrders = await getOrders();
-    
-    // Convert dates to YYYY-MM-DD for comparison
-    const startStr = startDate.toISOString().split('T')[0];
-    const endStr = endDate.toISOString().split('T')[0];
-    
-    console.log('🔍 Searching from', startStr, 'to', endStr);
-    
-    // Filter by date (compare just the date part)
-    const ordersInRange = allOrders.filter(order => {
-      const orderDate = order.createdAt.split('T')[0]; // Gets "2026-02-13"
-      return orderDate >= startStr && orderDate <= endStr;
-    });
-    
-    console.log('📊 Found orders:', ordersInRange.length);
+    const ordersInRange = await getOrdersByDateRange(startDate, endDate);
     
     if (ordersInRange.length === 0) {
-      alert(`❌ No orders found from ${startStr} to ${endStr}`);
+      alert(`❌ No orders found from ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}`);
       return;
     }
 
-    const filename = `ocean-brew-orders_${startStr}_to_${endStr}`;
+    const filename = `ocean-brew-orders_${startDate.toISOString().split('T')[0]}_to_${endDate.toISOString().split('T')[0]}`;
     
     if (type === 'csv') {
       ExcelExport.exportToCSV(ordersInRange, filename);
@@ -1372,7 +1474,7 @@ function ReportsScreen() {
       ExcelExport.exportToJSON(ordersInRange, filename);
     }
 
-    setExportSuccess(`✅ Exported ${ordersInRange.length} orders from ${startStr} to ${endStr}`);
+    setExportSuccess(`✅ Exported ${ordersInRange.length} orders`);
     setTimeout(() => setExportSuccess(''), 5000);
     setShowDatePicker(false);
   };
@@ -1388,7 +1490,7 @@ function ReportsScreen() {
   // Calculate monthly totals
   const salesByMonth: Record<string, number> = {};
   orders.forEach(o => {
-    const month = o.createdAt.slice(0, 7); // Gets "2026-02"
+    const month = o.createdAt.slice(0, 7);
     salesByMonth[month] = (salesByMonth[month] || 0) + o.total;
   });
   const sortedMonths = Object.entries(salesByMonth).sort((a, b) => b[0].localeCompare(a[0]));
@@ -1436,7 +1538,7 @@ function ReportsScreen() {
         </div>
       </div>
     );
- }
+  }
 
   return (
     <div className="flex-1 p-6 overflow-y-auto bg-gray-100">
@@ -1449,7 +1551,6 @@ function ReportsScreen() {
         <div className="flex gap-3">
           <button
             onClick={async () => {
-              const { getDatabaseStats } = await import('@/lib/store');
               const stats = await getDatabaseStats();
               alert(`📊 Database Stats\n\nTotal Orders: ${stats.totalOrders}\nOldest: ${stats.dateRange.oldest.toLocaleDateString()}\nNewest: ${stats.dateRange.newest.toLocaleDateString()}`);
             }}

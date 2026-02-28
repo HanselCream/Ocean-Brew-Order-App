@@ -23,9 +23,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <link rel="icon" href="/logo.jpg" /> {/* ✅ Use your logo */}
-        <link rel="apple-touch-icon" href="/logo.jpg" /> {/* ✅ iOS home screen */}
-        <link rel="manifest" href="/manifest.json" /> {/* ✅ PWA manifest */}
+        <link rel="icon" href="/logo.jpg" />
+        <link rel="apple-touch-icon" href="/logo.jpg" />
+        <link rel="manifest" href="/manifest.json" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
       </head>
       <body className="antialiased">
