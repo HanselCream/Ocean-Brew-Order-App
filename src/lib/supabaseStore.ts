@@ -341,32 +341,38 @@ export async function getStoreSettings() {
       .eq('id', 1)
       .single();
     
-    if (error) {
-      console.error('Error fetching settings:', error);
+    if (error || !data) {
+      // Return defaults
       return { 
-        storeName: 'Ocean Brew', 
-        address: '',
-        phone: '',
-        receiptHeader: '',
-        receiptFooter: '' 
+        storeName: 'Ocean Brew Siargao',
+        storeAddress: 'Lopez Jaena St. Brgy. 9 Dapa, Siargao Island',
+        storePhone: '0963-927-1591',
+        storeEmail: 'hello@oceanbrew.com',
+        wifiSSID: 'Ocean Brew WiFi',
+        wifiPassword: 'oceanbrew123',
+        receiptFooter: 'Thank you for visiting!',
       };
     }
     
     return {
-      storeName: data?.store_name || 'Ocean Brew',
-      address: data?.address || '',
-      phone: data?.phone || '',
-      receiptHeader: data?.receipt_header || '',
+      storeName: data?.store_name || 'Ocean Brew Siargao',
+      storeAddress: data?.address || '',
+      storePhone: data?.phone || '',
+      storeEmail: data?.email || '',
+      wifiSSID: data?.wifi_ssid || '',
+      wifiPassword: data?.wifi_password || '',
       receiptFooter: data?.receipt_footer || '',
     };
   } catch (err) {
     console.error('Error in getStoreSettings:', err);
     return { 
-      storeName: 'Ocean Brew', 
-      address: '',
-      phone: '',
-      receiptHeader: '',
-      receiptFooter: '' 
+      storeName: 'Ocean Brew Siargao',
+      storeAddress: 'Lopez Jaena St. Brgy. 9 Dapa, Siargao Island',
+      storePhone: '0963-927-1591',
+      storeEmail: 'hello@oceanbrew.com',
+      wifiSSID: 'Ocean Brew WiFi',
+      wifiPassword: 'oceanbrew123',
+      receiptFooter: 'Thank you for visiting!',
     };
   }
 }

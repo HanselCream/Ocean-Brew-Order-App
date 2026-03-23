@@ -247,7 +247,24 @@ function CustomizationModal({
               </div>
             </div>
           )}
-
+            {/* Quick Discount Buttons - Add this section */}
+            <div className="mb-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Quick Discount</label>
+              <div className="flex gap-2">
+                {[5, 10, 20].map(percent => (
+                  <button
+                    key={percent}
+                    onClick={() => {
+                      setDiscountType('percent');
+                      setDiscountValue(percent.toString());
+                    }}
+                    className="flex-1 py-2 rounded-lg bg-sky-100 text-sky-700 font-semibold hover:bg-sky-200 transition-colors"
+                  >
+                    {percent}%
+                  </button>
+                ))}
+              </div>
+            </div>
           {/* Ice - NOT for Espresso! */}
           {isDrink && !isEspresso && (
             <div>
@@ -440,26 +457,26 @@ function PrintConfirmationModal({
     setIsPrinterConnected(PrinterService.isConnected());
   }, []);
 
-  const handlePrint = async () => {
-    if (!PrinterService.isConnected()) {
-      setPrintError('Printer not connected. Please connect printer first.');
-      return;
-    }
+const handlePrint = async () => {
+  if (!PrinterService.isConnected()) {
+    setPrintError('Printer not connected. Please connect printer first.');
+    return;
+  }
 
-    setIsPrinting(true);
-    setPrintError('');
+  setIsPrinting(true);
+  setPrintError('');
 
-    try {
-      const settings = getStoreSettings(); // ← This is failing
-      await PrinterService.printReceipt(order, settings);
-      onConfirm();
-    } catch (error) {
-      setPrintError('Failed to print: ' + error);
-    } finally {
-      setIsPrinting(false);
-    }
-  };
-
+  try {
+    const settings = await getStoreSettings(); // Make sure this is awaited
+    console.log('📋 Printer settings:', settings); // Debug
+    await PrinterService.printReceipt(order, settings);
+    onConfirm();
+  } catch (error) {
+    setPrintError('Failed to print: ' + error);
+  } finally {
+    setIsPrinting(false);
+  }
+};
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
@@ -925,13 +942,30 @@ const generateOrder = async () => {
   );
 }
 
-// ─────────────────────────────────────────────
+/// ─────────────────────────────────────────────
 // SCREEN 2: BARISTA QUEUE - FIXED WITH ASYNC/AWAIT
 // ─────────────────────────────────────────────
 function QueueScreen({ refreshKey }: { refreshKey: number }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [showPrinterSettings, setShowPrinterSettings] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Delete test order function - place this BEFORE useEffect
+  const deleteTestOrder = async (id: string) => {
+    if (confirm('Remove this test order? It will not affect sales totals.')) {
+      try {
+        // Option 1: Soft delete - just mark as cancelled
+        await updateOrder(id, { status: 'cancelled' });
+        
+        // Option 2: Hard delete - uncomment if you want to remove completely
+        // await supabase.from('orders').delete().eq('id', id);
+        
+        loadPendingOrders(); // Refresh the queue
+      } catch (error) {
+        console.error('Failed to delete test order:', error);
+      }
+    }
+  };
 
   useEffect(() => {
     loadPendingOrders();
@@ -1015,9 +1049,19 @@ function QueueScreen({ refreshKey }: { refreshKey: number }) {
           <div key={order.id} className="bg-white rounded-2xl shadow-sm border p-4">
             <div className="flex items-center justify-between mb-3">
               <span className="text-2xl font-bold text-sky-700">#{order.orderNumber}</span>
-              <span className="text-sm text-gray-400">
-                {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-400">
+                  {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+                {/* X BUTTON FOR TESTING - ADD THIS */}
+                <button
+                  onClick={() => deleteTestOrder(order.id)}
+                  className="text-red-500 hover:text-red-700 font-bold text-xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-50"
+                  title="Remove test order"
+                >
+                  ×
+                </button>
+              </div>
             </div>
             <div className="space-y-2 mb-4">
               {order.items.map(item => (
@@ -1064,6 +1108,8 @@ function QueueScreen({ refreshKey }: { refreshKey: number }) {
     </div>
   );
 }
+
+
 
 // ─────────────────────────────────────────────
 // SCREEN 3: ADMIN MENU (Password Protected)

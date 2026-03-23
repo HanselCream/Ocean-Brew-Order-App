@@ -179,37 +179,51 @@ class PrinterService {
    * - Real thermal printer → Sends ESC/POS commands
    * - Phone/Tablet → Shows alert with receipt
    */
-  async printReceipt(order: any, settings: any): Promise<void> {
-    const receipt = this.generateReceiptText(order, settings);
-    
-    // CASE 1: REAL THERMAL PRINTER CONNECTED
-    if (this.printerCharacteristic) {
-      try {
-        console.log('🖨️ Printing to thermal printer...');
-        const encoder = new TextEncoder();
-        const commands = this.createESCPOSCommands(receipt);
-        
-        // Send in chunks
-        const chunkSize = 512;
-        for (let i = 0; i < commands.length; i += chunkSize) {
-          const chunk = commands.slice(i, i + chunkSize);
-          await this.printerCharacteristic.writeValue(chunk);
-          await new Promise(resolve => setTimeout(resolve, 20));
-        }
-        
-        console.log('✅ Receipt printed successfully!');
-        return;
-      } catch (error) {
-        console.error('❌ Thermal printer error:', error);
-        // Fall back to test mode
-        console.log('📱 Falling back to test mode...');
-      }
-    }
-    
-    // CASE 2: TEST MODE - Phone/Tablet/No printer
-    this.showTestReceipt(order, settings, receipt);
-  }
+async printReceipt(order: any, settings: any): Promise<void> {
+  // FIX: Hardcoded defaults as ultimate backup
+  const DEFAULT_SETTINGS = {
+    storeName: 'Ocean Brew Siargao',
+    storeAddress: 'Lopez Jaena St. Brgy. 9 Dapa, Siargao Island',
+    storePhone: '0963-927-1591',
+    storeEmail: 'hello@oceanbrew.com',
+    wifiSSID: 'Ocean Brew WiFi',
+    wifiPassword: 'oceanbrew123',
+    receiptFooter: 'Thank you for visiting!'
+  };
 
+  // Merge settings with defaults (settings overrides defaults)
+  const safeSettings = {
+    ...DEFAULT_SETTINGS,
+    ...(settings || {})
+  };
+
+  console.log('🖨️ Printing with settings:', safeSettings); // Debug
+
+  const receipt = this.generateReceiptText(order, safeSettings);
+  
+  // CASE 1: REAL THERMAL PRINTER CONNECTED
+  if (this.printerCharacteristic) {
+    try {
+      console.log('🖨️ Printing to thermal printer...');
+      const commands = this.createESCPOSCommands(receipt);
+      
+      const chunkSize = 512;
+      for (let i = 0; i < commands.length; i += chunkSize) {
+        const chunk = commands.slice(i, i + chunkSize);
+        await this.printerCharacteristic.writeValue(chunk);
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
+      
+      console.log('✅ Receipt printed successfully!');
+      return;
+    } catch (error) {
+      console.error('❌ Thermal printer error:', error);
+    }
+  }
+  
+  // CASE 2: TEST MODE
+  this.showTestReceipt(order, safeSettings, receipt);
+}
   /**
    * SHOW TEST RECEIPT - For phone testing
    */
@@ -238,17 +252,16 @@ Pass: ${settings.wifiPassword}
   /**
    * GENERATE RECEIPT TEXT
    */
-  private generateReceiptText(order: any, settings: any): string {
-    const date = new Date(order.createdAt).toLocaleString();
-    let receipt = '';
+private generateReceiptText(order: any, settings: any): string {
+  const date = new Date(order.createdAt).toLocaleString();
+  let receipt = '';
     
-    // Header
-    receipt += `${settings.storeName}\n`;
-    receipt += '='.repeat(32) + '\n';
-    receipt += `${settings.storeAddress}\n`;
-    receipt += `Tel: ${settings.storePhone}\n`;
-    if (settings.storeEmail) receipt += `${settings.storeEmail}\n`;
-    receipt += '='.repeat(32) + '\n\n';
+  receipt += `${settings?.storeName || 'Ocean Brew Siargao'}\n`;
+  receipt += '='.repeat(32) + '\n';
+  receipt += `${settings?.storeAddress || 'Lopez Jaena St. Brgy. 9 Dapa, Siargao Island'}\n`;
+  receipt += `Tel: ${settings?.storePhone || '0963-927-1591'}\n`;
+  if (settings?.storeEmail) receipt += `${settings.storeEmail}\n`;
+  receipt += '='.repeat(32) + '\n\n';
     
     // Order info
     receipt += `Order #: ${order.orderNumber}\n`;
