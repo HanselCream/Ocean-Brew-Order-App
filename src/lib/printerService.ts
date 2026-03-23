@@ -255,67 +255,85 @@ Pass: ${settings.wifiPassword}
 private generateReceiptText(order: any, settings: any): string {
   const date = new Date(order.createdAt).toLocaleString();
   let receipt = '';
-    
-  receipt += `${settings?.storeName || 'Ocean Brew Siargao'}\n`;
+  
+  // Header
+  receipt += `${settings.storeName}\n`;
   receipt += '='.repeat(32) + '\n';
-  receipt += `${settings?.storeAddress || 'Lopez Jaena St. Brgy. 9 Dapa, Siargao Island'}\n`;
-  receipt += `Tel: ${settings?.storePhone || '0963-927-1591'}\n`;
-  if (settings?.storeEmail) receipt += `${settings.storeEmail}\n`;
+  receipt += `${settings.storeAddress}\n`;
+  receipt += `Tel: ${settings.storePhone}\n`;
+  if (settings.storeEmail) receipt += `${settings.storeEmail}\n`;
   receipt += '='.repeat(32) + '\n\n';
-    
-    // Order info
-    receipt += `Order #: ${order.orderNumber}\n`;
-    receipt += `Date: ${date}\n`;
-    receipt += '-'.repeat(32) + '\n';
-    
-    // Items
-    receipt += 'QTY  ITEM                    AMT\n';
-    receipt += '-'.repeat(32) + '\n';
-    
+  
+  // Order info
+  receipt += `Order #: ${order.orderNumber}\n`;
+  receipt += `Date: ${date}\n`;
+  receipt += '-'.repeat(32) + '\n';
+  
+  // Items - FIXED WITH DEBUG LOGGING
+  receipt += 'QTY  ITEM                    AMT\n';
+  receipt += '-'.repeat(32) + '\n';
+  
+  console.log('🔍 Printing items:', order.items); // DEBUG
+  
+  if (order.items && order.items.length > 0) {
     order.items.forEach((item: any) => {
-      const name = item.name.substring(0, 20);
-      receipt += `${item.quantity.toString().padStart(2)}   ${name.padEnd(20)} ₱${item.lineTotal.toFixed(2)}\n`;
+      // Get quantity (default to 1)
+      const qty = item.quantity || 1;
+      
+      // Get item name
+      const itemName = item.name || 'Unknown Item';
+      const name = itemName.substring(0, 20);
+      
+      // Get line total
+      const lineTotal = item.lineTotal || (item.basePrice * qty);
+      
+      receipt += `${qty.toString().padStart(2)}   ${name.padEnd(20)} ₱${lineTotal.toFixed(2)}\n`;
       
       // Customizations
       const cust = item.customization;
-      const custText = [];
-      if (cust.size) custText.push(cust.size);
-      if (cust.temperature) custText.push(cust.temperature);
-      if (cust.sugar && cust.sugar !== '100%') custText.push(`${cust.sugar} sugar`);
-      if (cust.ice && cust.ice !== 'Normal Ice') custText.push(cust.ice);
-      
-      if (custText.length > 0) {
-        receipt += `     ${custText.join(' | ')}\n`;
-      }
-      
-      // Add-ons
-      if (cust.addOns && cust.addOns.length > 0) {
-        receipt += `     +${cust.addOns.map((a: any) => a.name).join(', ')}\n`;
+      if (cust) {
+        const custText = [];
+        if (cust.size) custText.push(cust.size);
+        if (cust.temperature) custText.push(cust.temperature);
+        if (cust.sugar && cust.sugar !== '100%') custText.push(`${cust.sugar} sugar`);
+        if (cust.ice && cust.ice !== 'Normal Ice') custText.push(cust.ice);
+        
+        if (custText.length > 0) {
+          receipt += `     ${custText.join(' | ')}\n`;
+        }
+        
+        // Add-ons
+        if (cust.addOns && cust.addOns.length > 0) {
+          receipt += `     +${cust.addOns.map((a: any) => a.name).join(', ')}\n`;
+        }
       }
     });
-    
-    receipt += '-'.repeat(32) + '\n';
-    receipt += `Subtotal:               ₱${order.subtotal.toFixed(2)}\n`;
-    
-    if (order.discount > 0) {
-      receipt += `Discount:              -₱${order.discount.toFixed(2)}\n`;
-    }
-    
-    receipt += `TOTAL:                 ₱${order.total.toFixed(2)}\n`;
-    receipt += '='.repeat(32) + '\n\n';
-    
-    // WiFi info
-    if (settings.wifiSSID && settings.wifiPassword) {
-      receipt += `WiFi: ${settings.wifiSSID}\n`;
-      receipt += `Pass: ${settings.wifiPassword}\n\n`;
-    }
-    
-    // Footer
-    receipt += `${settings.receiptFooter || 'Thank you for visiting!'}\n`;
-    receipt += `Visit us again!\n\n\n`;
-    
-    return receipt;
+  } else {
+    receipt += 'No items found in order\n';
   }
+  
+  receipt += '-'.repeat(32) + '\n';
+  receipt += `Subtotal:               ₱${(order.subtotal || 0).toFixed(2)}\n`;
+  
+  if (order.discount && order.discount > 0) {
+    receipt += `Discount:              -₱${order.discount.toFixed(2)}\n`;
+  }
+  
+  receipt += `TOTAL:                 ₱${(order.total || 0).toFixed(2)}\n`;
+  receipt += '='.repeat(32) + '\n\n';
+  
+  // WiFi info
+  if (settings.wifiSSID && settings.wifiPassword) {
+    receipt += `WiFi: ${settings.wifiSSID}\n`;
+    receipt += `Pass: ${settings.wifiPassword}\n\n`;
+  }
+  
+  // Footer
+  receipt += `${settings.receiptFooter}\n`;
+  receipt += `Visit us again!\n\n\n`;
+  
+  return receipt;
+}
 
   /**
    * CREATE ESC/POS COMMANDS - For thermal printers
