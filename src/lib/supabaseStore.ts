@@ -384,14 +384,20 @@ export async function saveStoreSettings(settings: any) {
       .upsert([{
         id: 1,
         store_name: settings.storeName,
-        address: settings.address,
-        phone: settings.phone,
-        receipt_header: settings.receiptHeader,
+        address: settings.storeAddress,
+        phone: settings.storePhone,
+        email: settings.storeEmail,
+        wifi_ssid: settings.wifiSSID,
+        wifi_password: settings.wifiPassword,
         receipt_footer: settings.receiptFooter,
         updated_at: new Date().toISOString()
       }]);
     
-    if (error) console.error('Error saving settings:', error);
+    if (error) {
+      console.error('Error saving settings:', error);
+    } else {
+      console.log('✅ Settings saved successfully');
+    }
   } catch (err) {
     console.error('Error in saveStoreSettings:', err);
   }

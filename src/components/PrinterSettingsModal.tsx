@@ -4,7 +4,7 @@
 
 import React, { useState, useEffect } from 'react';
 import PrinterService from '@/lib/printerService';
-import { getStoreSettings, saveStoreSettings } from '@/lib/store';
+import { getStoreSettings, saveStoreSettings } from '@/lib/supabaseStore';
 
 export default function PrinterSettingsModal({ isOpen, onClose, onSave }: { 
   isOpen: boolean; 
@@ -17,7 +17,11 @@ export default function PrinterSettingsModal({ isOpen, onClose, onSave }: {
 
   useEffect(() => {
     if (isOpen) {
-      setSettings(getStoreSettings());
+      const loadSettings = async () => {
+        const data = await getStoreSettings();
+        setSettings(data);
+      };
+      loadSettings();
     }
   }, [isOpen]);
 
@@ -53,11 +57,22 @@ export default function PrinterSettingsModal({ isOpen, onClose, onSave }: {
     setSettings(updated);
   };
 
-  const handleSave = () => {
-    saveStoreSettings(settings);
-    onSave();
-    onClose();
+const handleSave = () => {
+  // Map UI fields to database fields
+  const settingsToSave = {
+    storeName: settings.storeName,
+    storeAddress: settings.storeAddress,
+    storePhone: settings.storePhone,
+    storeEmail: settings.storeEmail,
+    wifiSSID: settings.wifiSSID,
+    wifiPassword: settings.wifiPassword,
+    receiptFooter: settings.receiptFooter
   };
+  
+  saveStoreSettings(settingsToSave);
+  onSave();
+  onClose();
+};
 
   const handleChange = (field: string, value: string) => {
     setSettings({ ...settings, [field]: value });
