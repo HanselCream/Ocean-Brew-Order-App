@@ -181,6 +181,11 @@ class PrinterService {
    */
 async printReceipt(order: any, settings: any): Promise<void> {
   // FIX: Hardcoded defaults as ultimate backup
+  console.log('🟢🟢🟢 PRINTER SERVICE DEBUG 🟢🟢🟢');
+  console.log('Order received in printReceipt service:', order);
+  console.log('Order items:', order.items);
+  console.log('Order items length:', order.items?.length);
+  
   const DEFAULT_SETTINGS = {
     storeName: 'Ocean Brew Siargao',
     storeAddress: 'Lopez Jaena St. Brgy. 9 Dapa, Siargao Island',
@@ -269,27 +274,31 @@ private generateReceiptText(order: any, settings: any): string {
   receipt += `Date: ${date}\n`;
   receipt += '-'.repeat(32) + '\n';
   
-  // Items - FIXED WITH DEBUG LOGGING
+  // Items section
   receipt += 'QTY  ITEM                    AMT\n';
   receipt += '-'.repeat(32) + '\n';
   
-  console.log('🔍 Printing items:', order.items); // DEBUG
+  // CRITICAL DEBUG: Show what we're working with
+  console.log('🔴🔴🔴 PRINTER DEBUG START 🔴🔴🔴');
+  console.log('order.items type:', typeof order.items);
+  console.log('order.items is array?', Array.isArray(order.items));
+  console.log('order.items value:', order.items);
+  console.log('order.items length:', order.items?.length);
   
   if (order.items && order.items.length > 0) {
-    order.items.forEach((item: any) => {
-      // Get quantity (default to 1)
+    order.items.forEach((item: any, index: number) => {
+      console.log(`Item ${index}:`, item);
+      console.log(`  - name: ${item.name}`);
+      console.log(`  - quantity: ${item.quantity}`);
+      console.log(`  - lineTotal: ${item.lineTotal}`);
+      
       const qty = item.quantity || 1;
-      
-      // Get item name
       const itemName = item.name || 'Unknown Item';
-      const name = itemName.substring(0, 20);
-      
-      // Get line total
+      const name = itemName.length > 20 ? itemName.substring(0, 20) : itemName;
       const lineTotal = item.lineTotal || (item.basePrice * qty);
       
       receipt += `${qty.toString().padStart(2)}   ${name.padEnd(20)} ₱${lineTotal.toFixed(2)}\n`;
       
-      // Customizations
       const cust = item.customization;
       if (cust) {
         const custText = [];
@@ -302,15 +311,17 @@ private generateReceiptText(order: any, settings: any): string {
           receipt += `     ${custText.join(' | ')}\n`;
         }
         
-        // Add-ons
         if (cust.addOns && cust.addOns.length > 0) {
           receipt += `     +${cust.addOns.map((a: any) => a.name).join(', ')}\n`;
         }
       }
     });
   } else {
-    receipt += 'No items found in order\n';
+    receipt += '*** NO ITEMS FOUND ***\n';
+    console.log('🔴 NO ITEMS! order.items is empty or undefined');
   }
+  
+  console.log('🔴🔴🔴 PRINTER DEBUG END 🔴🔴🔴');
   
   receipt += '-'.repeat(32) + '\n';
   receipt += `Subtotal:               ₱${(order.subtotal || 0).toFixed(2)}\n`;
@@ -334,7 +345,6 @@ private generateReceiptText(order: any, settings: any): string {
   
   return receipt;
 }
-
   /**
    * CREATE ESC/POS COMMANDS - For thermal printers
    */

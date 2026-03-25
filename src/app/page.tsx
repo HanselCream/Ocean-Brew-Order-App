@@ -1007,6 +1007,15 @@ function QueueScreen({ refreshKey }: { refreshKey: number }) {
   };
 
   const printReceipt = async (order: Order) => {
+  console.log('🔵🔵🔵 QUEUE PRINT DEBUG START 🔵🔵🔵');
+  console.log('Order received in printReceipt:', order);
+  console.log('Order number:', order.orderNumber);
+  console.log('Order items:', order.items);
+  console.log('Order items length:', order.items?.length);
+  console.log('First item:', order.items?.[0]);
+  console.log('First item name:', order.items?.[0]?.name);
+  console.log('🔵🔵🔵 QUEUE PRINT DEBUG END 🔵🔵🔵');
+    
     if (!PrinterService.isConnected()) {
       alert('Printer not connected. Please click the Printer Settings button to connect.');
       return;
@@ -1014,6 +1023,7 @@ function QueueScreen({ refreshKey }: { refreshKey: number }) {
 
     try {
       const settings = getStoreSettings();
+      console.log('Settings:', settings);
       await PrinterService.printReceipt(order, settings);
       alert(`Receipt #${order.orderNumber} sent to printer!`);
     } catch (error) {
