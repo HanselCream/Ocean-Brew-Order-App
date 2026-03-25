@@ -181,10 +181,13 @@ class PrinterService {
    */
 async printReceipt(order: any, settings: any): Promise<void> {
   // FIX: Hardcoded defaults as ultimate backup
-  console.log('🟢🟢🟢 PRINTER SERVICE DEBUG 🟢🟢🟢');
-  console.log('Order received in printReceipt service:', order);
+  console.log('🟢🟢🟢 PRINTER SERVICE DEBUG START 🟢🟢🟢');
+  console.log('Order received in printer service:', order);
+  console.log('Order number:', order.orderNumber);
   console.log('Order items:', order.items);
   console.log('Order items length:', order.items?.length);
+  console.log('First item:', order.items?.[0]);
+  console.log('🟢🟢🟢 PRINTER SERVICE DEBUG END 🟢🟢🟢');
   
   const DEFAULT_SETTINGS = {
     storeName: 'Ocean Brew Siargao',

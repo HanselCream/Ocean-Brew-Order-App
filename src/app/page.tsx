@@ -6,6 +6,7 @@ import PrinterSettingsModal from '@/components/PrinterSettingsModal';
 import DateRangePicker from '@/components/DateRangePicker';
 import AdminPasswordModal from '@/components/AdminPasswordModal';
 import ExcelExport from '@/lib/excelExport';
+import printerService from '@/lib/printerService';
 
 import {
   MenuItem,
@@ -458,7 +459,7 @@ function PrintConfirmationModal({
   }, []);
 
   const handlePrint = async () => {
-    if (!PrinterService.isConnected()) {
+    if (!printerService.isConnected()) {
       setPrintError('Printer not connected. Please connect printer first.');
       return;
     }
@@ -468,7 +469,7 @@ function PrintConfirmationModal({
 
     try {
       const settings = await getStoreSettings();
-      await PrinterService.printReceipt(order, settings);
+      await printerService.printReceipt(order, settings);
       
       // Update print count
       const newPrintCount = (order.printedCount || 0) + 1;
@@ -1426,6 +1427,9 @@ function AdminEditModal({
 // ─────────────────────────────────────────────
 // SCREEN 4: TODAY'S DASHBOARD - FIXED WITH ASYNC/AWAIT
 // ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// SCREEN 4: TODAY'S DASHBOARD - WITHOUT PRINT COLUMNS
+// ─────────────────────────────────────────────
 function DashboardScreen() {
   const [completedOrders, setCompletedOrders] = useState<Order[]>([]);
   const [showPrinterSettings, setShowPrinterSettings] = useState(false);
@@ -1465,7 +1469,7 @@ function DashboardScreen() {
   const bestSelling = Object.values(itemCounts).sort((a, b) => b.count - a.count)[0];
 
   const handleReprint = async (order: Order) => {
-    if (!PrinterService.isConnected()) {
+    if (!printerService.isConnected()) {
       alert('Printer not connected. Please connect printer first.');
       return;
     }
@@ -1474,16 +1478,6 @@ function DashboardScreen() {
     try {
       const settings = await getStoreSettings();
       await PrinterService.printReceipt(order, settings);
-      
-      // Update print count
-      const newPrintCount = (order.printedCount || 0) + 1;
-      await updateOrder(order.id, { 
-        printedCount: newPrintCount,
-        lastPrintedAt: new Date().toISOString()
-      });
-      
-      // Refresh the list
-      await loadCompletedOrders();
       alert(`Receipt #${order.orderNumber} reprinted successfully!`);
     } catch (error) {
       alert('Failed to reprint: ' + error);
@@ -1551,8 +1545,6 @@ function DashboardScreen() {
                   <th className="px-4 py-3 text-left">Time</th>
                   <th className="px-4 py-3 text-left">Items</th>
                   <th className="px-4 py-3 text-right">Total</th>
-                  <th className="px-4 py-3 text-center">Printed</th>
-                  <th className="px-4 py-3 text-center">Last Printed</th>
                   <th className="px-4 py-3 text-center">Actions</th>
                 </tr>
               </thead>
@@ -1575,16 +1567,6 @@ function DashboardScreen() {
                     </td>
                     <td className="px-4 py-3 text-right font-semibold">
                       ₱{order.total.toFixed(2)}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        {order.printedCount || 0} time(s)
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-center text-xs text-gray-500">
-                      {order.lastPrintedAt 
-                        ? new Date(order.lastPrintedAt).toLocaleTimeString()
-                        : 'Not printed'}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <button
