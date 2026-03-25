@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import PrinterService from '@/lib/printerService';
 import PrinterSettingsModal from '@/components/PrinterSettingsModal';
 import DateRangePicker from '@/components/DateRangePicker';
 import AdminPasswordModal from '@/components/AdminPasswordModal';
@@ -404,9 +403,9 @@ function PrinterStatusBar({ onOpenSettings }: { onOpenSettings: () => void }) {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setIsConnected(PrinterService.isConnected());
-      setDeviceName(PrinterService.getDeviceName());
-      setConnectionType(PrinterService.getConnectionType());
+      setIsConnected(printerService.isConnected());
+      setDeviceName(printerService.getDeviceName());
+      setConnectionType(printerService.getConnectionType());
     }, 2000);
     return () => clearInterval(interval);
   }, []);
@@ -452,10 +451,10 @@ function PrintConfirmationModal({
 }) {
   const [isPrinting, setIsPrinting] = useState(false);
   const [printError, setPrintError] = useState('');
-  const [isPrinterConnected, setIsPrinterConnected] = useState(PrinterService.isConnected());
+  const [isPrinterConnected, setIsPrinterConnected] = useState(printerService.isConnected());
 
   useEffect(() => {
-    setIsPrinterConnected(PrinterService.isConnected());
+    setIsPrinterConnected(printerService.isConnected());
   }, []);
 
   const handlePrint = async () => {
@@ -686,7 +685,7 @@ const generateOrder = async () => {
     
     try {
       const settings = getStoreSettings();
-      await PrinterService.printReceipt(pendingOrder, settings);
+      await printerService.printReceipt(pendingOrder, settings);
       setShowPrintSuccess(true);
       setTimeout(() => setShowPrintSuccess(false), 3000);
     } catch (error) {
@@ -712,7 +711,7 @@ const generateOrder = async () => {
   };
 
   const testPrint = async () => {
-    if (!PrinterService.isConnected()) {
+    if (!printerService.isConnected()) {
       setPrintError('Printer not connected. Please connect printer first.');
       setTimeout(() => setPrintError(''), 3000);
       return;
@@ -742,7 +741,7 @@ const generateOrder = async () => {
         id: 'test',
         status: 'pending'
       };
-      await PrinterService.printReceipt(testOrder, settings);
+      await printerService.printReceipt(testOrder, settings);
       setShowPrintSuccess(true);
       setTimeout(() => setShowPrintSuccess(false), 3000);
     } catch (error) {
@@ -809,7 +808,7 @@ const generateOrder = async () => {
         <div className="px-4 py-3 border-b bg-sky-600 text-white flex justify-between items-center">
           <h2 className="font-bold text-base">Current Order</h2>
           <div className="flex items-center gap-2">
-            {PrinterService.isConnected() && (
+            {printerService.isConnected() && (
               <button
                 onClick={testPrint}
                 className="px-2 py-1 bg-purple-500 rounded-lg text-xs font-semibold hover:bg-purple-600 transition-colors"
@@ -1007,7 +1006,7 @@ function QueueScreen({ refreshKey }: { refreshKey: number }) {
     }
   };
 
-  const printReceipt = async (order: Order) => {
+const printReceipt = async (order: Order) => {
   console.log('🔵🔵🔵 QUEUE PRINT DEBUG START 🔵🔵🔵');
   console.log('Order received in printReceipt:', order);
   console.log('Order number:', order.orderNumber);
@@ -1016,21 +1015,29 @@ function QueueScreen({ refreshKey }: { refreshKey: number }) {
   console.log('First item:', order.items?.[0]);
   console.log('First item name:', order.items?.[0]?.name);
   console.log('🔵🔵🔵 QUEUE PRINT DEBUG END 🔵🔵🔵');
-    
-    if (!PrinterService.isConnected()) {
-      alert('Printer not connected. Please click the Printer Settings button to connect.');
-      return;
-    }
+  
+  // ADD THIS DEBUG
+  console.log('🔵 printerService.isConnected():', printerService.isConnected());
+  console.log('🔵 printerService object:', printerService);
+  
+  if (!printerService.isConnected()) {
+    console.log('🔵 Printer is NOT connected! Showing alert...');
+    alert('Printer not connected. Please click the Printer Settings button to connect.');
+    return;
+  }
 
-    try {
-      const settings = getStoreSettings();
-      console.log('Settings:', settings);
-      await PrinterService.printReceipt(order, settings);
-      alert(`Receipt #${order.orderNumber} sent to printer!`);
-    } catch (error) {
-      alert('Failed to print: ' + error);
-    }
-  };
+  try {
+    const settings = getStoreSettings();
+    console.log('📋 Settings:', settings);
+    console.log('🖨️ Calling printerService.printReceipt...');
+    await printerService.printReceipt(order, settings);
+    console.log('✅ Print completed successfully');
+    alert(`Receipt #${order.orderNumber} sent to printer!`);
+  } catch (error) {
+    console.error('❌ Print error:', error);
+    alert('Failed to print: ' + error);
+  }
+};
 
   const markDone = async (id: string) => {
     try {
@@ -1477,7 +1484,7 @@ function DashboardScreen() {
     setReprinting(order.id);
     try {
       const settings = await getStoreSettings();
-      await PrinterService.printReceipt(order, settings);
+      await printerService.printReceipt(order, settings);
       alert(`Receipt #${order.orderNumber} reprinted successfully!`);
     } catch (error) {
       alert('Failed to reprint: ' + error);

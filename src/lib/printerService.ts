@@ -193,9 +193,9 @@ async printReceipt(order: any, settings: any): Promise<void> {
     storeName: 'Ocean Brew Siargao',
     storeAddress: 'Lopez Jaena St. Brgy. 9 Dapa, Siargao Island',
     storePhone: '0963-927-1591',
-    storeEmail: 'hello@oceanbrew.com',
+    storeEmail: 'oceanbrew.siargao@gmail.com',
     wifiSSID: 'Ocean Brew WiFi',
-    wifiPassword: 'oceanbrew123',
+    wifiPassword: 'AGBOB2024',
     receiptFooter: 'Thank you for visiting!'
   };
 
@@ -208,7 +208,12 @@ async printReceipt(order: any, settings: any): Promise<void> {
   console.log('🖨️ Printing with settings:', safeSettings); // Debug
 
   const receipt = this.generateReceiptText(order, safeSettings);
-  
+
+  console.log('🧾 RECEIPT PREVIEW START');
+  console.log('----------------------------');
+  console.log(receipt);
+  console.log('----------------------------');
+  console.log('🧾 RECEIPT PREVIEW END');
   // CASE 1: REAL THERMAL PRINTER CONNECTED
   if (this.printerCharacteristic) {
     try {
@@ -260,6 +265,7 @@ Pass: ${settings.wifiPassword}
   /**
    * GENERATE RECEIPT TEXT
    */
+  
 private generateReceiptText(order: any, settings: any): string {
   const date = new Date(order.createdAt).toLocaleString();
   let receipt = '';
@@ -275,65 +281,42 @@ private generateReceiptText(order: any, settings: any): string {
   // Order info
   receipt += `Order #: ${order.orderNumber}\n`;
   receipt += `Date: ${date}\n`;
+  receipt += '-'.repeat(32) + '\n\n';
+  
+  // ========== FORCE ITEMS TO PRINT ==========
+  receipt += 'ITEMS:\n';
   receipt += '-'.repeat(32) + '\n';
   
-  // Items section
-  receipt += 'QTY  ITEM                    AMT\n';
-  receipt += '-'.repeat(32) + '\n';
-  
-  // CRITICAL DEBUG: Show what we're working with
-  console.log('🔴🔴🔴 PRINTER DEBUG START 🔴🔴🔴');
+  // CRITICAL: Check if items exist
+  console.log('🔴🔴🔴 ITEMS DEBUG START 🔴🔴🔴');
+  console.log('order.items:', order.items);
   console.log('order.items type:', typeof order.items);
-  console.log('order.items is array?', Array.isArray(order.items));
-  console.log('order.items value:', order.items);
-  console.log('order.items length:', order.items?.length);
+  console.log('Is array:', Array.isArray(order.items));
+  console.log('Length:', order.items?.length);
   
   if (order.items && order.items.length > 0) {
-    order.items.forEach((item: any, index: number) => {
-      console.log(`Item ${index}:`, item);
-      console.log(`  - name: ${item.name}`);
-      console.log(`  - quantity: ${item.quantity}`);
-      console.log(`  - lineTotal: ${item.lineTotal}`);
-      
+    for (let i = 0; i < order.items.length; i++) {
+      const item = order.items[i];
       const qty = item.quantity || 1;
-      const itemName = item.name || 'Unknown Item';
-      const name = itemName.length > 20 ? itemName.substring(0, 20) : itemName;
-      const lineTotal = item.lineTotal || (item.basePrice * qty);
+      const name = item.name || 'Unknown';
+      const price = item.lineTotal || (item.basePrice * qty);
       
-      receipt += `${qty.toString().padStart(2)}   ${name.padEnd(20)} ₱${lineTotal.toFixed(2)}\n`;
-      
-      const cust = item.customization;
-      if (cust) {
-        const custText = [];
-        if (cust.size) custText.push(cust.size);
-        if (cust.temperature) custText.push(cust.temperature);
-        if (cust.sugar && cust.sugar !== '100%') custText.push(`${cust.sugar} sugar`);
-        if (cust.ice && cust.ice !== 'Normal Ice') custText.push(cust.ice);
-        
-        if (custText.length > 0) {
-          receipt += `     ${custText.join(' | ')}\n`;
-        }
-        
-        if (cust.addOns && cust.addOns.length > 0) {
-          receipt += `     +${cust.addOns.map((a: any) => a.name).join(', ')}\n`;
-        }
-      }
-    });
+      receipt += `${qty}x ${name} - ₱${price.toFixed(2)}\n`;
+      console.log(`✅ Added: ${qty}x ${name} - ₱${price.toFixed(2)}`);
+    }
   } else {
     receipt += '*** NO ITEMS FOUND ***\n';
-    console.log('🔴 NO ITEMS! order.items is empty or undefined');
+    console.log('🔴 NO ITEMS! order.items is empty');
   }
-  
-  console.log('🔴🔴🔴 PRINTER DEBUG END 🔴🔴🔴');
   
   receipt += '-'.repeat(32) + '\n';
-  receipt += `Subtotal:               ₱${(order.subtotal || 0).toFixed(2)}\n`;
+  receipt += `Subtotal: ₱${(order.subtotal || 0).toFixed(2)}\n`;
   
   if (order.discount && order.discount > 0) {
-    receipt += `Discount:              -₱${order.discount.toFixed(2)}\n`;
+    receipt += `Discount: -₱${order.discount.toFixed(2)}\n`;
   }
   
-  receipt += `TOTAL:                 ₱${(order.total || 0).toFixed(2)}\n`;
+  receipt += `TOTAL: ₱${(order.total || 0).toFixed(2)}\n`;
   receipt += '='.repeat(32) + '\n\n';
   
   // WiFi info
@@ -345,6 +328,8 @@ private generateReceiptText(order: any, settings: any): string {
   // Footer
   receipt += `${settings.receiptFooter}\n`;
   receipt += `Visit us again!\n\n\n`;
+  
+  console.log('🔴🔴🔴 FINAL RECEIPT:\n', receipt);
   
   return receipt;
 }
