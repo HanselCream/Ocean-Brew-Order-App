@@ -1047,20 +1047,27 @@ function QueueScreen({ refreshKey }: { refreshKey: number }) {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {orders.map(order => (
           <div key={order.id} className="bg-white rounded-2xl shadow-sm border p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-2xl font-bold text-sky-700">#{order.orderNumber}</span>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-400">
+            <div className="mb-3">
+              <div className="flex items-center justify-between">
+                <span className="text-2xl font-bold text-sky-700">#{order.orderNumber}</span>
+                <div className="flex items-center gap-2">
+                  {/* X BUTTON FOR TESTING */}
+                  <button
+                    onClick={() => deleteTestOrder(order.id)}
+                    className="text-red-500 hover:text-red-700 font-bold text-xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-50"
+                    title="Remove test order"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-xs text-gray-500">
+                  {new Date(order.createdAt).toLocaleDateString()}
+                </span>
+                <span className="text-xs text-gray-400">
                   {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
-                {/* X BUTTON FOR TESTING - ADD THIS */}
-                <button
-                  onClick={() => deleteTestOrder(order.id)}
-                  className="text-red-500 hover:text-red-700 font-bold text-xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-50"
-                  title="Remove test order"
-                >
-                  ×
-                </button>
               </div>
             </div>
             <div className="space-y-2 mb-4">
