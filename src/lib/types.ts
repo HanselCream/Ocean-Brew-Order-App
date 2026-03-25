@@ -48,6 +48,9 @@ export interface Order {
   total: number;
   createdAt: string;
   status: 'pending' | 'done';
+  printedCount?: number;      // Track how many times printed
+  lastPrintedAt?: string;     // When last printed
+  completedAt?: string;       // When marked DONE
 }
 
 export interface PrinterSettings {

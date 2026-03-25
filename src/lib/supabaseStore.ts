@@ -100,7 +100,9 @@ export async function getOrders(): Promise<Order[]> {
       total: parseFloat(order.total),
       status: order.status || 'pending',
       createdAt: order.created_at,
-      //paymentMethod: order.payment_method,
+      printedCount: order.printed_count || 0,
+      lastPrintedAt: order.last_printed_at,
+      completedAt: order.completed_at,
     }));
   } catch (err) {
     console.error('Error in getOrders:', err);
@@ -124,17 +126,18 @@ export async function saveOrder(order: Order) {
     if (!order.orderNumber) throw new Error('Order missing orderNumber');
     if (!order.items) throw new Error('Order missing items');
     
-    // Remove 'id' from the insert - let the database auto-generate it
-    const orderData = {
-      order_number: order.orderNumber.toString(),
-      items: order.items,
-      subtotal: order.subtotal,
-      discount: order.discount || 0,
-      total: order.total,
-      status: order.status,
-      created_at: order.createdAt,
-      // payment_method: order.paymentMethod || null, // Uncomment if you add paymentMethod
-    };
+  const orderData = {
+    order_number: order.orderNumber.toString(),
+    items: order.items,
+    subtotal: order.subtotal,
+    discount: order.discount || 0,
+    total: order.total,
+    status: order.status,
+    created_at: order.createdAt,
+    printed_count: order.printedCount || 0,
+    last_printed_at: order.lastPrintedAt,
+    completed_at: order.completedAt,
+  };
     
     console.log('📦 Order data being sent:', JSON.stringify(orderData, null, 2));
     

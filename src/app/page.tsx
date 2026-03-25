@@ -457,26 +457,33 @@ function PrintConfirmationModal({
     setIsPrinterConnected(PrinterService.isConnected());
   }, []);
 
-const handlePrint = async () => {
-  if (!PrinterService.isConnected()) {
-    setPrintError('Printer not connected. Please connect printer first.');
-    return;
-  }
+  const handlePrint = async () => {
+    if (!PrinterService.isConnected()) {
+      setPrintError('Printer not connected. Please connect printer first.');
+      return;
+    }
 
-  setIsPrinting(true);
-  setPrintError('');
+    setIsPrinting(true);
+    setPrintError('');
 
-  try {
-    const settings = await getStoreSettings(); // Make sure this is awaited
-    console.log('📋 Printer settings:', settings); // Debug
-    await PrinterService.printReceipt(order, settings);
-    onConfirm();
-  } catch (error) {
-    setPrintError('Failed to print: ' + error);
-  } finally {
-    setIsPrinting(false);
-  }
-};
+    try {
+      const settings = await getStoreSettings();
+      await PrinterService.printReceipt(order, settings);
+      
+      // Update print count
+      const newPrintCount = (order.printedCount || 0) + 1;
+      await updateOrder(order.id, { 
+        printedCount: newPrintCount,
+        lastPrintedAt: new Date().toISOString()
+      });
+      
+      onConfirm();
+    } catch (error) {
+      setPrintError('Failed to print: ' + error);
+    } finally {
+      setIsPrinting(false);
+    }
+  };
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
@@ -1015,8 +1022,18 @@ function QueueScreen({ refreshKey }: { refreshKey: number }) {
   };
 
   const markDone = async (id: string) => {
-    await updateOrder(id, { status: 'done' });
-    setOrders(prev => prev.filter(o => o.id !== id));
+    try {
+      // Get the order first to preserve printed count
+      const order = orders.find(o => o.id === id);
+      
+      await updateOrder(id, { 
+        status: 'done',
+        completedAt: new Date().toISOString()
+      });
+      setOrders(prev => prev.filter(o => o.id !== id));
+    } catch (error) {
+      console.error('Failed to mark order as done:', error);
+    }
   };
 
   if (loading) {
@@ -1400,21 +1417,24 @@ function AdminEditModal({
 // SCREEN 4: TODAY'S DASHBOARD - FIXED WITH ASYNC/AWAIT
 // ─────────────────────────────────────────────
 function DashboardScreen() {
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [completedOrders, setCompletedOrders] = useState<Order[]>([]);
   const [showPrinterSettings, setShowPrinterSettings] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [reprinting, setReprinting] = useState<string | null>(null);
 
   useEffect(() => {
-    loadTodayOrders();
+    loadCompletedOrders();
   }, []);
 
-  const loadTodayOrders = async () => {
+  const loadCompletedOrders = async () => {
     setLoading(true);
     try {
       const all = await getOrders();
       const today = new Date().toISOString().slice(0, 10);
-      const todayOrders = all.filter((o: Order) => o.createdAt.slice(0, 10) === today);
-      setOrders(todayOrders);
+      const todayCompleted = all.filter((o: Order) => 
+        o.createdAt.slice(0, 10) === today && o.status === 'done'
+      );
+      setCompletedOrders(todayCompleted);
     } catch (error) {
       console.error('Failed to load orders:', error);
     } finally {
@@ -1422,11 +1442,11 @@ function DashboardScreen() {
     }
   };
 
-  const totalSales = orders.filter(o => o.status === 'done').reduce((s, o) => s + o.total, 0);
-  const totalOrders = orders.length;
+  const totalSales = completedOrders.reduce((s, o) => s + o.total, 0);
+  const totalOrders = completedOrders.length;
 
   const itemCounts: Record<string, { name: string; count: number }> = {};
-  orders.forEach(o => {
+  completedOrders.forEach(o => {
     o.items.forEach(i => {
       if (!itemCounts[i.menuItemId]) itemCounts[i.menuItemId] = { name: i.name, count: 0 };
       itemCounts[i.menuItemId].count += i.quantity;
@@ -1434,20 +1454,49 @@ function DashboardScreen() {
   });
   const bestSelling = Object.values(itemCounts).sort((a, b) => b.count - a.count)[0];
 
-if (loading) {
-  return (
-    <div className="flex-1 p-6 overflow-y-auto bg-gray-100">
-      <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Loading reports...</div>
+  const handleReprint = async (order: Order) => {
+    if (!PrinterService.isConnected()) {
+      alert('Printer not connected. Please connect printer first.');
+      return;
+    }
+
+    setReprinting(order.id);
+    try {
+      const settings = await getStoreSettings();
+      await PrinterService.printReceipt(order, settings);
+      
+      // Update print count
+      const newPrintCount = (order.printedCount || 0) + 1;
+      await updateOrder(order.id, { 
+        printedCount: newPrintCount,
+        lastPrintedAt: new Date().toISOString()
+      });
+      
+      // Refresh the list
+      await loadCompletedOrders();
+      alert(`Receipt #${order.orderNumber} reprinted successfully!`);
+    } catch (error) {
+      alert('Failed to reprint: ' + error);
+    } finally {
+      setReprinting(null);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex-1 p-6 overflow-y-auto bg-gray-100">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-gray-500">Loading dashboard...</div>
+        </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
 
   return (
     <div className="flex-1 p-6 overflow-y-auto bg-gray-100">
+      {/* Header with Stats */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Today&apos;s Dashboard</h1>
+        <h1 className="text-2xl font-bold text-gray-800">Today's Dashboard</h1>
         <button
           onClick={() => setShowPrinterSettings(true)}
           className="px-4 py-2 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 transition-colors flex items-center gap-2"
@@ -1456,19 +1505,96 @@ if (loading) {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="bg-white rounded-2xl shadow-sm border p-6 text-center">
           <p className="text-gray-500 text-sm mb-1">Total Sales Today</p>
           <p className="text-4xl font-bold text-sky-700">₱{totalSales.toFixed(2)}</p>
         </div>
         <div className="bg-white rounded-2xl shadow-sm border p-6 text-center">
-          <p className="text-gray-500 text-sm mb-1">Total Orders Today</p>
+          <p className="text-gray-500 text-sm mb-1">Total Orders Completed</p>
           <p className="text-4xl font-bold text-sky-700">{totalOrders}</p>
         </div>
         <div className="bg-white rounded-2xl shadow-sm border p-6 text-center">
           <p className="text-gray-500 text-sm mb-1">Best Selling Item</p>
           <p className="text-2xl font-bold text-sky-700">{bestSelling ? `${bestSelling.name} (${bestSelling.count})` : '—'}</p>
         </div>
+      </div>
+
+      {/* Completed Orders List */}
+      <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
+        <div className="px-6 py-4 border-b bg-gray-50">
+          <h2 className="font-bold text-lg text-gray-800">Completed Orders</h2>
+          <p className="text-sm text-gray-500">Orders marked as DONE today</p>
+        </div>
+        
+        {completedOrders.length === 0 ? (
+          <div className="p-12 text-center text-gray-400">
+            No completed orders yet
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-gray-600 border-b">
+                <tr>
+                  <th className="px-4 py-3 text-left">Order #</th>
+                  <th className="px-4 py-3 text-left">Time</th>
+                  <th className="px-4 py-3 text-left">Items</th>
+                  <th className="px-4 py-3 text-right">Total</th>
+                  <th className="px-4 py-3 text-center">Printed</th>
+                  <th className="px-4 py-3 text-center">Last Printed</th>
+                  <th className="px-4 py-3 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {completedOrders.map(order => (
+                  <tr key={order.id} className="border-t hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium text-sky-700">
+                      #{order.orderNumber}
+                    </td>
+                    <td className="px-4 py-3 text-gray-500">
+                      {new Date(order.createdAt).toLocaleTimeString()}
+                    </td>
+                    <td className="px-4 py-3">
+                      {order.items.map((item, idx) => (
+                        <div key={idx} className="text-sm">
+                          {item.quantity}x {item.name}
+                          {item.customization?.size && ` (${item.customization.size})`}
+                        </div>
+                      ))}
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold">
+                      ₱{order.total.toFixed(2)}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        {order.printedCount || 0} time(s)
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center text-xs text-gray-500">
+                      {order.lastPrintedAt 
+                        ? new Date(order.lastPrintedAt).toLocaleTimeString()
+                        : 'Not printed'}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <button
+                        onClick={() => handleReprint(order)}
+                        disabled={reprinting === order.id}
+                        className="px-3 py-1 rounded-lg bg-blue-500 text-white text-xs font-semibold hover:bg-blue-600 transition-colors disabled:opacity-50 flex items-center gap-1 mx-auto"
+                      >
+                        {reprinting === order.id ? (
+                          <>Reprinting...</>
+                        ) : (
+                          <>🖨️ Reprint</>
+                        )}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Printer Settings Modal */}
