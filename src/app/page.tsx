@@ -1061,12 +1061,24 @@ const printReceipt = async (order: Order) => {
   receiptText += `Visit us again!\n\n`;
     
   try {
-    await printerService.printRawText(receiptText);
+    await printerService.printReceipt(order, settings);
     alert(`Receipt #${order.orderNumber} printed!`);
   } catch (error) {
     alert('Failed to print: ' + error);
   }
 };
+
+ const markDone = async (id: string) => {
+    try {
+      await updateOrder(id, { 
+        status: 'done',
+        completedAt: new Date().toISOString()
+      });
+      setOrders(prev => prev.filter(o => o.id !== id));
+    } catch (error) {
+      console.error('Failed to mark order as done:', error);
+    }
+  };
 
   return (
     <div className="flex-1 p-4 overflow-y-auto bg-gray-100">
