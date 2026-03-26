@@ -269,7 +269,7 @@ Pass: ${settings.wifiPassword}
 private generateReceiptText(order: any, settings: any): string {
   const date = new Date(order.createdAt).toLocaleString();
   let receipt = '';
-  
+
   // Header
   receipt += `${settings.storeName}\n`;
   receipt += '='.repeat(32) + '\n';
@@ -277,60 +277,48 @@ private generateReceiptText(order: any, settings: any): string {
   receipt += `Tel: ${settings.storePhone}\n`;
   if (settings.storeEmail) receipt += `${settings.storeEmail}\n`;
   receipt += '='.repeat(32) + '\n\n';
-  
+
   // Order info
   receipt += `Order #: ${order.orderNumber}\n`;
   receipt += `Date: ${date}\n`;
   receipt += '-'.repeat(32) + '\n\n';
-  
-  // ========== FORCE ITEMS TO PRINT ==========
-  receipt += 'ITEMS:\n';
+
+  // Items – NO PESO SYMBOL, NO DASHES
+  receipt += 'ITEMS\n';
   receipt += '-'.repeat(32) + '\n';
-  
-  // CRITICAL: Check if items exist
-  console.log('🔴🔴🔴 ITEMS DEBUG START 🔴🔴🔴');
-  console.log('order.items:', order.items);
-  console.log('order.items type:', typeof order.items);
-  console.log('Is array:', Array.isArray(order.items));
-  console.log('Length:', order.items?.length);
-  
+
   if (order.items && order.items.length > 0) {
-    for (let i = 0; i < order.items.length; i++) {
-      const item = order.items[i];
+    for (const item of order.items) {
       const qty = item.quantity || 1;
-      const name = item.name || 'Unknown';
-      const price = item.lineTotal || (item.basePrice * qty);
-      
-      receipt += `${qty}x ${name} - ₱${price.toFixed(2)}\n`;
-      console.log(`✅ Added: ${qty}x ${name} - ₱${price.toFixed(2)}`);
+      const name = (item.name || 'Item').substring(0, 24);
+      const price = (item.lineTotal || (item.basePrice * qty)).toFixed(2);
+      receipt += `${qty}x ${name}  PHP ${price}\n`;
     }
   } else {
-    receipt += '*** NO ITEMS FOUND ***\n';
-    console.log('🔴 NO ITEMS! order.items is empty');
+    receipt += '*** NO ITEMS ***\n';
   }
-  
+
   receipt += '-'.repeat(32) + '\n';
-  receipt += `Subtotal: ₱${(order.subtotal || 0).toFixed(2)}\n`;
-  
+  receipt += `Subtotal: PHP ${(order.subtotal || 0).toFixed(2)}\n`;
+
   if (order.discount && order.discount > 0) {
-    receipt += `Discount: -₱${order.discount.toFixed(2)}\n`;
+    receipt += `Discount: - PHP ${order.discount.toFixed(2)}\n`;
   }
-  
-  receipt += `TOTAL: ₱${(order.total || 0).toFixed(2)}\n`;
+
+  receipt += `TOTAL: PHP ${(order.total || 0).toFixed(2)}\n`;
   receipt += '='.repeat(32) + '\n\n';
-  
-  // WiFi info
+
+  // WiFi (plain ASCII)
   if (settings.wifiSSID && settings.wifiPassword) {
     receipt += `WiFi: ${settings.wifiSSID}\n`;
     receipt += `Pass: ${settings.wifiPassword}\n\n`;
   }
-  
+
   // Footer
-  receipt += `${settings.receiptFooter}\n`;
-  receipt += `Visit us again!\n\n\n`;
-  
-  console.log('🔴🔴🔴 FINAL RECEIPT:\n', receipt);
-  
+  receipt += `${settings.receiptFooter || 'Thank you!'}\n`;
+  receipt += 'Visit us again!\n\n\n';
+
+  console.log('🔴 FINAL ASCII RECEIPT:\n', receipt);
   return receipt;
 }
 
@@ -338,37 +326,10 @@ private generateReceiptText(order: any, settings: any): string {
  * CREATE ESC/POS COMMANDS - Simplified for generic 58mm thermal printers
  */
 private createESCPOSCommands(text: string): Uint8Array {
+  // Convert to simple ASCII, ensure line feeds
+  const clean = text.replace(/[^\x20-\x7E\n]/g, '');
   const encoder = new TextEncoder();
-  
-  // Minimal commands that work on most printers
-  const commands: number[] = [
-    0x1B, 0x40,        // Initialize printer
-    0x1B, 0x61, 0x00   // Left align
-  ];
-  
-  const chunks: Uint8Array[] = [new Uint8Array(commands)];
-  
-  // Add the receipt text with proper line breaks
-  const lines = text.split('\n');
-  lines.forEach(line => {
-    chunks.push(encoder.encode(line));
-    chunks.push(new Uint8Array([0x0A])); // Line feed
-  });
-  
-  // Feed paper and cut
-  chunks.push(new Uint8Array([0x1D, 0x56, 0x41, 0x00])); // Full cut
-  
-  // Combine all chunks
-  const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-  const result = new Uint8Array(totalLength);
-  let offset = 0;
-  
-  chunks.forEach(chunk => {
-    result.set(chunk, offset);
-    offset += chunk.length;
-  });
-  
-  return result;
+  return encoder.encode(clean + '\n\n\n');
 }
 
   /**
