@@ -1006,78 +1006,62 @@ function QueueScreen({ refreshKey }: { refreshKey: number }) {
     }
   };
 
-  const printReceipt = async (order: Order) => {
-    // Get store settings
-    const settings = await getStoreSettings();
-    
-    const date = new Date(order.createdAt).toLocaleString();
-    
-    // Build the full receipt exactly as you want it
-  const receiptText = `
-  ${settings.storeName}
-  ${'='.repeat(32)}
-  ${settings.storeAddress}
-  Tel: ${settings.storePhone}
-  ${settings.storeEmail}
-  ${'='.repeat(32)}
-
-  Order #: ${order.orderNumber}
-  Date: ${date}
-  ${'-'.repeat(32)}
-
-  QTY  ITEM                    AMT
-  ${'-'.repeat(32)}
-  ${order.items.map(item => {
-    const qty = item.quantity;
-    const name = item.name.padEnd(20).substring(0, 20);
-    const amt = item.lineTotal.toFixed(2);
-    return `${qty.toString().padStart(2)}   ${name} ₱${amt}`;
-  }).join('\n')}
-  ${'-'.repeat(32)}
-  Subtotal:               ₱${order.subtotal.toFixed(2)}
-  ${order.discount > 0 ? `Discount:              -₱${order.discount.toFixed(2)}\n` : ''}
-  TOTAL:                 ₱${order.total.toFixed(2)}
-  ${'='.repeat(32)}
-
-  WiFi: ${settings.wifiSSID}
-  Pass: ${settings.wifiPassword}
-
-  ${settings.receiptFooter}
-  Visit us again!
-    `.trim();
-
-    try {
-      await printerService.printRawText(receiptText);
-      alert(`Receipt #${order.orderNumber} printed!`);
-    } catch (error) {
-      alert('Failed to print: ' + error);
-    }
-  };
-
-  const markDone = async (id: string) => {
-    try {
-      // Get the order first to preserve printed count
-      const order = orders.find(o => o.id === id);
-      
-      await updateOrder(id, { 
-        status: 'done',
-        completedAt: new Date().toISOString()
-      });
-      setOrders(prev => prev.filter(o => o.id !== id));
-    } catch (error) {
-      console.error('Failed to mark order as done:', error);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex-1 p-4 overflow-y-auto bg-gray-100">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-gray-500">Loading queue...</div>
-        </div>
-      </div>
-    );
+const printReceipt = async (order: Order) => {
+  const settings = await getStoreSettings();
+  const date = new Date(order.createdAt).toLocaleString();
+  
+  let receiptText = '';
+  
+  // Header
+  receiptText += `${settings.storeName}\n`;
+  receiptText += '='.repeat(30) + '\n';
+  receiptText += `${settings.storeAddress}\n`;
+  receiptText += `Tel: ${settings.storePhone}\n`;
+  if (settings.storeEmail) receiptText += `${settings.storeEmail}\n`;
+  receiptText += '='.repeat(30) + '\n\n';
+  
+  // Order info
+  receiptText += `Order #: ${order.orderNumber}\n`;
+  receiptText += `Date: ${date}\n`;
+  receiptText += '-'.repeat(30) + '\n\n';
+  
+  // Items
+  receiptText += 'QTY  ITEM                    AMT\n';
+  receiptText += '-'.repeat(30) + '\n';
+  
+  order.items.forEach(item => {
+    const qty = item.quantity.toString().padStart(2);
+    const name = item.name.substring(0, 20).padEnd(20);
+    const amt = `₱${item.lineTotal.toFixed(2)}`.padStart(8);
+    receiptText += `${qty}   ${name} ${amt}\n`;
+  });
+  
+  receiptText += '-'.repeat(30) + '\n';
+  receiptText += `Subtotal:               ₱${order.subtotal.toFixed(2)}\n`;
+  
+  if (order.discount > 0) {
+    receiptText += `Discount:              -₱${order.discount.toFixed(2)}\n`;
   }
+  
+  receiptText += `TOTAL:                 ₱${order.total.toFixed(2)}\n`;
+  receiptText += '='.repeat(30) + '\n\n';
+  
+  // WiFi
+  if (settings.wifiSSID && settings.wifiPassword) {
+    receiptText += `WiFi: ${settings.wifiSSID}\n`;
+    receiptText += `Pass: ${settings.wifiPassword}\n\n`;
+  }
+  
+  // Footer - FIXED
+  receiptText += `${settings.receiptFooter} Visit us again!\n\n`;
+  
+  try {
+    await printerService.printRawText(receiptText);
+    alert(`Receipt #${order.orderNumber} printed!`);
+  } catch (error) {
+    alert('Failed to print: ' + error);
+  }
+};
 
   return (
     <div className="flex-1 p-4 overflow-y-auto bg-gray-100">
