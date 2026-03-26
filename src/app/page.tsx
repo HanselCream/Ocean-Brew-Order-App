@@ -1007,14 +1007,49 @@ function QueueScreen({ refreshKey }: { refreshKey: number }) {
   };
 
   const printReceipt = async (order: Order) => {
-    // Build the exact string that was shown in the alert
-    const receiptText = `Order #${order.orderNumber}\nItems:\n${order.items.map(i => `${i.quantity}x ${i.name}`).join('\n')}\nTotal: ₱${order.total}\n\n`;
+    // Get store settings
+    const settings = await getStoreSettings();
+    
+    const date = new Date(order.createdAt).toLocaleString();
+    
+    // Build the full receipt exactly as you want it
+  const receiptText = `
+  ${settings.storeName}
+  ${'='.repeat(32)}
+  ${settings.storeAddress}
+  Tel: ${settings.storePhone}
+  ${settings.storeEmail}
+  ${'='.repeat(32)}
+
+  Order #: ${order.orderNumber}
+  Date: ${date}
+  ${'-'.repeat(32)}
+
+  QTY  ITEM                    AMT
+  ${'-'.repeat(32)}
+  ${order.items.map(item => {
+    const qty = item.quantity;
+    const name = item.name.padEnd(20).substring(0, 20);
+    const amt = item.lineTotal.toFixed(2);
+    return `${qty.toString().padStart(2)}   ${name} ₱${amt}`;
+  }).join('\n')}
+  ${'-'.repeat(32)}
+  Subtotal:               ₱${order.subtotal.toFixed(2)}
+  ${order.discount > 0 ? `Discount:              -₱${order.discount.toFixed(2)}\n` : ''}
+  TOTAL:                 ₱${order.total.toFixed(2)}
+  ${'='.repeat(32)}
+
+  WiFi: ${settings.wifiSSID}
+  Pass: ${settings.wifiPassword}
+
+  ${settings.receiptFooter}
+  Visit us again!
+    `.trim();
 
     try {
       await printerService.printRawText(receiptText);
-      alert(`Receipt #${order.orderNumber} sent to printer!`);
+      alert(`Receipt #${order.orderNumber} printed!`);
     } catch (error) {
-      console.error('❌ Print error:', error);
       alert('Failed to print: ' + error);
     }
   };

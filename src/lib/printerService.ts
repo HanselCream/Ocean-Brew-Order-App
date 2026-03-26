@@ -177,24 +177,24 @@ class PrinterService {
   /**
    * PRINT RAW TEXT - Send plain text directly to printer
    */
-  async printRawText(text: string): Promise<void> {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(text + '\n\n\n');
-    
-    if (this.printerCharacteristic) {
-      // Write in chunks to avoid Bluetooth buffer issues
-      const chunkSize = 256;
-      for (let i = 0; i < data.length; i += chunkSize) {
-        const chunk = data.slice(i, i + chunkSize);
-        await this.printerCharacteristic.writeValue(chunk);
-        await new Promise(resolve => setTimeout(resolve, 20));
-      }
-      console.log('✅ Raw text printed successfully');
-    } else {
-      // Test mode: show alert with the text
-      alert(`PRINT PREVIEW (no printer):\n${text}`);
+async printRawText(text: string): Promise<void> {
+  const encoder = new TextEncoder();
+  const fullText = text + '\n\n\n\n'; // extra line feeds to ensure printing
+  const data = encoder.encode(fullText);
+  
+  if (this.printerCharacteristic) {
+    // CRITICAL: Send in VERY small chunks with delays
+    const chunkSize = 32; // Smaller chunks for reliability
+    for (let i = 0; i < data.length; i += chunkSize) {
+      const chunk = data.slice(i, Math.min(i + chunkSize, data.length));
+      await this.printerCharacteristic.writeValue(chunk);
+      await new Promise(resolve => setTimeout(resolve, 100)); // Longer delay
     }
+    console.log('✅ Full receipt sent successfully');
+  } else {
+    alert(`PRINT PREVIEW (no printer):\n${text}`);
   }
+}
 
   /**
    * PRINT RECEIPT - Works with BOTH:
