@@ -339,35 +339,35 @@ private generateReceiptText(order: any, settings: any): string {
  */
 private createESCPOSCommands(text: string): Uint8Array {
   const encoder = new TextEncoder();
+  
+  // Minimal commands that work on most printers
+  const commands: number[] = [
+    0x1B, 0x40,        // Initialize printer
+    0x1B, 0x61, 0x00   // Left align
+  ];
+  
+  const chunks: Uint8Array[] = [new Uint8Array(commands)];
+  
+  // Add the receipt text with proper line breaks
   const lines = text.split('\n');
-  const chunks: Uint8Array[] = [];
-
-  // Optional: reset printer (not always needed, but safe)
-  chunks.push(new Uint8Array([0x1B, 0x40])); // ESC @
-
-  // Left align (most reliable)
-  chunks.push(new Uint8Array([0x1B, 0x61, 0x00])); // ESC a 0 (left)
-
-  // Print each line with line feed
   lines.forEach(line => {
-    chunks.push(encoder.encode(line + '\n'));
+    chunks.push(encoder.encode(line));
+    chunks.push(new Uint8Array([0x0A])); // Line feed
   });
-
-  // Feed paper and cut (use full cut if supported, otherwise just feed)
-  chunks.push(new Uint8Array([0x1D, 0x56, 0x41, 0x00])); // GS V A 0 (full cut)
-  // Alternative cut command that works on more models:
-  // chunks.push(new Uint8Array([0x1B, 0x69])); // ESC i (partial cut)
-
+  
+  // Feed paper and cut
+  chunks.push(new Uint8Array([0x1D, 0x56, 0x41, 0x00])); // Full cut
+  
   // Combine all chunks
   const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
   const result = new Uint8Array(totalLength);
   let offset = 0;
-
+  
   chunks.forEach(chunk => {
     result.set(chunk, offset);
     offset += chunk.length;
   });
-
+  
   return result;
 }
 
