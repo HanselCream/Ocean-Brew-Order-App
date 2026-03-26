@@ -1056,9 +1056,10 @@ const printReceipt = async (order: Order) => {
   }
   
   // Footer
-  receiptText += `${settings.receiptFooter} Visit us again!\n`;
-  receiptText += '\n'.repeat(3);
-  
+  receiptText += `Thank you for choosing\n`;
+  receiptText += `${settings.storeName}!\n`;
+  receiptText += `Visit us again!\n\n`;
+    
   try {
     await printerService.printRawText(receiptText);
     alert(`Receipt #${order.orderNumber} printed!`);
