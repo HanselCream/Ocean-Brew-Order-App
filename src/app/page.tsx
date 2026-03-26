@@ -1012,39 +1012,42 @@ const printReceipt = async (order: Order) => {
   
   let receiptText = '';
   
-  // Header
+  // Header (32 chars per line)
   receiptText += `${settings.storeName}\n`;
-  receiptText += '='.repeat(30) + '\n';
-  receiptText += `${settings.storeAddress}\n`;
+  receiptText += '='.repeat(32) + '\n';
+  receiptText += `Lopez Jaena St. Brgy. 9 Dapa,\n`;
+  receiptText += `Siargao Island\n`;
   receiptText += `Tel: ${settings.storePhone}\n`;
   if (settings.storeEmail) receiptText += `${settings.storeEmail}\n`;
-  receiptText += '='.repeat(30) + '\n\n';
+  receiptText += '='.repeat(32) + '\n\n';
   
   // Order info
   receiptText += `Order #: ${order.orderNumber}\n`;
   receiptText += `Date: ${date}\n`;
-  receiptText += '-'.repeat(30) + '\n\n';
+  receiptText += '-'.repeat(32) + '\n';
+  
+  // Items header - FIXED ALIGNMENT
+  receiptText += `QTY ITEM               AMT\n`;
+  receiptText += '-'.repeat(32) + '\n';
   
   // Items
-  receiptText += 'QTY  ITEM                    AMT\n';
-  receiptText += '-'.repeat(30) + '\n';
-  
   order.items.forEach(item => {
     const qty = item.quantity.toString().padStart(2);
-    const name = item.name.substring(0, 20).padEnd(20);
-    const amt = `₱${item.lineTotal.toFixed(2)}`.padStart(8);
-    receiptText += `${qty}   ${name} ${amt}\n`;
+    const name = item.name.substring(0, 18).padEnd(18);
+    const price = (item.basePrice * item.quantity).toFixed(2);
+    const amt = `₱${price}`.padStart(6);
+    receiptText += `${qty} ${name} ${amt}\n`;
   });
   
-  receiptText += '-'.repeat(30) + '\n';
-  receiptText += `Subtotal:               ₱${order.subtotal.toFixed(2)}\n`;
+  receiptText += '-'.repeat(32) + '\n';
+  receiptText += `Subtotal    ₱${order.subtotal.toFixed(2).padStart(8)}\n`;
   
   if (order.discount > 0) {
-    receiptText += `Discount:              -₱${order.discount.toFixed(2)}\n`;
+    receiptText += `Discount   -₱${order.discount.toFixed(2).padStart(8)}\n`;
   }
   
-  receiptText += `TOTAL:                 ₱${order.total.toFixed(2)}\n`;
-  receiptText += '='.repeat(30) + '\n\n';
+  receiptText += `TOTAL       ₱${order.total.toFixed(2).padStart(8)}\n`;
+  receiptText += '='.repeat(32) + '\n\n';
   
   // WiFi
   if (settings.wifiSSID && settings.wifiPassword) {
@@ -1052,8 +1055,9 @@ const printReceipt = async (order: Order) => {
     receiptText += `Pass: ${settings.wifiPassword}\n\n`;
   }
   
-  // Footer - FIXED
-  receiptText += `${settings.receiptFooter} Visit us again!\n\n`;
+  // Footer
+  receiptText += `${settings.receiptFooter} Visit us again!\n`;
+  receiptText += '\n'.repeat(3);
   
   try {
     await printerService.printRawText(receiptText);
