@@ -1006,40 +1006,18 @@ function QueueScreen({ refreshKey }: { refreshKey: number }) {
     }
   };
 
-const printReceipt = async (order: Order) => {
-  console.log('🔵🔵🔵 QUEUE PRINT DEBUG START 🔵🔵🔵');
-  console.log('Order received in printReceipt:', order);
-  console.log('Order number:', order.orderNumber);
-  console.log('Order items:', order.items);
-  console.log('Order items length:', order.items?.length);
-  console.log('First item:', order.items?.[0]);
-  console.log('First item name:', order.items?.[0]?.name);
-  console.log('🔵🔵🔵 QUEUE PRINT DEBUG END 🔵🔵🔵');
-  
-  // ADD THIS DEBUG
-  console.log('🔵 printerService.isConnected():', printerService.isConnected());
-  console.log('🔵 printerService object:', printerService);
-  
-  if (!printerService.isConnected()) {
-    console.log('🔵 Printer is NOT connected! Showing alert...');
-    alert('Printer not connected. Please click the Printer Settings button to connect.');
-    return;
-  }
+  const printReceipt = async (order: Order) => {
+    // Build the exact string that was shown in the alert
+    const receiptText = `Order #${order.orderNumber}\nItems:\n${order.items.map(i => `${i.quantity}x ${i.name}`).join('\n')}\nTotal: ₱${order.total}\n\n`;
 
-  try {
-    const settings = getStoreSettings();
-    console.log('📋 Settings:', settings);
-    console.log('🖨️ Calling printerService.printReceipt...');
-    const preview = `Order #${order.orderNumber}\nItems:\n${order.items.map(i => `${i.quantity}x ${i.name}`).join('\n')}\nTotal: ₱${order.total}`;
-    alert(`📄 PREVIEW BEFORE PRINT:\n${preview}\n\nSend to printer?`);
-    await printerService.printReceipt(order, settings);
-    console.log('✅ Print completed successfully');
-    alert(`Receipt #${order.orderNumber} sent to printer!`);
-  } catch (error) {
-    console.error('❌ Print error:', error);
-    alert('Failed to print: ' + error);
-  }
-};
+    try {
+      await printerService.printRawText(receiptText);
+      alert(`Receipt #${order.orderNumber} sent to printer!`);
+    } catch (error) {
+      console.error('❌ Print error:', error);
+      alert('Failed to print: ' + error);
+    }
+  };
 
   const markDone = async (id: string) => {
     try {

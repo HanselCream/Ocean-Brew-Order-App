@@ -175,6 +175,28 @@ class PrinterService {
   }
 
   /**
+   * PRINT RAW TEXT - Send plain text directly to printer
+   */
+  async printRawText(text: string): Promise<void> {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(text + '\n\n\n');
+    
+    if (this.printerCharacteristic) {
+      // Write in chunks to avoid Bluetooth buffer issues
+      const chunkSize = 256;
+      for (let i = 0; i < data.length; i += chunkSize) {
+        const chunk = data.slice(i, i + chunkSize);
+        await this.printerCharacteristic.writeValue(chunk);
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
+      console.log('✅ Raw text printed successfully');
+    } else {
+      // Test mode: show alert with the text
+      alert(`PRINT PREVIEW (no printer):\n${text}`);
+    }
+  }
+
+  /**
    * PRINT RECEIPT - Works with BOTH:
    * - Real thermal printer → Sends ESC/POS commands
    * - Phone/Tablet → Shows alert with receipt
