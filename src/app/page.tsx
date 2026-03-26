@@ -160,7 +160,7 @@ function CustomizationModal({
       basePrice,
       customization: cust,
       quantity,
-      lineTotal,
+      lineTotal: lineTotal
     };
     onConfirm(oi);
   };
@@ -1032,11 +1032,21 @@ const printReceipt = async (order: Order) => {
   
   // Items
   order.items.forEach(item => {
-    const qty = item.quantity.toString().padStart(2);
+    const qty = item.quantity || 1;
     const name = item.name.substring(0, 18).padEnd(18);
-    const price = (item.basePrice * item.quantity).toFixed(2);
-    const amt = `₱${price}`.padStart(6);
-    receiptText += `${qty} ${name} ${amt}\n`;
+    
+    // Calculate total price for this item
+    let price = 0;
+    if (item.lineTotal && item.lineTotal > 0) {
+      price = item.lineTotal;
+    } else {
+      // Calculate from basePrice * quantity
+      const itemPrice = item.basePrice || 0;
+      price = itemPrice * qty;
+    }
+    
+    const amt = `₱${price.toFixed(2)}`.padStart(6);
+    receiptText += `${qty.toString().padStart(2)} ${name} ${amt}\n`;
   });
   
   receiptText += '-'.repeat(32) + '\n';
