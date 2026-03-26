@@ -333,40 +333,43 @@ private generateReceiptText(order: any, settings: any): string {
   
   return receipt;
 }
-  /**
-   * CREATE ESC/POS COMMANDS - For thermal printers
-   */
-  private createESCPOSCommands(text: string): Uint8Array {
-    const encoder = new TextEncoder();
-    const lines = text.split('\n');
-    const chunks: Uint8Array[] = [];
 
-    // Initialize printer
-    chunks.push(new Uint8Array([0x1B, 0x40])); // ESC @
-    
-    // Center alignment
-    chunks.push(new Uint8Array([0x1B, 0x61, 0x01])); // ESC a 1
-    
-    // Print each line
-    lines.forEach(line => {
-      chunks.push(encoder.encode(line + '\n'));
-    });
+/**
+ * CREATE ESC/POS COMMANDS - Simplified for generic 58mm thermal printers
+ */
+private createESCPOSCommands(text: string): Uint8Array {
+  const encoder = new TextEncoder();
+  const lines = text.split('\n');
+  const chunks: Uint8Array[] = [];
 
-    // Cut paper
-    chunks.push(new Uint8Array([0x1D, 0x56, 0x42, 0x00])); // GS V B 0
+  // Optional: reset printer (not always needed, but safe)
+  chunks.push(new Uint8Array([0x1B, 0x40])); // ESC @
 
-    // Combine all chunks
-    const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-    const result = new Uint8Array(totalLength);
-    let offset = 0;
-    
-    chunks.forEach(chunk => {
-      result.set(chunk, offset);
-      offset += chunk.length;
-    });
+  // Left align (most reliable)
+  chunks.push(new Uint8Array([0x1B, 0x61, 0x00])); // ESC a 0 (left)
 
-    return result;
-  }
+  // Print each line with line feed
+  lines.forEach(line => {
+    chunks.push(encoder.encode(line + '\n'));
+  });
+
+  // Feed paper and cut (use full cut if supported, otherwise just feed)
+  chunks.push(new Uint8Array([0x1D, 0x56, 0x41, 0x00])); // GS V A 0 (full cut)
+  // Alternative cut command that works on more models:
+  // chunks.push(new Uint8Array([0x1B, 0x69])); // ESC i (partial cut)
+
+  // Combine all chunks
+  const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  const result = new Uint8Array(totalLength);
+  let offset = 0;
+
+  chunks.forEach(chunk => {
+    result.set(chunk, offset);
+    offset += chunk.length;
+  });
+
+  return result;
+}
 
   /**
    * CHECK CONNECTION STATUS
