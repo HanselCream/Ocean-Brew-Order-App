@@ -191,7 +191,7 @@ async printReceipt(order: any, settings: any): Promise<void> {
   
   const DEFAULT_SETTINGS = {
     storeName: 'Ocean Brew Siargao',
-    storeAddress: 'Lopez Jaena St. Brgy. 9 Dapa, Siargao Island',
+    storeAddress: 'Lopez Jaena St. Brgy. 9 Dapa,    Siargao Island',
     storePhone: '0963-927-1591',
     storeEmail: 'oceanbrew.siargao@gmail.com',
     wifiSSID: 'Ocean Brew WiFi',
@@ -272,20 +272,20 @@ private generateReceiptText(order: any, settings: any): string {
   
   // Header
   receipt += `${settings.storeName}\n`;
-  receipt += '='.repeat(35) + '\n';
+  receipt += '='.repeat(32) + '\n';
   receipt += `${settings.storeAddress}\n`;
   receipt += `Tel: ${settings.storePhone}\n`;
   if (settings.storeEmail) receipt += `${settings.storeEmail}\n`;
-  receipt += '='.repeat(35) + '\n\n';
+  receipt += '='.repeat(32) + '\n\n';
   
   // Order info
   receipt += `Order #: ${order.orderNumber}\n`;
   receipt += `Date: ${date}\n`;
-  receipt += '-'.repeat(35) + '\n\n';
+  receipt += '-'.repeat(32) + '\n\n';
   
   // ========== FORCE ITEMS TO PRINT ==========
   receipt += 'ITEMS:\n';
-  receipt += '-'.repeat(35) + '\n';
+  receipt += '-'.repeat(32) + '\n';
   
   // CRITICAL: Check if items exist
   console.log('🔴🔴🔴 ITEMS DEBUG START 🔴🔴🔴');
@@ -309,7 +309,7 @@ private generateReceiptText(order: any, settings: any): string {
     console.log('🔴 NO ITEMS! order.items is empty');
   }
   
-  receipt += '-'.repeat(35) + '\n';
+  receipt += '-'.repeat(32) + '\n';
   receipt += `Subtotal: ₱${(order.subtotal || 0).toFixed(2)}\n`;
   
   if (order.discount && order.discount > 0) {
@@ -317,7 +317,7 @@ private generateReceiptText(order: any, settings: any): string {
   }
   
   receipt += `TOTAL: ₱${(order.total || 0).toFixed(2)}\n`;
-  receipt += '='.repeat(35) + '\n\n';
+  receipt += '='.repeat(32) + '\n\n';
   
   // WiFi info
   if (settings.wifiSSID && settings.wifiPassword) {

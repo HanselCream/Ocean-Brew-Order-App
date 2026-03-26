@@ -1030,6 +1030,8 @@ const printReceipt = async (order: Order) => {
     const settings = getStoreSettings();
     console.log('📋 Settings:', settings);
     console.log('🖨️ Calling printerService.printReceipt...');
+    const preview = `Order #${order.orderNumber}\nItems:\n${order.items.map(i => `${i.quantity}x ${i.name}`).join('\n')}\nTotal: ₱${order.total}`;
+    alert(`📄 PREVIEW BEFORE PRINT:\n${preview}\n\nSend to printer?`);
     await printerService.printReceipt(order, settings);
     console.log('✅ Print completed successfully');
     alert(`Receipt #${order.orderNumber} sent to printer!`);
