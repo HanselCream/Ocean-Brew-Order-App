@@ -296,34 +296,36 @@ private generateReceiptText(order: any, settings: any): string {
   // Order info
   receipt += `Order #: ${order.orderNumber}\n`;
   receipt += `Date: ${date}\n`;
-  receipt += '-'.repeat(32) + '\n\n';
-
-  // Items – NO PESO SYMBOL, NO DASHES
-  receipt += 'ITEMS\n';
   receipt += '-'.repeat(32) + '\n';
 
+  // Items header - TABLE FORMAT
+  receipt += 'QTY ITEM               AMT\n';
+  receipt += '-'.repeat(32) + '\n';
+
+  // Items
   if (order.items && order.items.length > 0) {
     for (const item of order.items) {
       const qty = item.quantity || 1;
-      const name = (item.name || 'Item').substring(0, 24);
+      const name = (item.name || 'Item').substring(0, 18).padEnd(18);
       const price = (item.lineTotal || (item.basePrice * qty)).toFixed(2);
-      receipt += `${qty}x ${name}  PHP ${price}\n`;
+      const amt = `₱${price}`.padStart(6);
+      receipt += `${qty.toString().padStart(2)} ${name} ${amt}\n`;
     }
   } else {
     receipt += '*** NO ITEMS ***\n';
   }
 
   receipt += '-'.repeat(32) + '\n';
-  receipt += `Subtotal: PHP ${(order.subtotal || 0).toFixed(2)}\n`;
+  receipt += `Subtotal    ₱${(order.subtotal || 0).toFixed(2).padStart(8)}\n`;
 
   if (order.discount && order.discount > 0) {
-    receipt += `Discount: - PHP ${order.discount.toFixed(2)}\n`;
+    receipt += `Discount   -₱${order.discount.toFixed(2).padStart(8)}\n`;
   }
 
-  receipt += `TOTAL: PHP ${(order.total || 0).toFixed(2)}\n`;
+  receipt += `TOTAL       ₱${(order.total || 0).toFixed(2).padStart(8)}\n`;
   receipt += '='.repeat(32) + '\n\n';
 
-  // WiFi (plain ASCII)
+  // WiFi
   if (settings.wifiSSID && settings.wifiPassword) {
     receipt += `WiFi: ${settings.wifiSSID}\n`;
     receipt += `Pass: ${settings.wifiPassword}\n\n`;
@@ -331,9 +333,9 @@ private generateReceiptText(order: any, settings: any): string {
 
   // Footer
   receipt += `${settings.receiptFooter || 'Thank you!'}\n`;
-  receipt += 'Visit us again!\n\n\n';
+  receipt += `Visit us again!\n\n\n`;
 
-  console.log('🔴 FINAL ASCII RECEIPT:\n', receipt);
+  console.log('🔴 FINAL RECEIPT:\n', receipt);
   return receipt;
 }
 
