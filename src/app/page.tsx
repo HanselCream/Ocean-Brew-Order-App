@@ -1040,7 +1040,6 @@ const printReceipt = async (order: Order) => {
     if (item.lineTotal && item.lineTotal > 0) {
       price = item.lineTotal;
     } else {
-      // Calculate from basePrice * quantity
       const itemPrice = item.basePrice || 0;
       price = itemPrice * qty;
     }
@@ -1069,11 +1068,13 @@ const printReceipt = async (order: Order) => {
   receiptText += `Thank you for choosing\n`;
   receiptText += `${settings.storeName}!\n`;
   receiptText += `Visit us again!\n\n`;
-    
+  
+  // Print the receipt text directly
   try {
-    await printerService.printReceipt(order, settings);
+    await printerService.printRawText(receiptText);
     alert(`Receipt #${order.orderNumber} printed!`);
   } catch (error) {
+    console.error('Print error:', error);
     alert('Failed to print: ' + error);
   }
 };
