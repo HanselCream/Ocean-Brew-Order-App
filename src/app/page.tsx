@@ -1009,18 +1009,26 @@ function QueueScreen({ refreshKey }: { refreshKey: number }) {
 const printReceipt = async (order: Order) => {
   const settings = await getStoreSettings();
   const date = new Date(order.createdAt).toLocaleString();
-  
+
   let receiptText = '';
-  const LINE_WIDTH = 28;
+  const LINE_WIDTH = 32;
   const SEPARATOR = '-'.repeat(LINE_WIDTH);
-  
-  // Find longest item name for dynamic spacing
-  let maxNameLength = 6; // minimum for "ITEM"
-  order.items.forEach(item => {
-    const nameLength = (item.name || '').length;
-    if (nameLength > maxNameLength) maxNameLength = Math.min(nameLength, 12);
-  });
-  
+
+  // Utility: right-align a label/value pair within LINE_WIDTH
+  const rightAlign = (label: string, value: string): string => {
+    const spaces = LINE_WIDTH - label.length - value.length;
+    return label + ' '.repeat(Math.max(1, spaces)) + value;
+  };
+
+  // Utility: format item row with QTY | NAME (fills middle) | AMT
+const formatItemLine = (qty: number, name: string, amt: number): string => {
+    const qtyStr = qty.toString().padStart(2);
+    const amtStr = amt.toFixed(0).padStart(3); // ← was missing padStart(3)
+    const nameWidth = LINE_WIDTH - qtyStr.length - 1 - 1 - amtStr.length;
+    const truncatedName = name.substring(0, nameWidth).padEnd(nameWidth);
+    return `${qtyStr} ${truncatedName} ${amtStr}`;
+};
+
   // Header
   receiptText += `${settings.storeName}\n`;
   receiptText += SEPARATOR + '\n';
@@ -1029,52 +1037,49 @@ const printReceipt = async (order: Order) => {
   receiptText += `Tel: ${settings.storePhone}\n`;
   if (settings.storeEmail) receiptText += `${settings.storeEmail}\n`;
   receiptText += SEPARATOR + '\n\n';
-  
+
   // Order info
   receiptText += `Order #: ${order.orderNumber}\n`;
   receiptText += `Date: ${date}\n`;
   receiptText += SEPARATOR + '\n';
-  
-  // Items header with dynamic spacing
-  const headerQty = "QTY";
-  const headerItem = "ITEM".padEnd(maxNameLength);
-  const headerAmt = "AMT";
-  receiptText += `${headerQty} ${headerItem} ${headerAmt}\n`;
+
+  // Column header — derived from LINE_WIDTH, matches item rows exactly
+  const qtyH = 'QTY';
+  const amtH = 'AMT';
+  const nameWidth = LINE_WIDTH - qtyH.length - 1 - 1 - amtH.length;
+  receiptText += `${qtyH} ${'ITEM'.padEnd(nameWidth)} ${amtH}\n`;
   receiptText += SEPARATOR + '\n';
-  
+
   // Items
   order.items.forEach(item => {
     const qty = item.quantity || 1;
-    const name = (item.name || 'Item').substring(0, maxNameLength).padEnd(maxNameLength);
-    let price = 0;
-    if (item.lineTotal && item.lineTotal > 0) {
-      price = item.lineTotal;
-    } else {
-      price = (item.basePrice || 0) * qty;
-    }
-    const amt = `${price.toFixed(0)}`.padStart(4);
-    receiptText += `${qty.toString().padStart(2)} ${name} ${amt}\n`;
+    const name = item.name || 'Item';
+    const price =
+      item.lineTotal && item.lineTotal > 0
+        ? item.lineTotal
+        : (item.basePrice || 0) * qty;
+    receiptText += formatItemLine(qty, name, price) + '\n';
   });
-  
+
   receiptText += SEPARATOR + '\n';
-  receiptText += `Subtotal ${order.subtotal.toFixed(0).padStart(10)}\n`;
+  receiptText += rightAlign('Subtotal', order.subtotal.toFixed(0)) + '\n';
   if (order.discount > 0) {
-    receiptText += `Discount ${order.discount.toFixed(0).padStart(10)}\n`;
+    receiptText += rightAlign('Discount', `-${order.discount.toFixed(0)}`) + '\n';
   }
-  receiptText += `Total ${order.total.toFixed(0).padStart(12)}\n`;
+  receiptText += rightAlign('Total', order.total.toFixed(0)) + '\n';
   receiptText += SEPARATOR + '\n\n';
-  
+
   // WiFi
   if (settings.wifiSSID && settings.wifiPassword) {
     receiptText += `WiFi: ${settings.wifiSSID}\n`;
     receiptText += `Pass: ${settings.wifiPassword}\n\n`;
   }
-  
+
   // Footer
   receiptText += `Thank you for choosing\n`;
   receiptText += `${settings.storeName}!\n`;
   receiptText += `Visit us again!\n\n`;
-  
+
   try {
     await printerService.printRawText(receiptText);
     alert(`Receipt #${order.orderNumber} printed!`);
