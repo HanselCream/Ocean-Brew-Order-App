@@ -262,27 +262,20 @@ async printReceipt(order: any, settings: any): Promise<void> {
   /**
    * SHOW TEST RECEIPT - For phone testing
    */
-  private showTestReceipt(order: any, settings: any, receipt: string): void {
-    const deviceName = this.bluetoothDevice?.name || 'Test Mode';
-    
-    // Show in ALERT
-    alert(`🖨️ RECEIPT PRINTED TO: ${deviceName}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Order #: ${order.orderNumber}
-Total: ₱${order.total}
-WiFi: ${settings.wifiSSID}
-Pass: ${settings.wifiPassword}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✓ Full receipt in console`);
-
-    // Show in CONSOLE
-    console.log('%c🖨️ RECEIPT', 'font-size: 16px; color: green; font-weight: bold');
-    console.log('='.repeat(50));
-    console.log(`Device: ${deviceName}`);
-    console.log('='.repeat(50));
-    console.log(receipt);
-    console.log('='.repeat(50));
-  }
+private showTestReceipt(order: any, settings: any, receipt: string): void {
+  const deviceName = this.bluetoothDevice?.name || 'Test Mode';
+  
+  // Show FULL receipt in alert
+  alert(`🧾 RECEIPT - ${deviceName}\n\n${receipt}\n\n(Full receipt also in console)`);
+  
+  // Also show in console for debugging
+  console.log('%c🖨️ RECEIPT', 'font-size: 16px; color: green; font-weight: bold');
+  console.log('='.repeat(50));
+  console.log(`Device: ${deviceName}`);
+  console.log('='.repeat(50));
+  console.log(receipt);
+  console.log('='.repeat(50));
+}
 
   /**
    * GENERATE RECEIPT TEXT
