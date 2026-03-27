@@ -1011,52 +1011,58 @@ const printReceipt = async (order: Order) => {
   const date = new Date(order.createdAt).toLocaleString();
   
   let receiptText = '';
+  const LINE_WIDTH = 28;
+  const SEPARATOR = '-'.repeat(LINE_WIDTH);
   
-  // Header (32 chars per line)
+  // Find longest item name for dynamic spacing
+  let maxNameLength = 6; // minimum for "ITEM"
+  order.items.forEach(item => {
+    const nameLength = (item.name || '').length;
+    if (nameLength > maxNameLength) maxNameLength = Math.min(nameLength, 12);
+  });
+  
+  // Header
   receiptText += `${settings.storeName}\n`;
-  receiptText += '='.repeat(32) + '\n';
+  receiptText += SEPARATOR + '\n';
   receiptText += `Lopez Jaena St. Brgy. 9 Dapa,\n`;
   receiptText += `Siargao Island\n`;
   receiptText += `Tel: ${settings.storePhone}\n`;
   if (settings.storeEmail) receiptText += `${settings.storeEmail}\n`;
-  receiptText += '='.repeat(32) + '\n\n';
+  receiptText += SEPARATOR + '\n\n';
   
   // Order info
   receiptText += `Order #: ${order.orderNumber}\n`;
   receiptText += `Date: ${date}\n`;
-  receiptText += '-'.repeat(32) + '\n';
+  receiptText += SEPARATOR + '\n';
   
-  // Items header - FIXED ALIGNMENT
-  receiptText += `QTY ITEM               AMT\n`;
-  receiptText += '-'.repeat(32) + '\n';
+  // Items header with dynamic spacing
+  const headerQty = "QTY";
+  const headerItem = "ITEM".padEnd(maxNameLength);
+  const headerAmt = "AMT";
+  receiptText += `${headerQty} ${headerItem} ${headerAmt}\n`;
+  receiptText += SEPARATOR + '\n';
   
   // Items
   order.items.forEach(item => {
     const qty = item.quantity || 1;
-    const name = item.name.substring(0, 18).padEnd(18);
-    
-    // Calculate total price for this item
+    const name = (item.name || 'Item').substring(0, maxNameLength).padEnd(maxNameLength);
     let price = 0;
     if (item.lineTotal && item.lineTotal > 0) {
       price = item.lineTotal;
     } else {
-      const itemPrice = item.basePrice || 0;
-      price = itemPrice * qty;
+      price = (item.basePrice || 0) * qty;
     }
-    
-    const amt = `₱${price.toFixed(2)}`.padStart(6);
+    const amt = `${price.toFixed(0)}`.padStart(4);
     receiptText += `${qty.toString().padStart(2)} ${name} ${amt}\n`;
   });
   
-  receiptText += '-'.repeat(32) + '\n';
-  receiptText += `Subtotal    ₱${order.subtotal.toFixed(2).padStart(8)}\n`;
-  
+  receiptText += SEPARATOR + '\n';
+  receiptText += `Subtotal ${order.subtotal.toFixed(0).padStart(10)}\n`;
   if (order.discount > 0) {
-    receiptText += `Discount   -₱${order.discount.toFixed(2).padStart(8)}\n`;
+    receiptText += `Discount ${order.discount.toFixed(0).padStart(10)}\n`;
   }
-  
-  receiptText += `TOTAL       ₱${order.total.toFixed(2).padStart(8)}\n`;
-  receiptText += '='.repeat(32) + '\n\n';
+  receiptText += `Total ${order.total.toFixed(0).padStart(12)}\n`;
+  receiptText += SEPARATOR + '\n\n';
   
   // WiFi
   if (settings.wifiSSID && settings.wifiPassword) {
@@ -1069,12 +1075,10 @@ const printReceipt = async (order: Order) => {
   receiptText += `${settings.storeName}!\n`;
   receiptText += `Visit us again!\n\n`;
   
-  // Print the receipt text directly
   try {
     await printerService.printRawText(receiptText);
     alert(`Receipt #${order.orderNumber} printed!`);
   } catch (error) {
-    console.error('Print error:', error);
     alert('Failed to print: ' + error);
   }
 };
