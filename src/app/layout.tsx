@@ -8,10 +8,10 @@ import SimplePassword from "@/components/SimplePassword";
 export const metadata: Metadata = {
   title: "Ocean Brew POS",
   description: "Point of Sale System",
-  manifest: "/manifest.json", // ✅ ADD THIS
+  manifest: "/manifest.json",
   icons: {
-    icon: "/logo.jpg", // ✅ Points to your public/logo.jpg
-    apple: "/logo.jpg", // ✅ For iOS
+    icon: "/logo.jpg",
+    apple: "/logo.jpg",
   },
 };
 
@@ -21,7 +21,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="icon" href="/logo.jpg" />
         <link rel="apple-touch-icon" href="/logo.jpg" />

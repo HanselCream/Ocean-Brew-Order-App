@@ -9,6 +9,7 @@ export async function getMenu(): Promise<MenuItem[]> {
     const { data, error } = await supabase
       .from('menu_items')
       .select('*')
+      .neq('category', 'Add Ons')
       .order('name');
     
     if (error) {
@@ -18,24 +19,31 @@ export async function getMenu(): Promise<MenuItem[]> {
 
     if (!data) return [];
     
-    console.log('📦 Raw menu data:', data);
-    
-    // Map database fields to your MenuItem type with proper number conversion
+    // Fetch addon relationships for all menu items
+    const { data: relationships } = await supabase
+      .from('item_addon_relationships')
+      .select('menu_item_id, addon_item_id');
+
+    const addonMap: Record<string, string[]> = {};
+    (relationships || []).forEach(r => {
+      if (!addonMap[r.menu_item_id]) addonMap[r.menu_item_id] = [];
+      addonMap[r.menu_item_id].push(r.addon_item_id);
+    });
+
     return data.map(item => ({
       id: item.id,
       name: item.name,
       category: item.category,
-      // FIX: Use correct column names from database (pricer, not priceR)
       priceR: parseFloat(item.pricer) || 0,
       priceL: item.pricel ? parseFloat(item.pricel) : null,
       available: item.available,
-      // FIX: Use correct column name (hassizeoption, not hasSizeOption)
       hasSizeOption: item.hassizeoption || false,
-    }));
-  } catch (err) {
-    console.error('Unexpected error in getMenu:', err);
-    return [];
-  }
+      addOnIds: addonMap[item.id] || [],
+      }));
+    } catch (err) {
+      console.error('Unexpected error in getMenu:', err);
+      return [];
+    }
 }
 
 export async function saveMenu(menu: MenuItem[]) {
@@ -43,11 +51,8 @@ export async function saveMenu(menu: MenuItem[]) {
   
   for (const item of menu) {
     try {
-      console.log('Saving item:', item.name);
-      
-      // Check if item exists (has valid id)
       const itemData = {
-        id: item.id || crypto.randomUUID(), // Generate ID if new item
+        id: item.id || crypto.randomUUID(),
         name: item.name,
         category: item.category,
         pricer: item.priceR,
@@ -64,12 +69,125 @@ export async function saveMenu(menu: MenuItem[]) {
       
       if (error) {
         console.error('❌ Error saving item:', item.name, error);
-      } else {
-        console.log('✅ Saved item:', item.name, data);
+        continue;
+      }
+      
+      if (item.category !== 'Add Ons' && item.addOnIds && data && data[0]) {
+        const menuItemId = data[0].id;
+        
+        await supabase
+          .from('item_addon_relationships')
+          .delete()
+          .eq('menu_item_id', menuItemId);
+        
+        if (item.addOnIds.length > 0) {
+          const relationships = item.addOnIds.map(addonId => ({
+            menu_item_id: menuItemId,
+            addon_item_id: addonId
+          }));
+          
+          await supabase
+            .from('item_addon_relationships')
+            .insert(relationships);
+        }
       }
     } catch (err) {
       console.error('❌ Error in saveMenu:', err);
     }
+  }
+}
+
+// 🔥 ADD THIS MISSING FUNCTION 🔥
+export async function saveMenuItemWithAddons(item: MenuItem): Promise<void> {
+  try {
+    console.log('💾 Saving menu item with add-ons:', item.name);
+    console.log('Add-on IDs to save:', item.addOnIds);
+    
+    // 1. Save the menu item
+    const itemData = {
+      id: item.id || crypto.randomUUID(),
+      name: item.name,
+      category: item.category,
+      pricer: item.priceR,
+      pricel: item.priceL,
+      available: item.available,
+      hassizeoption: item.hasSizeOption,
+      updated_at: new Date().toISOString()
+    };
+    
+    const { data, error } = await supabase
+      .from('menu_items')
+      .upsert(itemData)
+      .select();
+    
+    if (error) throw error;
+    
+    const menuItemId = data?.[0]?.id || item.id;
+    console.log('Menu item ID:', menuItemId);
+    
+    // 2. Handle add-on relationships
+    if (item.category !== 'Add Ons' && item.addOnIds) {
+      // Delete existing
+      const { error: deleteError } = await supabase
+        .from('item_addon_relationships')
+        .delete()
+        .eq('menu_item_id', menuItemId);
+      
+      if (deleteError) throw deleteError;
+      
+      // Insert new
+      if (item.addOnIds.length > 0) {
+        const relationships = item.addOnIds.map(addonId => ({
+          menu_item_id: menuItemId,
+          addon_item_id: addonId
+        }));
+        
+        console.log('Inserting relationships:', relationships);
+        
+        const { error: insertError } = await supabase
+          .from('item_addon_relationships')
+          .insert(relationships);
+        
+        if (insertError) throw insertError;
+        
+        console.log(`✅ Saved ${relationships.length} add-on relationships for ${item.name}`);
+      }
+    }
+    
+  } catch (err) {
+    console.error('Error in saveMenuItemWithAddons:', err);
+    throw err;
+  }
+}
+
+// ─────────────────────────────────────────────
+// ADD-ONS FUNCTIONS
+// ─────────────────────────────────────────────
+export async function getAddOnItems(): Promise<MenuItem[]> {
+  try {
+    const { data, error } = await supabase
+      .from('menu_items')
+      .select('*')
+      .eq('category', 'Add Ons')
+      .order('name');
+    
+    if (error) {
+      console.error('Error fetching add-ons:', error);
+      return [];
+    }
+    
+    return (data || []).map(item => ({
+      id: item.id,
+      name: item.name,
+      category: item.category,
+      priceR: parseFloat(item.pricer) || 0,
+      priceL: item.pricel ? parseFloat(item.pricel) : null,
+      available: item.available,
+      hasSizeOption: item.hassizeoption || false,
+    }));
+  } catch (err) {
+    console.error('Error in getAddOnItems:', err);
+    return [];
   }
 }
 
@@ -90,7 +208,6 @@ export async function getOrders(): Promise<Order[]> {
     
     if (!data) return [];
     
-    // Map database fields to your Order type
     return data.map(order => ({
       id: order.id,
       orderNumber: order.order_number,
@@ -110,7 +227,6 @@ export async function getOrders(): Promise<Order[]> {
   }
 }
 
-// Helper to calculate subtotal if not stored
 function calculateSubtotal(items: OrderItem[]): number {
   return items.reduce((sum, item) => {
     const addOnsTotal = item.customization?.addOns?.reduce((a, ao) => a + ao.price, 0) || 0;
@@ -120,149 +236,82 @@ function calculateSubtotal(items: OrderItem[]): number {
 
 export async function saveOrder(order: Order) {
   try {
-    console.log('📤 Attempting to save order:', order);
-    
-    // Validate required fields
-    if (!order.orderNumber) throw new Error('Order missing orderNumber');
-    if (!order.items) throw new Error('Order missing items');
-    
-  const orderData = {
-    order_number: order.orderNumber.toString(),
-    items: order.items,
-    subtotal: order.subtotal,
-    discount: order.discount || 0,
-    total: order.total,
-    status: order.status,
-    created_at: order.createdAt,
-    printed_count: order.printedCount || 0,
-    last_printed_at: order.lastPrintedAt,
-    completed_at: order.completedAt,
-  };
-    
-    console.log('📦 Order data being sent:', JSON.stringify(orderData, null, 2));
-    
+    const orderData = {
+      order_number: order.orderNumber.toString(),
+      items: order.items,
+      subtotal: order.subtotal,
+      discount: order.discount || 0,
+      total: order.total,
+      status: order.status,
+      created_at: order.createdAt,
+      printed_count: order.printedCount || 0,
+      last_printed_at: order.lastPrintedAt ?? null,
+      completed_at: order.completedAt ?? null,
+      payment_method: order.amountPaid 
+        ? `Cash|${order.amountPaid}|${order.change ?? 0}` 
+        : null,
+    };
+
+    console.log('📤 Inserting to Supabase:', orderData.order_number);
+
     const { data, error } = await supabase
       .from('orders')
       .insert([orderData])
       .select();
-    
+
     if (error) {
-      console.error('❌ Supabase error details:', {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code
-      });
+      console.error('❌ Supabase insert error:', JSON.stringify(error));
       throw error;
     }
-    
-    console.log('✅ Order saved successfully:', data);
-    
-  } catch (err) {
-    console.error('❌ Error in saveOrder:', err);
+
+    console.log('✅ Supabase confirmed insert:', data);
+  } catch (err: any) {
+    console.error('❌ Error in saveOrder:', JSON.stringify(err), err?.message);
     throw err;
   }
 }
 
 export async function updateOrder(id: string, updates: Partial<Order>) {
   try {
-    // Convert to database field names
     const dbUpdates: any = {};
     if (updates.status) dbUpdates.status = updates.status;
     if (updates.paymentMethod) dbUpdates.payment_method = updates.paymentMethod;
+    if (updates.printedCount !== undefined) dbUpdates.printed_count = updates.printedCount;
+    if (updates.lastPrintedAt) dbUpdates.last_printed_at = updates.lastPrintedAt;
+    if (updates.completedAt) dbUpdates.completed_at = updates.completedAt;
     
     const { error } = await supabase
       .from('orders')
       .update(dbUpdates)
       .eq('id', id);
     
-    if (error) {
-      console.error('Error updating order:', error);
-      throw error;
-    }
+    if (error) throw error;
   } catch (err) {
     console.error('Error in updateOrder:', err);
     throw err;
   }
 }
 
-// ─────────────────────────────────────────────
-// ADD-ONS FUNCTIONS
-// ─────────────────────────────────────────────
-export async function getAddOnItems(): Promise<MenuItem[]> {
-  try {
-    // First try from add_ons table
-    const { data: addOnsData, error: addOnsError } = await supabase
-      .from('add_ons')
-      .select('*')
-      .eq('available', true);
-    
-    if (!addOnsError && addOnsData && addOnsData.length > 0) {
-      return addOnsData.map(item => ({
-        id: item.id,
-        name: item.name,
-        category: 'Add Ons',
-        priceR: parseFloat(item.price) || 0,
-        priceL: null,
-        available: item.available,
-        hasSizeOption: false,
-      }));
-    }
-    
-    // Fallback to menu_items with category 'Add Ons'
-    const { data, error } = await supabase
-      .from('menu_items')
-      .select('*')
-      .eq('category', 'Add Ons')
-      .eq('available', true);
-    
-    if (error) {
-      console.error('Error fetching add-ons:', error);
-      return [];
-    }
-    
-    return (data || []).map(item => ({
-      id: item.id,
-      name: item.name,
-      category: item.category,
-      // FIX: Use correct column names
-      priceR: parseFloat(item.pricer) || 0,
-      priceL: item.pricel ? parseFloat(item.pricel) : null,
-      available: item.available,
-      hasSizeOption: item.hassizeoption || false,
-    }));
-  } catch (err) {
-    console.error('Error in getAddOnItems:', err);
-    return [];
-  }
-}
-
-// ─────────────────────────────────────────────
-// ORDER NUMBER GENERATION
-// ─────────────────────────────────────────────
 export async function getNextOrderNumber(): Promise<string> {
   try {
     const { data, error } = await supabase
       .from('orders')
-      .select('order_number')
-      .order('created_at', { ascending: false })
-      .limit(1);
-    
-    if (error || !data || data.length === 0) {
-      return '1001'; // Returns STRING
-    }
-    
-    const lastNum = parseInt(data[0].order_number);
-    return (lastNum + 1).toString(); // Returns STRING
+      .select('order_number');
+
+    if (error || !data || data.length === 0) return '1001';
+
+    const nums = data
+      .map(r => parseInt(r.order_number))
+      .filter(n => !isNaN(n));
+
+    if (nums.length === 0) return '1001';
+
+    return (Math.max(...nums) + 1).toString();
   } catch (err) {
-    console.error('Error in getNextOrderNumber:', err);
-    return '1001'; // Returns STRING
+    return Date.now().toString().slice(-6);
   }
 }
 
-// ─────────────────────────────────────────────
-// ORDERS BY DATE RANGE
-// ─────────────────────────────────────────────
 export async function getOrdersByDateRange(startDate: Date, endDate: Date): Promise<Order[]> {
   try {
     const { data, error } = await supabase
@@ -294,9 +343,6 @@ export async function getOrdersByDateRange(startDate: Date, endDate: Date): Prom
   }
 }
 
-// ─────────────────────────────────────────────
-// DATABASE STATS
-// ─────────────────────────────────────────────
 export async function getDatabaseStats() {
   try {
     const { data: orders, error } = await supabase
@@ -333,9 +379,6 @@ export async function getDatabaseStats() {
   }
 }
 
-// ─────────────────────────────────────────────
-// STORE SETTINGS
-// ─────────────────────────────────────────────
 export async function getStoreSettings() {
   try {
     const { data, error } = await supabase
@@ -345,7 +388,6 @@ export async function getStoreSettings() {
       .single();
     
     if (error || !data) {
-      // Return defaults
       return { 
         storeName: 'Ocean Brew Siargao',
         storeAddress: 'Lopez Jaena St. Brgy. 9 Dapa, Siargao Island',

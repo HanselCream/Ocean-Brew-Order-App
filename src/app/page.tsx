@@ -7,6 +7,8 @@ import AdminPasswordModal from '@/components/AdminPasswordModal';
 import ExcelExport from '@/lib/excelExport';
 import printerService from '@/lib/printerService';
 
+export const addOnsRefreshEvent = new EventTarget();
+
 import {
   MenuItem,
   Order,
@@ -20,6 +22,7 @@ import {
 import {
   getMenu,
   saveMenu,
+  saveMenuItemWithAddons,
   getOrders,
   saveOrder,
   updateOrder,
@@ -27,15 +30,15 @@ import {
   getAddOnItems,
   getDatabaseStats,
   getOrdersByDateRange,
-  getStoreSettings,  // ← ADD THIS LINE
+  getStoreSettings,
 } from '@/lib/supabaseStore';
 import { supabase } from '@/lib/supabaseClient';
 
-// ─────────────────────────────────────────────
-// NAV BAR
-// ─────────────────────────────────────────────
 type Screen = 'order' | 'queue' | 'admin' | 'dashboard' | 'reports';
 
+// ─────────────────────────────────────────────
+// NAV BAR - BLACK & WHITE
+// ─────────────────────────────────────────────
 function NavBar({ screen, setScreen }: { screen: Screen; setScreen: (s: Screen) => void }) {
   const tabs: { key: Screen; label: string }[] = [
     { key: 'order', label: 'Order' },
@@ -45,7 +48,7 @@ function NavBar({ screen, setScreen }: { screen: Screen; setScreen: (s: Screen) 
     { key: 'admin', label: 'Admin' },
   ];
   return (
-    <nav className="flex items-center bg-sky-700 text-white px-4 h-14 shrink-0">
+    <nav className="flex items-center bg-black text-white border-b border-white/20 px-4 h-14 shrink-0">
       <span className="font-bold text-lg mr-8 tracking-wide">Ocean Brew</span>
       <div className="flex gap-1">
         {tabs.map(t => (
@@ -53,7 +56,7 @@ function NavBar({ screen, setScreen }: { screen: Screen; setScreen: (s: Screen) 
             key={t.key}
             onClick={() => setScreen(t.key)}
             className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-              screen === t.key ? 'bg-white text-sky-700' : 'hover:bg-sky-600'
+              screen === t.key ? 'bg-white text-black' : 'hover:bg-white/10'
             }`}
           >
             {t.label}
@@ -65,12 +68,11 @@ function NavBar({ screen, setScreen }: { screen: Screen; setScreen: (s: Screen) 
 }
 
 // ─────────────────────────────────────────────
-// CUSTOMIZATION MODAL - WITH FIX FOR ESPRESSO (NO SUGAR, SPECIAL ADD-ONS)
+// CUSTOMIZATION MODAL - BLACK & WHITE
 // ─────────────────────────────────────────────
 const SUGAR_LEVELS: SugarLevel[] = ['0%', '25%', '50%', '75%', '100%'];
 const ICE_LEVELS: IceLevel[] = ['No Ice', 'Less Ice', 'Normal Ice'];
 
-// Espresso-specific add-ons
 const ESPRESSO_ADDONS = [
   { id: 'es-addon-1', name: 'Whipped Cream', price: 25 },
   { id: 'es-addon-2', name: 'Extra Syrup', price: 25 },
@@ -101,16 +103,13 @@ function CustomizationModal({
 
   const basePrice = size === 'L' && item.priceL ? item.priceL : item.priceR;
   
-  // Calculate add-ons total based on item type
   const addOnsTotal = (() => {
     const isEspresso = item.category === 'Espresso';
     if (isEspresso) {
-      // Use espresso-specific add-ons
       return ESPRESSO_ADDONS
         .filter(a => selectedAddOns.has(a.id))
         .reduce((s, a) => s + a.price, 0);
     } else {
-      // Use regular add-ons from store
       return addOnItems
         .filter(a => selectedAddOns.has(a.id))
         .reduce((s, a) => s + a.priceR, 0);
@@ -133,7 +132,6 @@ function CustomizationModal({
   const handleConfirm = () => {
     const isEspresso = item.category === 'Espresso';
     
-    // Build add-ons array based on item type
     const addOnsArray = isEspresso
       ? ESPRESSO_ADDONS
           .filter(a => selectedAddOns.has(a.id))
@@ -145,7 +143,6 @@ function CustomizationModal({
     const cust: OrderItemCustomization = {
       size,
       temperature: isEspresso ? temperature : undefined,
-      // For Espresso: no sugar level
       sugar: isEspresso ? undefined : sugar,
       ice: isEspresso ? 'Normal Ice' : ice,
       addOns: addOnsArray,
@@ -174,18 +171,17 @@ function CustomizationModal({
   const isEspresso = item.category === 'Espresso';
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onCancel}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="p-5 border-b">
-          <h2 className="text-xl font-bold text-gray-800">{item.name}</h2>
-          <p className="text-gray-500">₱{item.priceR}{item.priceL ? ` / ₱${item.priceL}` : ''}</p>
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={onCancel}>
+      <div className="bg-black border border-white/20 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="p-5 border-b border-white/20">
+          <h2 className="text-xl font-bold text-white">{item.name}</h2>
+          <p className="text-gray-400">₱{item.priceR}{item.priceL ? ` / ₱${item.priceL}` : ''}</p>
         </div>
 
         <div className="p-5 space-y-5">
-          {/* Size */}
           {item.hasSizeOption && (
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Size</label>
+              <label className="block text-sm font-semibold text-gray-300 mb-2">Size</label>
               <div className="flex gap-3">
                 {(['R', 'L'] as Size[]).map(s => (
                   <button
@@ -193,8 +189,8 @@ function CustomizationModal({
                     onClick={() => setSize(s)}
                     className={`flex-1 py-3 rounded-xl text-lg font-bold border-2 transition-colors ${
                       size === s
-                        ? 'border-sky-600 bg-sky-50 text-sky-700'
-                        : 'border-gray-200 text-gray-600'
+                        ? 'border-white bg-white text-black'
+                        : 'border-white/30 text-gray-300 hover:border-white/50'
                     }`}
                   >
                     {s === 'R' ? 'Regular' : 'Large'} — ₱{s === 'R' ? item.priceR : item.priceL}
@@ -204,10 +200,9 @@ function CustomizationModal({
             </div>
           )}
 
-          {/* Hot/Cold toggle - ONLY for Espresso */}
           {isEspresso && (
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Temperature</label>
+              <label className="block text-sm font-semibold text-gray-300 mb-2">Temperature</label>
               <div className="flex gap-3">
                 {(['Hot', 'Cold'] as const).map(temp => (
                   <button
@@ -215,8 +210,8 @@ function CustomizationModal({
                     onClick={() => setTemperature(temp)}
                     className={`flex-1 py-3 rounded-xl text-lg font-bold border-2 transition-colors ${
                       temperature === temp
-                        ? 'border-sky-600 bg-sky-50 text-sky-700'
-                        : 'border-gray-200 text-gray-600'
+                        ? 'border-white bg-white text-black'
+                        : 'border-white/30 text-gray-300 hover:border-white/50'
                     }`}
                   >
                     {temp}
@@ -226,10 +221,9 @@ function CustomizationModal({
             </div>
           )}
 
-          {/* Sugar - NOT for Espresso! */}
           {isDrink && !isEspresso && (
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Sugar Level</label>
+              <label className="block text-sm font-semibold text-gray-300 mb-2">Sugar Level</label>
               <div className="flex flex-wrap gap-2">
                 {SUGAR_LEVELS.map(sl => (
                   <button
@@ -237,8 +231,8 @@ function CustomizationModal({
                     onClick={() => setSugar(sl)}
                     className={`px-4 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${
                       sugar === sl
-                        ? 'border-sky-600 bg-sky-50 text-sky-700'
-                        : 'border-gray-200 text-gray-600'
+                        ? 'border-white bg-white text-black'
+                        : 'border-white/30 text-gray-300 hover:border-white/50'
                     }`}
                   >
                     {sl}
@@ -247,28 +241,10 @@ function CustomizationModal({
               </div>
             </div>
           )}
-            {/* Quick Discount Buttons - Add this section */}
-            <div className="mb-2">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Quick Discount</label>
-              <div className="flex gap-2">
-                {[5, 10, 20].map(percent => (
-                  <button
-                    key={percent}
-                    onClick={() => {
-                      setDiscountType('percent');
-                      setDiscountValue(percent.toString());
-                    }}
-                    className="flex-1 py-2 rounded-lg bg-sky-100 text-sky-700 font-semibold hover:bg-sky-200 transition-colors"
-                  >
-                    {percent}%
-                  </button>
-                ))}
-              </div>
-            </div>
-          {/* Ice - NOT for Espresso! */}
+          
           {isDrink && !isEspresso && (
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Ice Level</label>
+              <label className="block text-sm font-semibold text-gray-300 mb-2">Ice Level</label>
               <div className="flex flex-wrap gap-2">
                 {ICE_LEVELS.map(il => (
                   <button
@@ -276,8 +252,8 @@ function CustomizationModal({
                     onClick={() => setIce(il)}
                     className={`px-4 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${
                       ice === il
-                        ? 'border-sky-600 bg-sky-50 text-sky-700'
-                        : 'border-gray-200 text-gray-600'
+                        ? 'border-white bg-white text-black'
+                        : 'border-white/30 text-gray-300 hover:border-white/50'
                     }`}
                   >
                     {il}
@@ -287,76 +263,78 @@ function CustomizationModal({
             </div>
           )}
 
-          {/* Add-ons - Different for Espresso vs Regular */}
           {isDrink && (
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                {isEspresso ? 'Espresso Add-ons' : 'Add-ons'}
+              <label className="block text-sm font-semibold text-gray-300 mb-2">
+                {isEspresso ? 'Espresso Add-ons' : 'Add-ons (select multiple)'}
               </label>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-1">
                 {isEspresso ? (
-                  // Espresso-specific add-ons
                   ESPRESSO_ADDONS.map(a => (
                     <button
                       key={a.id}
                       onClick={() => toggleAddOn(a.id)}
-                      className={`px-4 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${
+                      className={`px-3 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${
                         selectedAddOns.has(a.id)
-                          ? 'border-sky-600 bg-sky-50 text-sky-700'
-                          : 'border-gray-200 text-gray-600'
+                          ? 'border-white bg-white text-black'
+                          : 'border-white/30 text-gray-300 hover:border-white/50'
                       }`}
                     >
                       {a.name} +₱{a.price}
                     </button>
                   ))
                 ) : (
-                  // Regular add-ons
-                  addOnItems.map(a => (
-                    <button
-                      key={a.id}
-                      onClick={() => toggleAddOn(a.id)}
-                      className={`px-4 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${
-                        selectedAddOns.has(a.id)
-                          ? 'border-sky-600 bg-sky-50 text-sky-700'
-                          : 'border-gray-200 text-gray-600'
-                      }`}
-                    >
-                      {a.name} +₱{a.priceR}
-                    </button>
-                  ))
+                  addOnItems
+                    .filter(addOn => item.addOnIds?.includes(addOn.id))
+                    .map(a => (
+                      <button
+                        key={a.id}
+                        onClick={() => toggleAddOn(a.id)}
+                        className={`px-3 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${
+                          selectedAddOns.has(a.id)
+                            ? 'border-white bg-white text-black'
+                            : 'border-white/30 text-gray-300 hover:border-white/50'
+                        }`}
+                      >
+                        {a.name} +₱{a.priceR}
+                      </button>
+                    ))
                 )}
               </div>
+              {!isEspresso && (!item.addOnIds || item.addOnIds.length === 0) && (
+                <p className="text-xs text-gray-500 mt-1">
+                  No add-ons available for this item. Edit this item in Admin to add add-ons.
+                </p>
+              )}
             </div>
           )}
 
-          {/* Quantity */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Quantity</label>
+            <label className="block text-sm font-semibold text-gray-300 mb-2">Quantity</label>
             <div className="flex items-center gap-4">
               <button
                 onClick={() => setQuantity(q => Math.max(1, q - 1))}
-                className="w-12 h-12 rounded-xl bg-gray-100 text-xl font-bold text-gray-700 active:bg-gray-200"
+                className="w-12 h-12 rounded-xl bg-white/10 text-xl font-bold text-white hover:bg-white/20"
               >
                 -
               </button>
-              <span className="text-2xl font-bold w-8 text-center">{quantity}</span>
+              <span className="text-2xl font-bold w-8 text-center text-white">{quantity}</span>
               <button
                 onClick={() => setQuantity(q => q + 1)}
-                className="w-12 h-12 rounded-xl bg-gray-100 text-xl font-bold text-gray-700 active:bg-gray-200"
+                className="w-12 h-12 rounded-xl bg-white/10 text-xl font-bold text-white hover:bg-white/20"
               >
                 +
               </button>
             </div>
           </div>
 
-          {/* Discount */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Discount</label>
+            <label className="block text-sm font-semibold text-gray-300 mb-2">Discount</label>
             <div className="flex gap-2 items-center">
               <select
                 value={discountType}
                 onChange={e => setDiscountType(e.target.value as 'percent' | 'fixed')}
-                className="border-2 border-gray-200 rounded-xl px-3 py-2 text-sm"
+                className="border border-white/20 rounded-xl px-3 py-2 text-sm bg-black text-white"
               >
                 <option value="percent">%</option>
                 <option value="fixed">₱ Fixed</option>
@@ -367,23 +345,22 @@ function CustomizationModal({
                 placeholder="0"
                 value={discountValue}
                 onChange={e => setDiscountValue(e.target.value)}
-                className="border-2 border-gray-200 rounded-xl px-3 py-2 text-sm flex-1"
+                className="border border-white/20 rounded-xl px-3 py-2 text-sm flex-1 bg-black text-white"
               />
             </div>
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="p-5 border-t bg-gray-50 rounded-b-2xl flex items-center justify-between">
+        <div className="p-5 border-t border-white/20 bg-white/5 rounded-b-2xl flex items-center justify-between">
           <div>
-            <span className="text-sm text-gray-500">Total:</span>
-            <span className="text-2xl font-bold text-sky-700 ml-2">₱{lineTotal.toFixed(2)}</span>
+            <span className="text-sm text-gray-400">Total:</span>
+            <span className="text-2xl font-bold text-white ml-2">₱{lineTotal.toFixed(2)}</span>
           </div>
           <div className="flex gap-3">
-            <button onClick={onCancel} className="px-5 py-3 rounded-xl text-gray-600 font-semibold bg-gray-200 active:bg-gray-300">
+            <button onClick={onCancel} className="px-5 py-3 rounded-xl text-white font-semibold bg-white/10 hover:bg-white/20">
               Cancel
             </button>
-            <button onClick={handleConfirm} className="px-5 py-3 rounded-xl text-white font-semibold bg-sky-600 active:bg-sky-700">
+            <button onClick={handleConfirm} className="px-5 py-3 rounded-xl text-black font-semibold bg-white hover:bg-gray-200">
               Add to Order
             </button>
           </div>
@@ -394,7 +371,7 @@ function CustomizationModal({
 }
 
 // ─────────────────────────────────────────────
-// PRINTER SETTINGS BUTTON (for Order Screen)
+// PRINTER STATUS BAR - BLACK & WHITE
 // ─────────────────────────────────────────────
 function PrinterStatusBar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const [isConnected, setIsConnected] = useState(false);
@@ -418,14 +395,14 @@ function PrinterStatusBar({ onOpenSettings }: { onOpenSettings: () => void }) {
   };
 
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
+    <div className="flex items-center gap-2 px-3 py-1.5 bg-white/10 rounded-lg border border-white/20">
       <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-      <span className="text-xs font-medium text-gray-600">
+      <span className="text-xs font-medium text-gray-300">
         {getStatusText()}
       </span>
       <button
         onClick={onOpenSettings}
-        className="ml-1 px-2 py-1 text-xs bg-sky-100 text-sky-700 rounded-md hover:bg-sky-200"
+        className="ml-1 px-2 py-1 text-xs bg-white/20 text-white rounded-md hover:bg-white/30"
       >
         🖨️ Settings
       </button>
@@ -434,7 +411,623 @@ function PrinterStatusBar({ onOpenSettings }: { onOpenSettings: () => void }) {
 }
 
 // ─────────────────────────────────────────────
-// PRINT CONFIRMATION MODAL
+// ORDER SCREEN - BLACK & WHITE (NO PRINTER)
+// ─────────────────────────────────────────────
+function OrderScreen({ onOrderPlaced }: { onOrderPlaced: () => void }) {
+  const [menu, setMenu] = useState<MenuItem[]>([]);
+  const [activeCategory, setActiveCategory] = useState<string>('Classic');
+  const [cart, setCart] = useState<OrderItem[]>([]);
+  const [modalItem, setModalItem] = useState<MenuItem | null>(null);
+  const [addOnItems, setAddOnItems] = useState<MenuItem[]>([]);
+  
+  // Confirmation modals state
+  const [showAmountModal, setShowAmountModal] = useState(false);
+  const [showFinalConfirmModal, setShowFinalConfirmModal] = useState(false);
+  const [amountPaid, setAmountPaid] = useState<number>(0);
+  const [changeAmount, setChangeAmount] = useState<number>(0);
+
+  useEffect(() => {
+    const loadMenu = async () => {
+      try {
+        const menuData = await getMenu();
+        setMenu(Array.isArray(menuData) ? menuData : []);
+        const addOnsData = await getAddOnItems();
+        setAddOnItems(Array.isArray(addOnsData) ? addOnsData : []);
+      } catch (error) {
+        console.error('Failed to load menu:', error);
+        setMenu([]);
+        setAddOnItems([]);
+      }
+    };
+    loadMenu();
+  }, []);
+
+  const categories = Array.from(new Set(menu.map(m => m.category)))
+    .sort((a, b) => {
+      const indexA = CATEGORIES.indexOf(a as any);
+      const indexB = CATEGORIES.indexOf(b as any);
+      if (indexA === -1) return 1;
+      if (indexB === -1) return -1;
+      return indexA - indexB;
+    });
+    
+  const filteredItems = menu.filter(m => m.category === activeCategory && m.available);
+
+  const addToCart = (orderItem: OrderItem) => {
+    setCart(prev => [...prev, orderItem]);
+    setModalItem(null);
+  };
+
+  const removeFromCart = (id: string) => {
+    setCart(prev => prev.filter(i => i.id !== id));
+  };
+
+  const subtotal = cart.reduce((s, i) => s + (i.basePrice + i.customization.addOns.reduce((a, ao) => a + ao.price, 0)) * i.quantity, 0);
+  const totalDiscount = cart.reduce((s, i) => {
+    const itemSub = (i.basePrice + i.customization.addOns.reduce((a, ao) => a + ao.price, 0)) * i.quantity;
+    if (!i.customization.discount) return s;
+    return s + (i.customization.discount.type === 'percent' ? itemSub * (i.customization.discount.value / 100) : i.customization.discount.value);
+  }, 0);
+  const total = cart.reduce((s, i) => s + i.lineTotal, 0);
+
+  const cancelOrder = () => setCart([]);
+
+  // Step 1: Show amount paid modal
+  const handleGenerateClick = () => {
+    if (cart.length === 0) return;
+    setAmountPaid(0);
+    setChangeAmount(0);
+    setShowAmountModal(true);
+  };
+
+  // Step 2: After amount entered, show final confirmation
+  const handleAmountConfirm = () => {
+    if (amountPaid < total) {
+      alert(`Amount paid (₱${amountPaid.toFixed(2)}) is less than total (₱${total.toFixed(2)})`);
+      return;
+    }
+    setChangeAmount(amountPaid - total);
+    setShowAmountModal(false);
+    setShowFinalConfirmModal(true);
+  };
+
+  // Step 3: Final confirm - save order
+  const handleFinalConfirm = async () => {
+    try {
+      const nextOrderNumberStr = await getNextOrderNumber();
+      const nextOrderNumber = parseInt(nextOrderNumberStr);
+      console.log('💾 Saving order to Supabase:', nextOrderNumber); // ← ADD
+      const order: Order = {
+        id: '',
+        orderNumber: nextOrderNumber,
+        items: cart,
+        subtotal,
+        discount: totalDiscount,
+        total,
+        createdAt: new Date().toISOString(),
+        status: 'pending',
+        amountPaid,        // ← ADD
+        change: changeAmount, // ← ADD
+      };
+      await saveOrder(order);
+      console.log('✅ Order saved:', nextOrderNumber); // ← ADD
+
+      // Clear cart and close modals
+      setCart([]);
+      setShowFinalConfirmModal(false);
+      
+      // Optional: show success message
+      alert(`Order #${nextOrderNumber} completed! Change: ₱${changeAmount.toFixed(2)}`);
+      
+      onOrderPlaced();
+    } catch (error: any) {
+      console.error('Failed to save order:', JSON.stringify(error), error?.message, error?.code);
+      alert('Failed to save order: ' + (error?.message || JSON.stringify(error)));
+    }
+  };
+
+  useEffect(() => {
+    const handleRefresh = async () => {
+      const addOnsData = await getAddOnItems();
+      setAddOnItems(Array.isArray(addOnsData) ? addOnsData : []);
+    };
+    
+    addOnsRefreshEvent.addEventListener('refresh', handleRefresh);
+    return () => addOnsRefreshEvent.removeEventListener('refresh', handleRefresh);
+  }, []);
+
+  return (
+    <div className="flex flex-1 overflow-hidden relative">
+      {/* Left: Categories */}
+      <div className="w-40 bg-black border-r border-white/10 overflow-y-auto shrink-0">
+        {categories.map((cat, index) => (
+          <button
+            key={`${cat}-${index}`}
+            onClick={() => setActiveCategory(cat)}
+            className={`w-full text-left px-3 py-3 text-sm font-semibold border-b border-white/10 transition-colors ${
+              activeCategory === cat
+                ? 'bg-white text-black'
+                : 'text-gray-300 hover:bg-white/10'
+            }`}
+          >
+            {cat}
+          </button>
+        ))}
+      </div>
+
+      {/* Center: Item Grid */}
+      <div className="flex-1 p-4 overflow-y-auto bg-black">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          {filteredItems.map(item => (
+            <button
+              key={item.id}
+              onClick={() => setModalItem(item)}
+              className="bg-black border border-white/20 rounded-xl p-4 flex flex-col items-center justify-center text-center active:scale-95 transition-transform min-h-[100px] hover:border-white/50"
+            >
+              <span className="font-bold text-white text-sm leading-tight">{item.name}</span>
+              <span className="text-gray-400 font-bold mt-1 text-base">
+                ₱{item.priceR}
+                {item.priceL ? <span className="text-gray-500 text-xs"> / ₱{item.priceL}</span> : ''}
+              </span>
+            </button>
+          ))}
+          {filteredItems.length === 0 && (
+            <p className="col-span-full text-center text-gray-500 py-12">No items in this category</p>
+          )}
+        </div>
+      </div>
+
+      {/* Right: Order Summary - NO PRINTER CONTROLS */}
+      <div className="w-80 bg-black border-l border-white/10 flex flex-col shrink-0">
+        <div className="px-4 py-3 border-b border-white/10 bg-white/5 text-white">
+          <h2 className="font-bold text-base">Current Order</h2>
+        </div>
+        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+          {cart.length === 0 && (
+            <p className="text-gray-500 text-sm text-center py-8">Tap an item to start</p>
+          )}
+          {cart.map(item => (
+            <div key={item.id} className="bg-white/5 rounded-lg p-3 border border-white/10 text-sm hover:bg-white/10 transition-colors">
+              <div className="flex justify-between items-start">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-white">{item.quantity}x {item.name}</span>
+                    <button 
+                      onClick={() => removeFromCart(item.id)} 
+                      className="text-white bg-red-700 hover:bg-red-800 text-xs px-2 py-0.5 rounded-full transition-colors"
+                      title="Remove item"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="text-xs text-gray-400 mt-1.5 pl-1">
+                    <div className="flex flex-wrap gap-1">
+                      <span className="bg-white/10 px-1.5 py-0.5 rounded">{item.customization.size}</span>
+                      {item.customization.temperature && (
+                        <span className="bg-white/10 px-1.5 py-0.5 rounded">{item.customization.temperature}</span>
+                      )}
+                      {item.customization.sugar !== '100%' && (
+                        <span className="bg-white/10 px-1.5 py-0.5 rounded">{item.customization.sugar} sugar</span>
+                      )}
+                      {item.customization.ice !== 'Normal Ice' && (
+                        <span className="bg-white/10 px-1.5 py-0.5 rounded">{item.customization.ice}</span>
+                      )}
+                      {item.customization.addOns.length > 0 && (
+                        <span className="bg-green-900 text-green-300 px-1.5 py-0.5 rounded">
+                          +{item.customization.addOns.map(a => a.name).join(', ')}
+                        </span>
+                      )}
+                      {item.customization.discount && (
+                        <span className="bg-red-900 text-red-300 px-1.5 py-0.5 rounded">
+                          -{item.customization.discount.type === 'percent' ? `${item.customization.discount.value}%` : `₱${item.customization.discount.value}`}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="ml-2">
+                  <span className="font-bold text-white text-base">₱{item.lineTotal.toFixed(0)}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+          {cart.length > 0 && (
+            <div className="p-3 border-t border-white/10">
+              <button
+                onClick={() => setCart([])}
+                className="w-full py-2.5 rounded-lg bg-red-900/30 text-red-300 font-semibold text-sm hover:bg-red-900/50 transition-colors border border-red-800"
+              >
+                🗑️ Clear All Items
+              </button>
+            </div>
+          )}
+        </div>
+        <div className="p-3 border-t border-white/10 space-y-1 text-sm">
+          <div className="flex justify-between text-gray-400">
+            <span>Subtotal</span><span>₱{subtotal.toFixed(2)}</span>
+          </div>
+          {totalDiscount > 0 && (
+            <div className="flex justify-between text-red-400">
+              <span>Discount</span><span>-₱{totalDiscount.toFixed(2)}</span>
+            </div>
+          )}
+          <div className="flex justify-between text-lg font-bold text-white pt-1 border-t border-white/10">
+            <span>Total</span><span>₱{total.toFixed(2)}</span>
+          </div>
+        </div>
+        <div className="p-3 border-t border-white/10">
+          <button
+            onClick={handleGenerateClick}
+            disabled={cart.length === 0}
+            className="w-full py-3 rounded-xl bg-white text-black font-semibold text-sm hover:bg-gray-200 disabled:opacity-40 transition-colors"
+          >
+            Generate Order
+          </button>
+          <button
+            onClick={cancelOrder}
+            disabled={cart.length === 0}
+            className="w-full mt-2 py-2 rounded-lg text-gray-400 font-semibold text-sm hover:text-white disabled:opacity-40 transition-colors"
+          >
+            Cancel Order
+          </button>
+        </div>
+      </div>
+
+      {modalItem && (
+        <CustomizationModal
+          item={modalItem}
+          addOnItems={addOnItems}
+          onConfirm={addToCart}
+          onCancel={() => setModalItem(null)}
+        />
+      )}
+
+      {/* MODAL 1: Amount Paid + Change */}
+      {showAmountModal && (
+        <AmountPaidModal
+          cart={cart}
+          subtotal={total}
+          onConfirm={(discountAmount: number, amountPaid: number) => {
+            setAmountPaid(amountPaid);
+            setChangeAmount(amountPaid - (total - discountAmount));
+            setShowAmountModal(false);
+            setShowFinalConfirmModal(true);
+          }}
+          onCancel={() => setShowAmountModal(false)}
+        />
+      )}
+
+      {/* MODAL 2: Final Confirmation */}
+      {showFinalConfirmModal && (
+        <FinalConfirmModal
+          cart={cart}
+          total={total}
+          amountPaid={amountPaid}
+          changeAmount={changeAmount}
+          onConfirm={handleFinalConfirm}
+          onCancel={() => setShowFinalConfirmModal(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// AMOUNT PAID MODAL (with Discounts & Order Details)
+// ─────────────────────────────────────────────
+function AmountPaidModal({
+  cart,
+  subtotal,
+  onConfirm,
+  onCancel,
+}: {
+  cart: OrderItem[];
+  subtotal: number;
+  onConfirm: (discountAmount: number, amountPaid: number) => void;
+  onCancel: () => void;
+}) {
+  const [discountType, setDiscountType] = useState<'none' | 'pwd' | 'student' | 'store'>('none');
+  const [storeDiscountValue, setStoreDiscountValue] = useState<number>(0);
+  const [storeDiscountIsPercent, setStoreDiscountIsPercent] = useState<boolean>(true);
+  const [amountPaid, setAmountPaid] = useState<number>(0);
+
+  // Calculate discount amount
+  const getDiscountAmount = (): number => {
+    switch (discountType) {
+      case 'pwd':
+        return subtotal * 0.20; // 20% for PWD
+      case 'student':
+        return subtotal * 0.20; // 20% for Student
+      case 'store':
+        if (storeDiscountIsPercent) {
+          return subtotal * (storeDiscountValue / 100);
+        }
+        return storeDiscountValue;
+      default:
+        return 0;
+    }
+  };
+
+  const discountAmount = getDiscountAmount();
+  const totalAfterDiscount = subtotal - discountAmount;
+  const change = amountPaid - totalAfterDiscount;
+
+  const handleConfirm = () => {
+    if (amountPaid < totalAfterDiscount) {
+      alert(`Amount paid (₱${amountPaid.toFixed(2)}) is less than total (₱${totalAfterDiscount.toFixed(2)})`);
+      return;
+    }
+    onConfirm(discountAmount, amountPaid);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4 overflow-y-auto">
+      <div className="bg-black border border-white/20 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="p-6">
+          <h2 className="text-xl font-bold text-white mb-4">Payment & Discount</h2>
+
+          {/* Order Items with Details */}
+          <div className="bg-white/5 rounded-xl p-4 mb-4">
+            <h3 className="text-sm font-semibold text-gray-400 mb-2">Order Summary</h3>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {cart.map((item, idx) => (
+                <div key={idx} className="border-b border-white/10 pb-2 last:border-0">
+                  <div className="flex justify-between">
+                    <span className="text-white font-semibold">{item.quantity}x {item.name}</span>
+                    <span className="text-white">₱{item.lineTotal.toFixed(2)}</span>
+                  </div>
+                  <div className="text-xs text-gray-400 mt-1 pl-2">
+                    <div className="flex flex-wrap gap-1">
+                      <span className="bg-white/10 px-1.5 py-0.5 rounded">{item.customization.size}</span>
+                      {item.customization.temperature && (
+                        <span className="bg-white/10 px-1.5 py-0.5 rounded">
+                          {item.customization.temperature === 'Hot' ? '🔥 Hot' : '❄️ Cold'}
+                        </span>
+                      )}
+                      {item.customization.sugar !== '100%' && (
+                        <span className="bg-white/10 px-1.5 py-0.5 rounded">{item.customization.sugar} sugar</span>
+                      )}
+                      {item.customization.ice !== 'Normal Ice' && (
+                        <span className="bg-white/10 px-1.5 py-0.5 rounded">{item.customization.ice}</span>
+                      )}
+                      {item.customization.addOns.length > 0 && (
+                        <span className="bg-green-900 text-green-300 px-1.5 py-0.5 rounded">
+                          +{item.customization.addOns.map(a => a.name).join(', ')}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Discount Options */}
+          <div className="bg-white/5 rounded-xl p-4 mb-4">
+            <h3 className="text-sm font-semibold text-gray-400 mb-3">Discount Type</h3>
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              <button
+                onClick={() => setDiscountType('none')}
+                className={`py-2 rounded-lg font-semibold text-sm transition-colors ${
+                  discountType === 'none'
+                    ? 'bg-white text-black'
+                    : 'bg-white/10 text-white hover:bg-white/20'
+                }`}
+              >
+                None
+              </button>
+              <button
+                onClick={() => setDiscountType('pwd')}
+                className={`py-2 rounded-lg font-semibold text-sm transition-colors ${
+                  discountType === 'pwd'
+                    ? 'bg-white text-black'
+                    : 'bg-white/10 text-white hover:bg-white/20'
+                }`}
+              >
+                PWD (20%)
+              </button>
+              <button
+                onClick={() => setDiscountType('student')}
+                className={`py-2 rounded-lg font-semibold text-sm transition-colors ${
+                  discountType === 'student'
+                    ? 'bg-white text-black'
+                    : 'bg-white/10 text-white hover:bg-white/20'
+                }`}
+              >
+                Student (20%)
+              </button>
+            </div>
+
+            {/* Store Discount Section */}
+            <div className="border-t border-white/10 pt-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-gray-300">Store Discount</span>
+                <button
+                  onClick={() => {
+                    setDiscountType(discountType === 'store' ? 'none' : 'store');
+                    setStoreDiscountValue(0);
+                  }}
+                  className={`px-3 py-1 rounded-lg text-xs font-semibold ${
+                    discountType === 'store'
+                      ? 'bg-white text-black'
+                      : 'bg-white/10 text-white hover:bg-white/20'
+                  }`}
+                >
+                  {discountType === 'store' ? 'Disable' : 'Enable'}
+                </button>
+              </div>
+
+              {discountType === 'store' && (
+                <div className="flex gap-2 mt-2">
+                  <select
+                    value={storeDiscountIsPercent ? 'percent' : 'fixed'}
+                    onChange={(e) => setStoreDiscountIsPercent(e.target.value === 'percent')}
+                    className="bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm"
+                  >
+                    <option value="percent">% Percent</option>
+                    <option value="fixed">₱ Fixed</option>
+                  </select>
+                  <input
+                    type="number"
+                    value={storeDiscountValue === 0 ? '' : storeDiscountValue}
+                    onChange={(e) => setStoreDiscountValue(parseFloat(e.target.value) || 0)}
+                    placeholder={storeDiscountIsPercent ? 'Discount %' : 'Discount ₱'}
+                    className="flex-1 border border-white/20 rounded-lg px-3 py-2 bg-black text-white focus:border-white/50 focus:outline-none"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Totals */}
+          <div className="bg-white/5 rounded-xl p-4 mb-4">
+            <div className="flex justify-between mb-2">
+              <span className="text-gray-400">Subtotal</span>
+              <span className="text-white">₱{subtotal.toFixed(2)}</span>
+            </div>
+            {discountAmount > 0 && (
+              <div className="flex justify-between mb-2 text-red-400">
+                <span>Discount</span>
+                <span>-₱{discountAmount.toFixed(2)}</span>
+              </div>
+            )}
+            <div className="flex justify-between pt-2 border-t border-white/20">
+              <span className="text-white font-bold">Total</span>
+              <span className="text-white font-bold text-lg">₱{totalAfterDiscount.toFixed(2)}</span>
+            </div>
+          </div>
+
+          {/* Amount Paid */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Amount Paid
+            </label>
+            <input
+              type="number"
+              value={amountPaid === 0 ? '' : amountPaid}
+              onChange={(e) => {
+                const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                setAmountPaid(value);
+              }}
+              className="w-full border border-white/20 rounded-xl px-4 py-3 bg-black text-white text-lg focus:border-white/50 focus:outline-none"
+              placeholder="Enter amount received"
+              autoFocus
+            />
+          </div>
+
+          {/* Change */}
+          {amountPaid >= totalAfterDiscount && amountPaid > 0 && (
+            <div className="bg-green-900/30 border border-green-800 rounded-xl p-4 mb-4">
+              <p className="text-gray-300 text-sm mb-1">Change</p>
+              <p className="text-2xl font-bold text-green-400">₱{change.toFixed(2)}</p>
+            </div>
+          )}
+
+          {amountPaid > 0 && amountPaid < totalAfterDiscount && (
+            <div className="bg-red-900/30 border border-red-800 rounded-xl p-4 mb-4">
+              <p className="text-red-400 text-sm">Amount paid is less than total</p>
+              <p className="text-red-300">Short: ₱{(totalAfterDiscount - amountPaid).toFixed(2)}</p>
+            </div>
+          )}
+
+          {/* Buttons */}
+          <div className="flex gap-3">
+            <button
+              onClick={onCancel}
+              className="flex-1 py-3 rounded-xl bg-white/10 font-semibold text-white hover:bg-white/20 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirm}
+              disabled={amountPaid < totalAfterDiscount}
+              className="flex-1 py-3 rounded-xl bg-white font-semibold text-black hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Continue to Confirmation
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// FINAL CONFIRMATION MODAL
+// ─────────────────────────────────────────────
+function FinalConfirmModal({
+  cart,
+  total,
+  amountPaid,
+  changeAmount,
+  onConfirm,
+  onCancel,
+}: {
+  cart: OrderItem[];
+  total: number;
+  amountPaid: number;
+  changeAmount: number;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4">
+      <div className="bg-black border border-white/20 rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="p-6">
+          <div className="text-center mb-4">
+            <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center mx-auto mb-3">
+              <span className="text-3xl">✅</span>
+            </div>
+            <h2 className="text-xl font-bold text-white">Confirm Order</h2>
+          </div>
+
+          {/* Order items summary */}
+          <div className="bg-white/5 rounded-xl p-3 mb-3 max-h-48 overflow-y-auto">
+            {cart.map((item, idx) => (
+              <div key={idx} className="flex justify-between text-sm py-1 border-b border-white/10 last:border-0">
+                <span className="text-gray-300">{item.quantity}x {item.name}</span>
+                <span className="text-white font-semibold">₱{item.lineTotal.toFixed(2)}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="bg-white/5 rounded-xl p-4 mb-4">
+            <div className="flex justify-between mb-2">
+              <span className="text-gray-400">Total:</span>
+              <span className="text-white font-bold">₱{total.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between mb-2">
+              <span className="text-gray-400">Amount Paid:</span>
+              <span className="text-white font-bold">₱{amountPaid.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between pt-2 border-t border-white/20">
+              <span className="text-green-400">Change:</span>
+              <span className="text-green-400 font-bold text-lg">₱{changeAmount.toFixed(2)}</span>
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              onClick={onCancel}
+              className="flex-1 py-3 rounded-xl bg-white/10 font-semibold text-white hover:bg-white/20 transition-colors"
+            >
+              No, Go Back
+            </button>
+            <button
+              onClick={onConfirm}
+              className="flex-1 py-3 rounded-xl bg-white font-semibold text-black hover:bg-gray-200 transition-colors"
+            >
+              Yes, Generate Order
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// PRINT CONFIRMATION MODAL - BLACK & WHITE
 // ─────────────────────────────────────────────
 function PrintConfirmationModal({
   order,
@@ -469,14 +1062,11 @@ function PrintConfirmationModal({
     try {
       const settings = await getStoreSettings();
       await printerService.printReceipt(order, settings);
-      
-      // Update print count
       const newPrintCount = (order.printedCount || 0) + 1;
       await updateOrder(order.id, { 
         printedCount: newPrintCount,
         lastPrintedAt: new Date().toISOString()
       });
-      
       onConfirm();
     } catch (error) {
       setPrintError('Failed to print: ' + error);
@@ -484,35 +1074,36 @@ function PrintConfirmationModal({
       setIsPrinting(false);
     }
   };
+  
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4">
+      <div className="bg-black border border-white/20 rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
         <div className="p-6">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 rounded-full bg-sky-100 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
               <span className="text-2xl">🖨️</span>
             </div>
             <div>
-              <h2 className="text-xl font-bold text-gray-800">Print Receipt</h2>
-              <p className="text-gray-500">Order #{order.orderNumber}</p>
+              <h2 className="text-xl font-bold text-white">Print Receipt</h2>
+              <p className="text-gray-400">Order #{order.orderNumber}</p>
             </div>
           </div>
 
-          <div className="bg-gray-50 rounded-xl p-4 mb-4">
-            <p className="text-sm text-gray-600 mb-2">Total Amount:</p>
-            <p className="text-3xl font-bold text-sky-700">₱{order.total.toFixed(2)}</p>
+          <div className="bg-white/5 rounded-xl p-4 mb-4 border border-white/10">
+            <p className="text-sm text-gray-400 mb-2">Total Amount:</p>
+            <p className="text-3xl font-bold text-white">₱{order.total.toFixed(2)}</p>
             <p className="text-xs text-gray-500 mt-2">
               {new Date(order.createdAt).toLocaleString()}
             </p>
           </div>
 
           {!isPrinterConnected && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+            <div className="bg-yellow-900/30 border border-yellow-800 rounded-xl p-4 mb-4">
               <div className="flex items-start gap-2">
-                <span className="text-amber-600 text-lg">⚠️</span>
+                <span className="text-yellow-500 text-lg">⚠️</span>
                 <div>
-                  <p className="text-sm font-semibold text-amber-800">Printer Not Connected</p>
-                  <p className="text-xs text-amber-700 mt-1">
+                  <p className="text-sm font-semibold text-yellow-400">Printer Not Connected</p>
+                  <p className="text-xs text-yellow-500 mt-1">
                     Please click the <span className="font-bold">"Printer Settings"</span> button below to connect your Bluetooth printer.
                   </p>
                 </div>
@@ -521,7 +1112,7 @@ function PrintConfirmationModal({
           )}
 
           {printError && (
-            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl mb-4 text-sm">
+            <div className="bg-red-900/30 border border-red-800 text-red-400 px-4 py-3 rounded-xl mb-4 text-sm">
               {printError}
             </div>
           )}
@@ -530,7 +1121,7 @@ function PrintConfirmationModal({
             {!isPrinterConnected && (
               <button
                 onClick={onOpenPrinterSettings}
-                className="w-full py-3 rounded-xl bg-amber-500 font-semibold text-white hover:bg-amber-600 transition-colors flex items-center justify-center gap-2"
+                className="w-full py-3 rounded-xl bg-yellow-700 font-semibold text-white hover:bg-yellow-600 transition-colors flex items-center justify-center gap-2"
               >
                 🖨️ Printer Settings
               </button>
@@ -539,14 +1130,14 @@ function PrintConfirmationModal({
             <div className="flex gap-3">
               <button
                 onClick={onSkip}
-                className="flex-1 py-3 rounded-xl bg-gray-200 font-semibold text-gray-700 hover:bg-gray-300 transition-colors"
+                className="flex-1 py-3 rounded-xl bg-white/10 font-semibold text-white hover:bg-white/20 transition-colors"
               >
                 Skip
               </button>
               <button
                 onClick={handlePrint}
                 disabled={isPrinting || !isPrinterConnected}
-                className="flex-1 py-3 rounded-xl bg-sky-600 font-semibold text-white hover:bg-sky-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="flex-1 py-3 rounded-xl bg-white font-semibold text-black hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {isPrinting ? (
                   <>Printing...</>
@@ -558,7 +1149,7 @@ function PrintConfirmationModal({
             
             <button
               onClick={onCancel}
-              className="w-full mt-1 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+              className="w-full mt-1 py-2 text-sm text-gray-500 hover:text-gray-300 transition-colors"
             >
               Cancel
             </button>
@@ -570,404 +1161,18 @@ function PrintConfirmationModal({
 }
 
 // ─────────────────────────────────────────────
-// SCREEN 1: ORDER TAKING
-// ─────────────────────────────────────────────
-function OrderScreen({ onOrderPlaced }: { onOrderPlaced: () => void }) {
-  const [menu, setMenu] = useState<MenuItem[]>([]);
-  const [activeCategory, setActiveCategory] = useState<string>('Classic');
-  const [cart, setCart] = useState<OrderItem[]>([]);
-  const [modalItem, setModalItem] = useState<MenuItem | null>(null);
-  const [addOnItems, setAddOnItems] = useState<MenuItem[]>([]);
-  const [showPrintSuccess, setShowPrintSuccess] = useState(false);
-  const [printError, setPrintError] = useState('');
-  const [pendingOrder, setPendingOrder] = useState<Order | null>(null);
-  const [showPrintModal, setShowPrintModal] = useState(false);
-  const [showPrinterSettings, setShowPrinterSettings] = useState(false);
-
-useEffect(() => {
-  const loadMenu = async () => {
-    try {
-      const menuData = await getMenu();
-      console.log('📋 Menu loaded:', menuData);
-      setMenu(Array.isArray(menuData) ? menuData : []);
-      
-      const addOnsData = await getAddOnItems();
-      setAddOnItems(Array.isArray(addOnsData) ? addOnsData : []);
-    } catch (error) {
-      console.error('Failed to load menu:', error);
-      setMenu([]); // Always set to array even on error
-      setAddOnItems([]);
-    }
-  };
-  
-  loadMenu();
-}, []);
-
-// Define your desired category order
-const CATEGORY_ORDER = [
-  'Add Ons',
-  'Appetizers', 
-  'Barako Coffee',
-  'Cheesecake',
-  'Classic',
-  'Cream Soda',
-  'Espresso',
-  'Iced Tea',
-  'Island Pop',
-  'Refreshers',
-  'Rock Salt and Cheese',
-  'Merchandise',
-  'Supplies'
-];
-
-// Get unique categories from menu and sort by your custom order
-const categories = Array.from(new Set(menu.map(m => m.category)))
-  .sort((a, b) => {
-    const indexA = CATEGORIES.indexOf(a as any);
-    const indexB = CATEGORIES.indexOf(b as any);
-    if (indexA === -1) return 1;
-    if (indexB === -1) return -1;
-    return indexA - indexB;
-  });
-  const filteredItems = menu.filter(m => m.category === activeCategory && m.available);
-
-  const addToCart = (orderItem: OrderItem) => {
-    setCart(prev => [...prev, orderItem]);
-    setModalItem(null);
-  };
-
-  const removeFromCart = (id: string) => {
-    setCart(prev => prev.filter(i => i.id !== id));
-  };
-
-  const subtotal = cart.reduce((s, i) => s + (i.basePrice + i.customization.addOns.reduce((a, ao) => a + ao.price, 0)) * i.quantity, 0);
-  const totalDiscount = cart.reduce((s, i) => {
-    const itemSub = (i.basePrice + i.customization.addOns.reduce((a, ao) => a + ao.price, 0)) * i.quantity;
-    if (!i.customization.discount) return s;
-    return s + (i.customization.discount.type === 'percent' ? itemSub * (i.customization.discount.value / 100) : i.customization.discount.value);
-  }, 0);
-  const total = cart.reduce((s, i) => s + i.lineTotal, 0);
-
-  const cancelOrder = () => setCart([]);
-
-const generateOrder = async () => {
-  if (cart.length === 0) return;
-  
-  try {
-    const nextOrderNumberStr = await getNextOrderNumber();
-    const nextOrderNumber = parseInt(nextOrderNumberStr);
-    
-    const order: Order = {
-      id: '', // Temporary - will be replaced by database
-      orderNumber: nextOrderNumber,
-      items: cart,
-      subtotal,
-      discount: totalDiscount,
-      total,
-      createdAt: new Date().toISOString(),
-      status: 'pending',
-    };
-    
-    console.log('📝 Order to save:', order);
-    
-    await saveOrder(order);
-    setPendingOrder(order);
-    setShowPrintModal(true);
-    setCart([]);
-  } catch (error) {
-    console.error('❌ Failed to save order:', error);
-    alert('Failed to save order. Check console for details.');
-  }
-};
-
-  const handlePrintConfirm = async () => {
-    if (!pendingOrder) return;
-    
-    try {
-      const settings = getStoreSettings();
-      await printerService.printReceipt(pendingOrder, settings);
-      setShowPrintSuccess(true);
-      setTimeout(() => setShowPrintSuccess(false), 3000);
-    } catch (error) {
-      setPrintError('Failed to print: ' + error);
-      setTimeout(() => setPrintError(''), 3000);
-    }
-    
-    setShowPrintModal(false);
-    setPendingOrder(null);
-    setCart([]);
-    onOrderPlaced();
-  };
-
-  const handlePrintSkip = () => {
-    setShowPrintModal(false);
-    setPendingOrder(null);
-    setCart([]);
-    onOrderPlaced();
-  };
-
-  const handlePrintCancel = () => {
-    setShowPrintModal(false);
-  };
-
-  const testPrint = async () => {
-    if (!printerService.isConnected()) {
-      setPrintError('Printer not connected. Please connect printer first.');
-      setTimeout(() => setPrintError(''), 3000);
-      return;
-    }
-
-    try {
-      const settings = getStoreSettings();
-      const testOrder = {
-        orderNumber: 'TEST',
-        items: [{ 
-          name: 'TEST PRINT', 
-          quantity: 1, 
-          lineTotal: 0,
-          customization: { 
-            size: 'R', 
-            addOns: [],
-            temperature: undefined,
-            sugar: '100%',
-            ice: 'Normal Ice',
-            discount: null
-          }
-        }],
-        subtotal: 0,
-        discount: 0,
-        total: 0,
-        createdAt: new Date().toISOString(),
-        id: 'test',
-        status: 'pending'
-      };
-      await printerService.printReceipt(testOrder, settings);
-      setShowPrintSuccess(true);
-      setTimeout(() => setShowPrintSuccess(false), 3000);
-    } catch (error) {
-      setPrintError('Failed to print: ' + error);
-      setTimeout(() => setPrintError(''), 3000);
-    }
-  };
-
-  return (
-    <div className="flex flex-1 overflow-hidden relative">
-      {/* Print Status Messages */}
-      {showPrintSuccess && (
-        <div className="absolute top-4 right-4 bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded-lg z-50 shadow-lg">
-          ✓ Receipt printed successfully!
-        </div>
-      )}
-      {printError && (
-        <div className="absolute top-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded-lg z-50 shadow-lg">
-          {printError}
-        </div>
-      )}
-
-      {/* Left: Categories */}
-      <div className="w-40 bg-gray-50 border-r overflow-y-auto shrink-0">
-        {categories.map(cat => (
-          <button
-            key={cat}
-            onClick={() => setActiveCategory(cat)}
-            className={`w-full text-left px-3 py-3 text-sm font-semibold border-b transition-colors ${
-              activeCategory === cat
-                ? 'bg-sky-600 text-white'
-                : 'text-gray-700 hover:bg-gray-100 active:bg-gray-200'
-            }`}
-          >
-            {cat}
-          </button>
-        ))}
-      </div>
-
-      {/* Center: Item Grid */}
-      <div className="flex-1 p-4 overflow-y-auto bg-gray-100">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          {filteredItems.map(item => (
-            <button
-              key={item.id}
-              onClick={() => setModalItem(item)}
-              className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 flex flex-col items-center justify-center text-center active:scale-95 transition-transform min-h-[100px]"
-            >
-              <span className="font-bold text-gray-800 text-sm leading-tight">{item.name}</span>
-              <span className="text-sky-600 font-bold mt-1 text-base">
-                ₱{item.priceR}
-                {item.priceL ? <span className="text-gray-400 text-xs"> / ₱{item.priceL}</span> : ''}
-              </span>
-            </button>
-          ))}
-          {filteredItems.length === 0 && (
-            <p className="col-span-full text-center text-gray-400 py-12">No items in this category</p>
-          )}
-        </div>
-      </div>
-
-      {/* Right: Order Summary */}
-      <div className="w-80 bg-white border-l flex flex-col shrink-0">
-        <div className="px-4 py-3 border-b bg-sky-600 text-white flex justify-between items-center">
-          <h2 className="font-bold text-base">Current Order</h2>
-          <div className="flex items-center gap-2">
-            {printerService.isConnected() && (
-              <button
-                onClick={testPrint}
-                className="px-2 py-1 bg-purple-500 rounded-lg text-xs font-semibold hover:bg-purple-600 transition-colors"
-                title="Test Printer"
-              >
-                🖨️ Test
-              </button>
-            )}
-            <PrinterStatusBar onOpenSettings={() => setShowPrinterSettings(true)} />
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto p-3 space-y-2">
-          {cart.length === 0 && (
-            <p className="text-gray-400 text-sm text-center py-8">Tap an item to start</p>
-          )}
-          {cart.map(item => (
-            <div key={item.id} className="bg-white rounded-lg p-3 border border-gray-200 text-sm hover:bg-gray-50 transition-colors">
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-gray-800">{item.quantity}x {item.name}</span>
-                    <button 
-                      onClick={() => removeFromCart(item.id)} 
-                      className="text-white bg-red-500 hover:bg-red-600 text-xs px-2 py-0.5 rounded-full transition-colors"
-                      title="Remove item"
-                    >
-                      ×
-                    </button>
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1.5 pl-1">
-                    <div className="flex flex-wrap gap-1">
-                      <span className="bg-gray-100 px-1.5 py-0.5 rounded">{item.customization.size}</span>
-                      {item.customization.temperature && (
-                        <span className="bg-gray-100 px-1.5 py-0.5 rounded">{item.customization.temperature}</span>
-                      )}
-                      {item.customization.sugar !== '100%' && (
-                        <span className="bg-gray-100 px-1.5 py-0.5 rounded">{item.customization.sugar} sugar</span>
-                      )}
-                      {item.customization.ice !== 'Normal Ice' && (
-                        <span className="bg-gray-100 px-1.5 py-0.5 rounded">{item.customization.ice}</span>
-                      )}
-                      {item.customization.addOns.length > 0 && (
-                        <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
-                          +{item.customization.addOns.map(a => a.name).join(', ')}
-                        </span>
-                      )}
-                      {item.customization.discount && (
-                        <span className="bg-red-100 text-red-600 px-1.5 py-0.5 rounded">
-                          -{item.customization.discount.type === 'percent' ? `${item.customization.discount.value}%` : `₱${item.customization.discount.value}`}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div className="ml-2">
-                  <span className="font-bold text-sky-700 text-base">₱{item.lineTotal.toFixed(0)}</span>
-                </div>
-              </div>
-            </div>
-          ))}
-          {cart.length > 0 && (
-            <div className="p-3 border-t border-gray-200">
-              <button
-                onClick={() => setCart([])}
-                className="w-full py-2.5 rounded-lg bg-red-50 text-red-600 font-semibold text-sm hover:bg-red-100 active:bg-red-200 transition-colors border border-red-200"
-              >
-                🗑️ Clear All Items
-              </button>
-            </div>
-          )}
-        </div>
-        <div className="p-3 border-t space-y-1 text-sm">
-          <div className="flex justify-between text-gray-600">
-            <span>Subtotal</span><span>₱{subtotal.toFixed(2)}</span>
-          </div>
-          {totalDiscount > 0 && (
-            <div className="flex justify-between text-red-500">
-              <span>Discount</span><span>-₱{totalDiscount.toFixed(2)}</span>
-            </div>
-          )}
-          <div className="flex justify-between text-lg font-bold text-gray-800 pt-1 border-t">
-            <span>Total</span><span>₱{total.toFixed(2)}</span>
-          </div>
-        </div>
-        <div className="p-3 border-t">
-          <button
-            onClick={generateOrder}
-            disabled={cart.length === 0}
-            className="w-full py-3 rounded-xl bg-sky-600 font-semibold text-white text-sm active:bg-sky-700 disabled:opacity-40 transition-colors"
-          >
-            Generate Order
-          </button>
-          <button
-            onClick={cancelOrder}
-            disabled={cart.length === 0}
-            className="w-full mt-2 py-2 rounded-lg text-gray-500 font-semibold text-sm hover:text-gray-700 disabled:opacity-40 transition-colors"
-          >
-            Cancel Order
-          </button>
-        </div>
-      </div>
-
-      {/* Customization Modal */}
-      {modalItem && (
-        <CustomizationModal
-          item={modalItem}
-          addOnItems={addOnItems}
-          onConfirm={addToCart}
-          onCancel={() => setModalItem(null)}
-        />
-      )}
-
-      {/* Print Confirmation Modal */}
-      {showPrintModal && pendingOrder && (
-        <PrintConfirmationModal
-          order={pendingOrder}
-          onConfirm={handlePrintConfirm}
-          onCancel={handlePrintCancel}
-          onSkip={handlePrintSkip}
-          onOpenPrinterSettings={() => {
-            setShowPrintModal(false);
-            setShowPrinterSettings(true);
-          }}
-        />
-      )}
-
-      {/* Printer Settings Modal */}
-      {showPrinterSettings && (
-        <PrinterSettingsModal 
-          isOpen={showPrinterSettings}
-          onClose={() => setShowPrinterSettings(false)}
-          onSave={() => {
-            alert('Printer settings saved successfully!');
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-/// ─────────────────────────────────────────────
-// SCREEN 2: BARISTA QUEUE - FIXED WITH ASYNC/AWAIT
+// QUEUE SCREEN - BLACK & WHITE (simplified)
 // ─────────────────────────────────────────────
 function QueueScreen({ refreshKey }: { refreshKey: number }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [showPrinterSettings, setShowPrinterSettings] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Delete test order function - place this BEFORE useEffect
   const deleteTestOrder = async (id: string) => {
     if (confirm('Remove this test order? It will not affect sales totals.')) {
       try {
-        // Option 1: Soft delete - just mark as cancelled
         await updateOrder(id, { status: 'cancelled' });
-        
-        // Option 2: Hard delete - uncomment if you want to remove completely
-        // await supabase.from('orders').delete().eq('id', id);
-        
-        loadPendingOrders(); // Refresh the queue
+        loadPendingOrders();
       } catch (error) {
         console.error('Failed to delete test order:', error);
       }
@@ -976,176 +1181,175 @@ function QueueScreen({ refreshKey }: { refreshKey: number }) {
 
   useEffect(() => {
     loadPendingOrders();
-
-    // Subscribe to real-time changes
     const subscription = supabase
       .channel('orders_channel')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders' },
-        () => {
-          loadPendingOrders(); // refresh when any order changes
-        }
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        loadPendingOrders();
+      })
       .subscribe();
-
-    return () => {
-      subscription.unsubscribe(); // cleanup
-    };
+    return () => subscription.unsubscribe();
   }, [refreshKey]);
 
   const loadPendingOrders = async () => {
     setLoading(true);
     try {
       const all = await getOrders();
-      setOrders(all.filter(o => o.status === 'pending'));
+      console.log('📦 All orders fetched:', all.length, all.map(o => ({ num: o.orderNumber, status: o.status })));
+      const pending = all.filter(o => o.status === 'pending');
+      console.log('⏳ Pending orders:', pending.length);
+      setOrders(pending);
     } catch (error) {
       console.error('Failed to load orders:', error);
     } finally {
       setLoading(false);
     }
   };
+  const printReceipt = async (order: Order) => {
+    console.log('🧾 Printing order:', order.orderNumber);
+    const settings = await getStoreSettings();
+    const date = new Date(order.createdAt).toLocaleString();
+    let receiptText = '';
+    const LINE_WIDTH = 32;
+    const SEPARATOR = '-'.repeat(LINE_WIDTH);
+    const rightAlign = (label: string, value: string): string => {
+      const spaces = LINE_WIDTH - label.length - value.length;
+      return label + ' '.repeat(Math.max(1, spaces)) + value;
+    };
+    const formatItemLine = (qty: number, name: string, amt: number): string => {
+      const qtyStr = qty.toString().padStart(2);
+      const amtStr = amt.toFixed(0).padStart(3);
+      const nameWidth = LINE_WIDTH - qtyStr.length - 1 - 1 - amtStr.length;
+      const truncatedName = name.substring(0, nameWidth).padEnd(nameWidth);
+      return `${qtyStr} ${truncatedName} ${amtStr}`;
+    };
+    receiptText += `${settings.storeName}\n`;
+    receiptText += SEPARATOR + '\n';
+    receiptText += `Lopez Jaena St. Brgy. 9 Dapa,\nSiargao Island\n`;
+    receiptText += `Tel: ${settings.storePhone}\n`;
+    receiptText += `${settings.storeName}\n`;
+    receiptText += `oceanbrew.siargao@gmail.com`;
+    receiptText += SEPARATOR + '\n\n';
+    receiptText += `Order #: ${order.orderNumber}\nDate: ${date}\n`;
+    receiptText += SEPARATOR + '\n';
+    const qtyH = 'QTY';
+    const amtH = 'AMT';
+    const nameWidth = LINE_WIDTH - qtyH.length - 1 - 1 - amtH.length;
+    receiptText += `${qtyH} ${'ITEM'.padEnd(nameWidth)} ${amtH}\n`;
+    receiptText += SEPARATOR + '\n';
+    order.items.forEach(item => {
+      const qty = item.quantity || 1;
+      const name = item.name || 'Item';
+      const price = item.lineTotal && item.lineTotal > 0 ? item.lineTotal : (item.basePrice || 0) * qty;
+      receiptText += formatItemLine(qty, name, price) + '\n';
 
-const printReceipt = async (order: Order) => {
-  const settings = await getStoreSettings();
-  const date = new Date(order.createdAt).toLocaleString();
+      // Size + Temperature/Sugar/Ice details
+      const c = item.customization;
+      const details: string[] = [];
+      if (c?.size) details.push(c.size === 'R' ? 'Regular' : 'Large');
+      if (c?.temperature) details.push(c.temperature);
+      if (c?.sugar && c.sugar !== '100%') details.push(`${c.sugar} sugar`);
+      if (c?.ice && c.ice !== 'Normal Ice') details.push(c.ice);
+      if (details.length > 0) {
+          receiptText += `   [${details.join(', ')}]\n`;
+        }
 
-  let receiptText = '';
-  const LINE_WIDTH = 32;
-  const SEPARATOR = '-'.repeat(LINE_WIDTH);
+        // Per-item discount
+        if (c?.discount) {
+          const d = c.discount;
+          const label = d.type === 'percent' ? `-${d.value}%` : `-P${d.value}`;
+          receiptText += `   Discount: ${label}\n`;
+        }
 
-  // Utility: right-align a label/value pair within LINE_WIDTH
-  const rightAlign = (label: string, value: string): string => {
-    const spaces = LINE_WIDTH - label.length - value.length;
-    return label + ' '.repeat(Math.max(1, spaces)) + value;
+      // Add-ons
+      if (c?.addOns?.length > 0) {
+        c.addOns.forEach(ao => {
+          receiptText += `   + ${ao.name} +P${ao.price}\n`;
+        });
+      }
+    });
+      receiptText += SEPARATOR + '\n';
+      receiptText += rightAlign('Subtotal', order.subtotal.toFixed(0)) + '\n';
+      if (order.discount > 0) receiptText += rightAlign('Discount', `-${order.discount.toFixed(0)}`) + '\n';
+      receiptText += rightAlign('TOTAL', `P${order.total.toFixed(0)}`) + '\n';
+
+      let paidAmt = 0;
+      let changeAmt = 0;
+      if (order.paymentMethod?.startsWith('Cash|')) {
+        const parts = order.paymentMethod.split('|');
+        paidAmt = parseFloat(parts[1]) || 0;
+        changeAmt = parseFloat(parts[2]) || 0;
+      }
+      if (paidAmt > 0) {
+        receiptText += rightAlign('Cash', `P${paidAmt.toFixed(0)}`) + '\n';
+        receiptText += rightAlign('Change', `P${changeAmt.toFixed(0)}`) + '\n';
+      }
+      receiptText += SEPARATOR + '\n\n';
+    if (settings.wifiSSID && settings.wifiPassword) {
+      receiptText += `WiFi: ${settings.wifiSSID}\nPass: ${settings.wifiPassword}\n\n`;
+    }
+    receiptText += `Thank you for choosing\n${settings.storeName}!\nVisit us again!\n\n`;
+    // try {
+    //   await printerService.printRawText(receiptText);
+    //   alert(`Receipt #${order.orderNumber} printed!`);
+    // } catch (error) {
+    //   alert('Failed to print: ' + error);
+    // }
+    console.log('🧾 RECEIPT PREVIEW\n' + receiptText);
+    alert('🧾 RECEIPT PREVIEW\n\n' + receiptText);
   };
 
-  // Utility: format item row with QTY | NAME (fills middle) | AMT
-const formatItemLine = (qty: number, name: string, amt: number): string => {
-    const qtyStr = qty.toString().padStart(2);
-    const amtStr = amt.toFixed(0).padStart(3); // ← was missing padStart(3)
-    const nameWidth = LINE_WIDTH - qtyStr.length - 1 - 1 - amtStr.length;
-    const truncatedName = name.substring(0, nameWidth).padEnd(nameWidth);
-    return `${qtyStr} ${truncatedName} ${amtStr}`;
-};
-
-  // Header
-  receiptText += `${settings.storeName}\n`;
-  receiptText += SEPARATOR + '\n';
-  receiptText += `Lopez Jaena St. Brgy. 9 Dapa,\n`;
-  receiptText += `Siargao Island\n`;
-  receiptText += `Tel: ${settings.storePhone}\n`;
-  if (settings.storeEmail) receiptText += `${settings.storeEmail}\n`;
-  receiptText += SEPARATOR + '\n\n';
-
-  // Order info
-  receiptText += `Order #: ${order.orderNumber}\n`;
-  receiptText += `Date: ${date}\n`;
-  receiptText += SEPARATOR + '\n';
-
-  // Column header — derived from LINE_WIDTH, matches item rows exactly
-  const qtyH = 'QTY';
-  const amtH = 'AMT';
-  const nameWidth = LINE_WIDTH - qtyH.length - 1 - 1 - amtH.length;
-  receiptText += `${qtyH} ${'ITEM'.padEnd(nameWidth)} ${amtH}\n`;
-  receiptText += SEPARATOR + '\n';
-
-  // Items
-  order.items.forEach(item => {
-    const qty = item.quantity || 1;
-    const name = item.name || 'Item';
-    const price =
-      item.lineTotal && item.lineTotal > 0
-        ? item.lineTotal
-        : (item.basePrice || 0) * qty;
-    receiptText += formatItemLine(qty, name, price) + '\n';
-  });
-
-  receiptText += SEPARATOR + '\n';
-  receiptText += rightAlign('Subtotal', order.subtotal.toFixed(0)) + '\n';
-  if (order.discount > 0) {
-    receiptText += rightAlign('Discount', `-${order.discount.toFixed(0)}`) + '\n';
-  }
-  receiptText += rightAlign('Total', order.total.toFixed(0)) + '\n';
-  receiptText += SEPARATOR + '\n\n';
-
-  // WiFi
-  if (settings.wifiSSID && settings.wifiPassword) {
-    receiptText += `WiFi: ${settings.wifiSSID}\n`;
-    receiptText += `Pass: ${settings.wifiPassword}\n\n`;
-  }
-
-  // Footer
-  receiptText += `Thank you for choosing\n`;
-  receiptText += `${settings.storeName}!\n`;
-  receiptText += `Visit us again!\n\n`;
-
-  try {
-    await printerService.printRawText(receiptText);
-    alert(`Receipt #${order.orderNumber} printed!`);
-  } catch (error) {
-    alert('Failed to print: ' + error);
-  }
-};
-
- const markDone = async (id: string) => {
+  const markDone = async (id: string) => {
     try {
-      await updateOrder(id, { 
-        status: 'done',
-        completedAt: new Date().toISOString()
-      });
+      await updateOrder(id, { status: 'done', completedAt: new Date().toISOString() });
       setOrders(prev => prev.filter(o => o.id !== id));
     } catch (error) {
       console.error('Failed to mark order as done:', error);
     }
   };
 
+  if (loading) {
+    return <div className="flex-1 p-4 bg-black text-white">Loading orders...</div>;
+  }
+
   return (
-    <div className="flex-1 p-4 overflow-y-auto bg-gray-100">
+    <div className="flex-1 p-4 overflow-y-auto bg-black">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold text-gray-800">Barista Queue</h1>
+        <h1 className="text-2xl font-bold text-white">Barista Queue</h1>
         <button
           onClick={() => setShowPrinterSettings(true)}
-          className="px-4 py-2 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 transition-colors flex items-center gap-2"
+          className="px-4 py-2 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20 transition-colors flex items-center gap-2 border border-white/20"
         >
           <span>🖨️</span> Printer Settings
         </button>
       </div>
 
       {orders.length === 0 && (
-        <p className="text-gray-400 text-center py-12 text-lg">No pending orders</p>
+        <p className="text-gray-500 text-center py-12 text-lg">No pending orders</p>
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {orders.map(order => (
-          <div key={order.id} className="bg-white rounded-2xl shadow-sm border p-4">
+          <div key={order.id} className="bg-black border border-white/20 rounded-2xl p-4">
             <div className="mb-3">
               <div className="flex items-center justify-between">
-                <span className="text-2xl font-bold text-sky-700">#{order.orderNumber}</span>
-                <div className="flex items-center gap-2">
-                  {/* X BUTTON FOR TESTING */}
-                  <button
-                    onClick={() => deleteTestOrder(order.id)}
-                    className="text-red-500 hover:text-red-700 font-bold text-xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-50"
-                    title="Remove test order"
-                  >
-                    ×
-                  </button>
-                </div>
+                <span className="text-2xl font-bold text-white">#{order.orderNumber}</span>
+                <button
+                  onClick={() => deleteTestOrder(order.id)}
+                  className="text-red-400 hover:text-red-300 font-bold text-xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10"
+                  title="Remove test order"
+                >
+                  ×
+                </button>
               </div>
               <div className="flex items-center gap-2 mt-1">
-                <span className="text-xs text-gray-500">
-                  {new Date(order.createdAt).toLocaleDateString()}
-                </span>
-                <span className="text-xs text-gray-400">
-                  {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
+                <span className="text-xs text-gray-500">{new Date(order.createdAt).toLocaleDateString()}</span>
+                <span className="text-xs text-gray-600">{new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
               </div>
             </div>
             <div className="space-y-2 mb-4">
               {order.items.map(item => (
                 <div key={item.id} className="text-sm">
-                  <span className="font-semibold">{item.quantity}x {item.name}</span>
-                  <div className="text-xs text-gray-500 ml-4">
+                  <span className="font-semibold text-white">{item.quantity}x {item.name}</span>
+                  <div className="text-xs text-gray-400 ml-4">
                     {item.customization.size}
                     {item.customization.temperature && ` | ${item.customization.temperature}`}
                     {item.customization.sugar !== '100%' && ` | ${item.customization.sugar} sugar`}
@@ -1158,13 +1362,13 @@ const formatItemLine = (qty: number, name: string, amt: number): string => {
             <div className="flex gap-2">
               <button
                 onClick={() => printReceipt(order)}
-                className="flex-1 py-2 rounded-xl bg-blue-500 text-white font-semibold text-sm hover:bg-blue-600 transition-colors flex items-center justify-center gap-1"
+                className="flex-1 py-2 rounded-xl bg-white/10 text-white font-semibold text-sm hover:bg-white/20 transition-colors flex items-center justify-center gap-1"
               >
                 🖨️ Print
               </button>
               <button
                 onClick={() => markDone(order.id)}
-                className="flex-1 py-2 rounded-xl bg-green-500 text-white font-bold text-sm hover:bg-green-600 transition-colors"
+                className="flex-1 py-2 rounded-xl bg-white text-black font-bold text-sm hover:bg-gray-200 transition-colors"
               >
                 DONE
               </button>
@@ -1173,62 +1377,50 @@ const formatItemLine = (qty: number, name: string, amt: number): string => {
         ))}
       </div>
 
-      {/* Printer Settings Modal */}
       {showPrinterSettings && (
         <PrinterSettingsModal 
           isOpen={showPrinterSettings}
           onClose={() => setShowPrinterSettings(false)}
-          onSave={() => {
-            alert('Printer settings saved successfully!');
-          }}
+          onSave={() => alert('Printer settings saved successfully!')}
         />
       )}
     </div>
   );
 }
 
-
-
 // ─────────────────────────────────────────────
-// SCREEN 3: ADMIN MENU (Password Protected)
+// ADMIN SCREEN - WITH ADD-ON MANAGEMENT
 // ─────────────────────────────────────────────
 function AdminScreen() {
- const [menu, setMenuState] = useState<MenuItem[]>([]);
-const [editing, setEditing] = useState<MenuItem | null>(null);
-const [isNew, setIsNew] = useState(false);
-const [isLocked, setIsLocked] = useState(true);
-const [showPasswordModal, setShowPasswordModal] = useState(false);
-const [loading, setLoading] = useState(true);
+  const [menu, setMenuState] = useState<MenuItem[]>([]);
+  const [addOns, setAddOns] = useState<MenuItem[]>([]);
+  const [activeTab, setActiveTab] = useState<'menu' | 'addons'>('menu');
+  const [editing, setEditing] = useState<MenuItem | null>(null);
+  const [isNew, setIsNew] = useState(false);
+  const [isLocked, setIsLocked] = useState(true);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-useEffect(() => { 
-  const loadMenu = async () => {
-    setLoading(true);
-    try {
-      console.log('🔄 Loading menu in AdminScreen...');
-      const menuData = await getMenu();
-      console.log('✅ Menu loaded:', menuData);
-      console.log('📊 Is array?', Array.isArray(menuData));
-      console.log('🔢 Length:', menuData?.length);
-      
-      // Ensure menuData is an array
-      setMenuState(Array.isArray(menuData) ? menuData : []);
-    } catch (error) {
-      console.error('❌ Failed to load menu:', error);
-      setMenuState([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  loadMenu();
-  // Show password modal when admin screen loads
-  setShowPasswordModal(true);
-}, []);
+  useEffect(() => { 
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const menuData = await getMenu();
+        setMenuState(Array.isArray(menuData) ? menuData : []);
+        const addOnsData = await getAddOnItems();
+        setAddOns(Array.isArray(addOnsData) ? addOnsData : []);
+      } catch (error) {
+        console.error('Failed to load data:', error);
+        setMenuState([]);
+        setAddOns([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+    setShowPasswordModal(true);
+  }, []);
 
-// In render, add loading state:
-if (loading) {
-  return <div>Loading menu...</div>;
-}
   const handlePasswordSuccess = () => {
     setShowPasswordModal(false);
     setIsLocked(false);
@@ -1239,39 +1431,39 @@ if (loading) {
     setIsLocked(true);
   };
 
-  const save = (item: MenuItem) => {
-    let updated: MenuItem[];
-    if (isNew) {
-      updated = [...menu, item];
-    } else {
-      updated = menu.map(m => (m.id === item.id ? item : m));
-    }
-    saveMenu(updated);
-    setMenuState(updated);
+const saveMenuItem = async (item: MenuItem) => {
+  try {
+    await saveMenuItemWithAddons(item);
+    
+    // Refresh the menu list
+    const menuData = await getMenu();
+    setMenuState(menuData);
+    
+    // Refresh add-ons
+    const addOnsData = await getAddOnItems();
+    setAddOns(addOnsData);
+    
+    // Notify other components
+    addOnsRefreshEvent.dispatchEvent(new Event('refresh'));
+    
+    // Close modal
     setEditing(null);
     setIsNew(false);
-  };
+    
+  } catch (error) {
+    console.error('Error saving:', error);
+    alert('Failed to save: ' + error.message);
+  }
+};
 
-  const deleteItem = async (id: string) => {
+  const deleteMenuItem = async (id: string) => {
     try {
-      // Delete from Supabase directly
-      const { error } = await supabase
-        .from('menu_items')
-        .delete()
-        .eq('id', id);
-      
-      if (error) {
-        console.error('❌ Error deleting item:', error);
-        return;
-      }
-      
-      // Update local state
+      const { error } = await supabase.from('menu_items').delete().eq('id', id);
+      if (error) throw error;
       const updated = menu.filter(m => m.id !== id);
       setMenuState(updated);
-      
-      console.log('✅ Deleted item:', id);
     } catch (err) {
-      console.error('❌ Error in deleteItem:', err);
+      console.error('Error in deleteMenuItem:', err);
     }
   };
 
@@ -1281,7 +1473,62 @@ if (loading) {
     setMenuState(updated);
   };
 
-  const startNew = () => {
+  // Add-On functions
+  const saveAddOn = async (addOn: MenuItem) => {
+    try {
+      if (isNew) {
+        const { data, error } = await supabase
+          .from('menu_items')
+          .insert([{ ...addOn, category: 'Add Ons' }])
+          .select();
+        if (error) throw error;
+        addOnsRefreshEvent.dispatchEvent(new Event('refresh'));
+        if (data) setAddOns([...addOns, data[0]]);
+      } else {
+        const { error } = await supabase
+          .from('menu_items')
+          .update({ name: addOn.name, priceR: addOn.priceR, available: addOn.available })
+          .eq('id', addOn.id);
+        if (error) throw error;
+        addOnsRefreshEvent.dispatchEvent(new Event('refresh'));
+        setAddOns(addOns.map(a => a.id === addOn.id ? addOn : a));
+      }
+      setEditing(null);
+      setIsNew(false);
+    } catch (err) {
+      console.error('Error saving add-on:', err);
+      alert('Failed to save add-on');
+    }
+  };
+
+  const deleteAddOn = async (id: string) => {
+    try {
+      const { error } = await supabase.from('menu_items').delete().eq('id', id);
+      if (error) throw error;
+      setAddOns(addOns.filter(a => a.id !== id));
+    } catch (err) {
+      console.error('Error deleting add-on:', err);
+      alert('Failed to delete add-on');
+    }
+  };
+
+  const toggleAddOnAvailability = async (id: string) => {
+    const addOn = addOns.find(a => a.id === id);
+    if (!addOn) return;
+    const updated = { ...addOn, available: !addOn.available };
+    try {
+      const { error } = await supabase
+        .from('menu_items')
+        .update({ available: updated.available })
+        .eq('id', id);
+      if (error) throw error;
+      setAddOns(addOns.map(a => a.id === id ? updated : a));
+    } catch (err) {
+      console.error('Error toggling add-on:', err);
+    }
+  };
+
+  const startNewMenuItem = () => {
     setEditing({
       id: crypto.randomUUID(),
       name: '',
@@ -1290,177 +1537,340 @@ if (loading) {
       priceL: null,
       available: true,
       hasSizeOption: false,
+      addOnIds: [],
     });
     setIsNew(true);
   };
 
-  // If locked, show password modal
-if (isLocked) {
-  return (
-    <>
-      <div className="flex-1 p-4 overflow-y-auto bg-gray-100 flex items-center justify-center">
-        <div className="bg-white rounded-2xl shadow-sm border p-8 text-center max-w-md">
-          <div className="w-20 h-20 rounded-full bg-sky-100 flex items-center justify-center mx-auto mb-4">
-            <span className="text-4xl">🔒</span>
+  const startNewAddOn = () => {
+    setEditing({
+      id: crypto.randomUUID(),
+      name: '',
+      category: 'Add Ons',
+      priceR: 0,
+      priceL: null,
+      available: true,
+      hasSizeOption: false,
+    });
+    setIsNew(true);
+  };
+
+  if (loading) {
+    return <div className="flex-1 p-4 bg-black text-white">Loading...</div>;
+  }
+
+  if (isLocked) {
+    return (
+      <>
+        <div className="flex-1 p-4 bg-black flex items-center justify-center">
+          <div className="bg-black border border-white/20 rounded-2xl p-8 text-center max-w-md">
+            <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center mx-auto mb-4">
+              <span className="text-4xl">🔒</span>
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-2">Admin Area Locked</h2>
+            <p className="text-gray-400 mb-6">Enter password to access management</p>
+            <button
+              onClick={() => setShowPasswordModal(true)}
+              className="px-6 py-3 rounded-xl bg-white text-black font-semibold hover:bg-gray-200"
+            >
+              Enter Password
+            </button>
           </div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Admin Area Locked</h2>
-          <p className="text-gray-500 mb-6">Enter password to access menu management</p>
-          <button
-            onClick={() => setShowPasswordModal(true)}
-            className="px-6 py-3 rounded-xl bg-sky-600 text-white font-semibold hover:bg-sky-700"
-          >
-            Enter Password
-          </button>
         </div>
-      </div>
-
-      <AdminPasswordModal
-        isOpen={showPasswordModal}
-        onSuccess={handlePasswordSuccess}
-        onCancel={handlePasswordCancel}
-      />
-    </>
-  );
-}
-
-// Add loading state here
-if (loading) {
-  return (
-    <div className="flex-1 p-4 overflow-y-auto bg-gray-100 flex items-center justify-center">
-      <div className="text-gray-500">Loading menu...</div>
-    </div>
-  );
-}
+        <AdminPasswordModal
+          isOpen={showPasswordModal}
+          onSuccess={handlePasswordSuccess}
+          onCancel={handlePasswordCancel}
+        />
+      </>
+    );
+  }
 
   return (
-    <div className="flex-1 p-4 overflow-y-auto bg-gray-100">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold text-gray-800">Menu Manager (Admin)</h1>
-        <button onClick={startNew} className="px-5 py-2 rounded-xl bg-sky-600 text-white font-semibold active:bg-sky-700">
-          + Add Item
+    <div className="flex-1 p-4 overflow-y-auto bg-black">
+      {/* Tabs */}
+      <div className="flex gap-2 mb-6 border-b border-white/10">
+        <button
+          onClick={() => setActiveTab('menu')}
+          className={`px-6 py-3 font-semibold transition-colors ${
+            activeTab === 'menu'
+              ? 'text-white border-b-2 border-white'
+              : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          Menu Items
+        </button>
+        <button
+          onClick={() => setActiveTab('addons')}
+          className={`px-6 py-3 font-semibold transition-colors ${
+            activeTab === 'addons'
+              ? 'text-white border-b-2 border-white'
+              : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          Add-Ons
         </button>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-gray-600">
-            <tr>
-              <th className="px-4 py-3 text-left">Name</th>
-              <th className="px-4 py-3 text-left">Category</th>
-              <th className="px-4 py-3 text-right">Price (R)</th>
-              <th className="px-4 py-3 text-right">Price (L)</th>
-              <th className="px-4 py-3 text-center">Available</th>
-              <th className="px-4 py-3 text-center">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {menu.map(item => (
-              <tr key={item.id} className="border-t hover:bg-gray-50">
-                <td className="px-4 py-2 font-medium">{item.name}</td>
-                <td className="px-4 py-2 text-gray-500">{item.category}</td>
-                <td className="px-4 py-2 text-right">₱{item.priceR}</td>
-                <td className="px-4 py-2 text-right">{item.priceL ? `₱${item.priceL}` : '—'}</td>
-                <td className="px-4 py-2 text-center">
-                  <button
-                    onClick={() => toggleAvailability(item.id)}
-                    className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                      item.available ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                    }`}
-                  >
-                    {item.available ? 'Yes' : 'No'}
-                  </button>
-                </td>
-                <td className="px-4 py-2 text-center">
-                  <button onClick={() => { setEditing(item); setIsNew(false); }} className="text-sky-600 hover:underline text-xs mr-2">
-                    Edit
-                  </button>
-                  <button onClick={() => deleteItem(item.id)} className="text-red-500 hover:underline text-xs">
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* Menu Items Tab */}
+      {activeTab === 'menu' && (
+        <>
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-bold text-white">Menu Manager</h1>
+            <button onClick={startNewMenuItem} className="px-5 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200">
+              + Add Item
+            </button>
+          </div>
+
+          <div className="bg-black border border-white/20 rounded-xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-white/5 text-gray-300 border-b border-white/10">
+                <tr>
+                  <th className="px-4 py-3 text-left">Name</th>
+                  <th className="px-4 py-3 text-left">Category</th>
+                  <th className="px-4 py-3 text-right">Price (R)</th>
+                  <th className="px-4 py-3 text-right">Price (L)</th>
+                  <th className="px-4 py-3 text-center">Available</th>
+                  <th className="px-4 py-3 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {menu.map(item => (
+                  <tr key={item.id} className="border-t border-white/10 hover:bg-white/5">
+                    <td className="px-4 py-2 font-medium text-white">{item.name}</td>
+                    <td className="px-4 py-2 text-gray-400">{item.category}</td>
+                    <td className="px-4 py-2 text-right text-white">₱{item.priceR}</td>
+                    <td className="px-4 py-2 text-right text-white">{item.priceL ? `₱${item.priceL}` : '—'}</td>
+                    <td className="px-4 py-2 text-center">
+                      <button
+                        onClick={() => toggleAvailability(item.id)}
+                        className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                          item.available ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'
+                        }`}
+                      >
+                        {item.available ? 'Yes' : 'No'}
+                      </button>
+                    </td>
+                    <td className="px-4 py-2 text-center">
+                      <button onClick={() => { setEditing(item); setIsNew(false); }} className="text-gray-300 hover:text-white text-xs mr-2">
+                        Edit
+                      </button>
+                      <button onClick={() => deleteMenuItem(item.id)} className="text-red-400 hover:text-red-300 text-xs">
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {/* Add-Ons Tab */}
+      {activeTab === 'addons' && (
+        <>
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-bold text-white">Add-Ons Manager</h1>
+            <button onClick={startNewAddOn} className="px-5 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200">
+              + Add Add-On
+            </button>
+          </div>
+
+          <div className="bg-black border border-white/20 rounded-xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-white/5 text-gray-300 border-b border-white/10">
+                <tr>
+                  <th className="px-4 py-3 text-left">Name</th>
+                  <th className="px-4 py-3 text-right">Price</th>
+                  <th className="px-4 py-3 text-center">Available</th>
+                  <th className="px-4 py-3 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {addOns.map(addOn => (
+                  <tr key={addOn.id} className="border-t border-white/10 hover:bg-white/5">
+                    <td className="px-4 py-2 font-medium text-white">{addOn.name}</td>
+                    <td className="px-4 py-2 text-right">
+                      <input
+                        type="number"
+                        defaultValue={addOn.priceR}
+                        onBlur={async (e) => {
+                          const newPrice = parseFloat(e.target.value);
+                          if (isNaN(newPrice) || newPrice === addOn.priceR) return;
+                          const { error } = await supabase
+                            .from('menu_items')
+                            .update({ pricer: newPrice })
+                            .eq('id', addOn.id);
+                          if (!error) {
+                            setAddOns(addOns.map(a => a.id === addOn.id ? { ...a, priceR: newPrice } : a));
+                            addOnsRefreshEvent.dispatchEvent(new Event('refresh'));
+                          }
+                        }}
+                        className="w-20 text-right bg-transparent border border-white/20 rounded-lg px-2 py-1 text-white focus:border-white focus:outline-none"
+                      />
+                    </td>
+                    <td className="px-4 py-2 text-center">
+                      <button
+                        onClick={() => toggleAddOnAvailability(addOn.id)}
+                        className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                          addOn.available ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'
+                        }`}
+                      >
+                        {addOn.available ? 'Yes' : 'No'}
+                      </button>
+                    </td>
+                    <td className="px-4 py-2 text-center">
+                      <button onClick={() => { setEditing(addOn); setIsNew(false); }} className="text-gray-300 hover:text-white text-xs mr-2">
+                        Edit
+                      </button>
+                      <button onClick={() => deleteAddOn(addOn.id)} className="text-red-400 hover:text-red-300 text-xs">
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
 
       {/* Edit Modal */}
       {editing && (
-        <AdminEditModal item={editing} onSave={save} onCancel={() => { setEditing(null); setIsNew(false); }} />
+        <AdminEditModal
+          item={editing}
+          isAddOn={activeTab === 'addons'}
+          addOnsList={addOns}
+          onSave={activeTab === 'addons' ? saveAddOn : saveMenuItem}
+          onCancel={() => { setEditing(null); setIsNew(false); }}
+        />
       )}
     </div>
   );
 }
 
+// AdminEditModal - works for both Menu Items and Add-Ons
 function AdminEditModal({
   item,
+  isAddOn,
+  addOnsList,
   onSave,
   onCancel,
 }: {
   item: MenuItem;
+  isAddOn: boolean;
+  addOnsList: MenuItem[];
   onSave: (item: MenuItem) => void;
   onCancel: () => void;
 }) {
   const [name, setName] = useState(item.name);
   const [category, setCategory] = useState(item.category);
   const [priceR, setPriceR] = useState(item.priceR.toString());
-  const [priceL, setPriceL] = useState(item.priceL?.toString() ?? '');
-  const [hasSizeOption, setHasSizeOption] = useState(item.hasSizeOption);
+  const [available, setAvailable] = useState(item.available);
+  const [selectedAddOnIds, setSelectedAddOnIds] = useState<Set<string>>(
+    new Set(item.addOnIds || [])
+  );
 
   const handleSave = () => {
     if (!name.trim()) return;
     onSave({
       ...item,
       name: name.trim(),
-      category,
+      category: isAddOn ? 'Add Ons' : category,
       priceR: parseFloat(priceR) || 0,
-      priceL: hasSizeOption && priceL ? parseFloat(priceL) : null,
-      hasSizeOption,
+      priceL: null,
+      hasSizeOption: false,
+      available,
+      addOnIds: isAddOn ? undefined : Array.from(selectedAddOnIds),
+    });
+  };
+
+  const toggleAddOn = (addOnId: string) => {
+    setSelectedAddOnIds(prev => {
+      const next = new Set(prev);
+      next.has(addOnId) ? next.delete(addOnId) : next.add(addOnId);
+      return next;
     });
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onCancel}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
-        <div className="p-5 border-b">
-          <h2 className="text-lg font-bold">{item.name ? 'Edit Item' : 'New Item'}</h2>
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 overflow-y-auto" onClick={onCancel}>
+      <div className="bg-black border border-white/20 rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="p-5 border-b border-white/20">
+          <h2 className="text-lg font-bold text-white">
+            {isAddOn ? (item.name ? 'Edit Add-On' : 'New Add-On') : (item.name ? 'Edit Menu Item' : 'New Menu Item')}
+          </h2>
         </div>
         <div className="p-5 space-y-4">
           <div>
-            <label className="block text-sm font-semibold mb-1">Name</label>
-            <input value={name} onChange={e => setName(e.target.value)} className="w-full border-2 rounded-xl px-3 py-2" />
+            <label className="block text-sm font-semibold text-gray-300 mb-1">Name</label>
+            <input value={name} onChange={e => setName(e.target.value)} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" />
           </div>
+          
+          {!isAddOn && (
+            <div>
+              <label className="block text-sm font-semibold text-gray-300 mb-1">Category</label>
+              <select value={category} onChange={e => setCategory(e.target.value)} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white">
+                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          )}
+          
           <div>
-            <label className="block text-sm font-semibold mb-1">Category</label>
-            <select value={category} onChange={e => setCategory(e.target.value)} className="w-full border-2 rounded-xl px-3 py-2">
-              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
+            <label className="block text-sm font-semibold text-gray-300 mb-1">Price (₱)</label>
+            <input type="number" value={priceR} onChange={e => setPriceR(e.target.value)} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" />
           </div>
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <label className="block text-sm font-semibold mb-1">Price (Regular)</label>
-              <input type="number" value={priceR} onChange={e => setPriceR(e.target.value)} className="w-full border-2 rounded-xl px-3 py-2" />
+
+          {/* Add-Ons selection - only for menu items */}
+          {!isAddOn && addOnsList.length > 0 && (
+            <div>
+              <label className="block text-sm font-semibold text-gray-300 mb-2">
+                Available Add-Ons for this item
+              </label>
+              <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 bg-white/5 rounded-xl">
+                {addOnsList.map(addOn => (
+                  <div key={addOn.id} className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => toggleAddOn(addOn.id)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                        selectedAddOnIds.has(addOn.id)
+                          ? 'bg-white text-black'
+                          : 'bg-white/10 text-gray-300 hover:bg-white/20'
+                      }`}
+                    >
+                      {addOn.name}
+                    </button>
+                    <input
+                      type="number"
+                      defaultValue={addOn.priceR}
+                      onBlur={async (e) => {
+                        const newPrice = parseFloat(e.target.value);
+                        if (isNaN(newPrice) || newPrice === addOn.priceR) return;
+                        await supabase
+                          .from('menu_items')
+                          .update({ pricer: newPrice })
+                          .eq('id', addOn.id);
+                        addOn.priceR = newPrice; // update local ref
+                      }}
+                      className="w-14 text-xs text-center bg-white/5 border border-white/20 rounded-lg px-1 py-1 text-white focus:border-white focus:outline-none"
+                    />
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Select add-ons that can be added to this item</p>
             </div>
-            <div className="flex-1">
-              <label className="block text-sm font-semibold mb-1">Price (Large)</label>
-              <input
-                type="number"
-                value={priceL}
-                onChange={e => setPriceL(e.target.value)}
-                disabled={!hasSizeOption}
-                placeholder={hasSizeOption ? '' : 'N/A'}
-                className="w-full border-2 rounded-xl px-3 py-2 disabled:bg-gray-100"
-              />
-            </div>
-          </div>
+          )}
+          
           <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={hasSizeOption} onChange={e => setHasSizeOption(e.target.checked)} className="w-5 h-5" />
-            <span className="text-sm font-semibold">Has R/L size option</span>
+            <input type="checkbox" checked={available} onChange={e => setAvailable(e.target.checked)} className="w-5 h-5" />
+            <span className="text-sm font-semibold text-gray-300">Available</span>
           </label>
         </div>
-        <div className="p-5 border-t flex justify-end gap-3">
-          <button onClick={onCancel} className="px-5 py-2 rounded-xl bg-gray-200 font-semibold">Cancel</button>
-          <button onClick={handleSave} className="px-5 py-2 rounded-xl bg-sky-600 text-white font-semibold">Save</button>
+        <div className="p-5 border-t border-white/20 flex justify-end gap-3">
+          <button onClick={onCancel} className="px-5 py-2 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20">Cancel</button>
+          <button onClick={handleSave} className="px-5 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200">Save</button>
         </div>
       </div>
     </div>
@@ -1468,10 +1878,7 @@ function AdminEditModal({
 }
 
 // ─────────────────────────────────────────────
-// SCREEN 4: TODAY'S DASHBOARD - FIXED WITH ASYNC/AWAIT
-// ─────────────────────────────────────────────
-// ─────────────────────────────────────────────
-// SCREEN 4: TODAY'S DASHBOARD - WITHOUT PRINT COLUMNS
+// DASHBOARD SCREEN - BLACK & WHITE (simplified)
 // ─────────────────────────────────────────────
 function DashboardScreen() {
   const [completedOrders, setCompletedOrders] = useState<Order[]>([]);
@@ -1488,9 +1895,7 @@ function DashboardScreen() {
     try {
       const all = await getOrders();
       const today = new Date().toISOString().slice(0, 10);
-      const todayCompleted = all.filter((o: Order) => 
-        o.createdAt.slice(0, 10) === today && o.status === 'done'
-      );
+      const todayCompleted = all.filter((o: Order) => o.createdAt.slice(0, 10) === today && o.status === 'done');
       setCompletedOrders(todayCompleted);
     } catch (error) {
       console.error('Failed to load orders:', error);
@@ -1516,7 +1921,6 @@ function DashboardScreen() {
       alert('Printer not connected. Please connect printer first.');
       return;
     }
-
     setReprinting(order.id);
     try {
       const settings = await getStoreSettings();
@@ -1530,59 +1934,48 @@ function DashboardScreen() {
   };
 
   if (loading) {
-    return (
-      <div className="flex-1 p-6 overflow-y-auto bg-gray-100">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-gray-500">Loading dashboard...</div>
-        </div>
-      </div>
-    );
+    return <div className="flex-1 p-6 bg-black text-white">Loading dashboard...</div>;
   }
 
   return (
-    <div className="flex-1 p-6 overflow-y-auto bg-gray-100">
-      {/* Header with Stats */}
+    <div className="flex-1 p-6 overflow-y-auto bg-black">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Today's Dashboard</h1>
+        <h1 className="text-2xl font-bold text-white">Today's Dashboard</h1>
         <button
           onClick={() => setShowPrinterSettings(true)}
-          className="px-4 py-2 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 transition-colors flex items-center gap-2"
+          className="px-4 py-2 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20 transition-colors flex items-center gap-2 border border-white/20"
         >
           <span>🖨️</span> Printer Settings
         </button>
       </div>
 
-      {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white rounded-2xl shadow-sm border p-6 text-center">
-          <p className="text-gray-500 text-sm mb-1">Total Sales Today</p>
-          <p className="text-4xl font-bold text-sky-700">₱{totalSales.toFixed(2)}</p>
+        <div className="bg-black border border-white/20 rounded-2xl p-6 text-center">
+          <p className="text-gray-400 text-sm mb-1">Total Sales Today</p>
+          <p className="text-4xl font-bold text-white">₱{totalSales.toFixed(2)}</p>
         </div>
-        <div className="bg-white rounded-2xl shadow-sm border p-6 text-center">
-          <p className="text-gray-500 text-sm mb-1">Total Orders Completed</p>
-          <p className="text-4xl font-bold text-sky-700">{totalOrders}</p>
+        <div className="bg-black border border-white/20 rounded-2xl p-6 text-center">
+          <p className="text-gray-400 text-sm mb-1">Total Orders Completed</p>
+          <p className="text-4xl font-bold text-white">{totalOrders}</p>
         </div>
-        <div className="bg-white rounded-2xl shadow-sm border p-6 text-center">
-          <p className="text-gray-500 text-sm mb-1">Best Selling Item</p>
-          <p className="text-2xl font-bold text-sky-700">{bestSelling ? `${bestSelling.name} (${bestSelling.count})` : '—'}</p>
+        <div className="bg-black border border-white/20 rounded-2xl p-6 text-center">
+          <p className="text-gray-400 text-sm mb-1">Best Selling Item</p>
+          <p className="text-2xl font-bold text-white">{bestSelling ? `${bestSelling.name} (${bestSelling.count})` : '—'}</p>
         </div>
       </div>
 
-      {/* Completed Orders List */}
-      <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
-        <div className="px-6 py-4 border-b bg-gray-50">
-          <h2 className="font-bold text-lg text-gray-800">Completed Orders</h2>
-          <p className="text-sm text-gray-500">Orders marked as DONE today</p>
+      <div className="bg-black border border-white/20 rounded-2xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-white/10 bg-white/5">
+          <h2 className="font-bold text-lg text-white">Completed Orders</h2>
+          <p className="text-sm text-gray-400">Orders marked as DONE today</p>
         </div>
         
         {completedOrders.length === 0 ? (
-          <div className="p-12 text-center text-gray-400">
-            No completed orders yet
-          </div>
+          <div className="p-12 text-center text-gray-500">No completed orders yet</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-gray-600 border-b">
+              <thead className="bg-white/5 text-gray-300 border-b border-white/10">
                 <tr>
                   <th className="px-4 py-3 text-left">Order #</th>
                   <th className="px-4 py-3 text-left">Time</th>
@@ -1593,35 +1986,25 @@ function DashboardScreen() {
               </thead>
               <tbody>
                 {completedOrders.map(order => (
-                  <tr key={order.id} className="border-t hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-sky-700">
-                      #{order.orderNumber}
-                    </td>
-                    <td className="px-4 py-3 text-gray-500">
-                      {new Date(order.createdAt).toLocaleTimeString()}
-                    </td>
+                  <tr key={order.id} className="border-t border-white/10 hover:bg-white/5">
+                    <td className="px-4 py-3 font-medium text-white">#{order.orderNumber}</td>
+                    <td className="px-4 py-3 text-gray-400">{new Date(order.createdAt).toLocaleTimeString()}</td>
                     <td className="px-4 py-3">
                       {order.items.map((item, idx) => (
-                        <div key={idx} className="text-sm">
+                        <div key={idx} className="text-sm text-gray-300">
                           {item.quantity}x {item.name}
                           {item.customization?.size && ` (${item.customization.size})`}
                         </div>
                       ))}
                     </td>
-                    <td className="px-4 py-3 text-right font-semibold">
-                      ₱{order.total.toFixed(2)}
-                    </td>
+                    <td className="px-4 py-3 text-right font-semibold text-white">₱{order.total.toFixed(2)}</td>
                     <td className="px-4 py-3 text-center">
                       <button
                         onClick={() => handleReprint(order)}
                         disabled={reprinting === order.id}
-                        className="px-3 py-1 rounded-lg bg-blue-500 text-white text-xs font-semibold hover:bg-blue-600 transition-colors disabled:opacity-50 flex items-center gap-1 mx-auto"
+                        className="px-3 py-1 rounded-lg bg-white/10 text-white text-xs font-semibold hover:bg-white/20 transition-colors disabled:opacity-50 flex items-center gap-1 mx-auto"
                       >
-                        {reprinting === order.id ? (
-                          <>Reprinting...</>
-                        ) : (
-                          <>🖨️ Reprint</>
-                        )}
+                        {reprinting === order.id ? 'Reprinting...' : '🖨️ Reprint'}
                       </button>
                     </td>
                   </tr>
@@ -1632,14 +2015,11 @@ function DashboardScreen() {
         )}
       </div>
 
-      {/* Printer Settings Modal */}
       {showPrinterSettings && (
         <PrinterSettingsModal 
           isOpen={showPrinterSettings}
           onClose={() => setShowPrinterSettings(false)}
-          onSave={() => {
-            alert('Printer settings saved successfully!');
-          }}
+          onSave={() => alert('Printer settings saved successfully!')}
         />
       )}
     </div>
@@ -1647,7 +2027,7 @@ function DashboardScreen() {
 }
 
 // ─────────────────────────────────────────────
-// SCREEN 5: REPORTS WITH EXPORT - WITH MONTHLY TOTAL
+// REPORTS SCREEN - BLACK & WHITE (simplified)
 // ─────────────────────────────────────────────
 function ReportsScreen() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -1663,7 +2043,6 @@ function ReportsScreen() {
     setLoading(true);
     try {
       const allOrders = await getOrders();
-      console.log('📦 Loaded orders:', allOrders.length);
       setOrders(allOrders);
     } catch (error) {
       console.error('Failed to load orders:', error);
@@ -1674,26 +2053,21 @@ function ReportsScreen() {
 
   const handleExport = async (startDate: Date, endDate: Date, type: 'csv' | 'json') => {
     const ordersInRange = await getOrdersByDateRange(startDate, endDate);
-    
     if (ordersInRange.length === 0) {
-      alert(`❌ No orders found from ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}`);
+      alert(`No orders found from ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}`);
       return;
     }
-
     const filename = `ocean-brew-orders_${startDate.toISOString().split('T')[0]}_to_${endDate.toISOString().split('T')[0]}`;
-    
     if (type === 'csv') {
       ExcelExport.exportToCSV(ordersInRange, filename);
     } else {
       ExcelExport.exportToJSON(ordersInRange, filename);
     }
-
     setExportSuccess(`✅ Exported ${ordersInRange.length} orders`);
     setTimeout(() => setExportSuccess(''), 5000);
     setShowDatePicker(false);
   };
 
-  // Sales calculations
   const salesByDay: Record<string, number> = {};
   orders.forEach(o => {
     const day = o.createdAt.slice(0, 10);
@@ -1701,7 +2075,6 @@ function ReportsScreen() {
   });
   const sortedDays = Object.entries(salesByDay).sort((a, b) => b[0].localeCompare(a[0]));
 
-  // Calculate monthly totals
   const salesByMonth: Record<string, number> = {};
   orders.forEach(o => {
     const month = o.createdAt.slice(0, 7);
@@ -1709,18 +2082,13 @@ function ReportsScreen() {
   });
   const sortedMonths = Object.entries(salesByMonth).sort((a, b) => b[0].localeCompare(a[0]));
 
-  // Calculate current month total
   const currentMonth = new Date().toISOString().slice(0, 7);
   const currentMonthTotal = salesByMonth[currentMonth] || 0;
-
-  // Previous month total (for comparison)
   const prevDate = new Date();
   prevDate.setMonth(prevDate.getMonth() - 1);
   const prevMonth = prevDate.toISOString().slice(0, 7);
   const prevMonthTotal = salesByMonth[prevMonth] || 0;
-  const monthOverMonthChange = prevMonthTotal > 0 
-    ? ((currentMonthTotal - prevMonthTotal) / prevMonthTotal * 100).toFixed(1)
-    : '0';
+  const monthOverMonthChange = prevMonthTotal > 0 ? ((currentMonthTotal - prevMonthTotal) / prevMonthTotal * 100).toFixed(1) : '0';
 
   const salesByItem: Record<string, { name: string; qty: number; revenue: number }> = {};
   orders.forEach(o => {
@@ -1745,22 +2113,15 @@ function ReportsScreen() {
   const maxCatRevenue = sortedCats.length > 0 ? Math.max(...sortedCats.map(c => c[1])) : 1;
 
   if (loading) {
-    return (
-      <div className="flex-1 p-6 overflow-y-auto bg-gray-100">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-gray-500">Loading reports...</div>
-        </div>
-      </div>
-    );
+    return <div className="flex-1 p-6 bg-black text-white">Loading reports...</div>;
   }
 
   return (
-    <div className="flex-1 p-6 overflow-y-auto bg-gray-100">
-      {/* HEADER WITH EXPORT BUTTONS */}
+    <div className="flex-1 p-6 overflow-y-auto bg-black">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Sales Reports</h1>
-          <p className="text-sm text-gray-500 mt-1">Last 30 days • {orders.length} total orders</p>
+          <h1 className="text-2xl font-bold text-white">Sales Reports</h1>
+          <p className="text-sm text-gray-400 mt-1">Last 30 days • {orders.length} total orders</p>
         </div>
         <div className="flex gap-3">
           <button
@@ -1768,60 +2129,55 @@ function ReportsScreen() {
               const stats = await getDatabaseStats();
               alert(`📊 Database Stats\n\nTotal Orders: ${stats.totalOrders}\nOldest: ${stats.dateRange.oldest.toLocaleDateString()}\nNewest: ${stats.dateRange.newest.toLocaleDateString()}`);
             }}
-            className="px-4 py-2 rounded-xl bg-purple-600 text-white font-semibold hover:bg-purple-700 transition-colors flex items-center gap-2"
+            className="px-4 py-2 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20 transition-colors flex items-center gap-2 border border-white/20"
           >
             <span>📊</span> DB Stats
           </button>
           <button
             onClick={() => setShowDatePicker(true)}
-            className="px-4 py-2 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 transition-colors flex items-center gap-2"
+            className="px-4 py-2 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20 transition-colors flex items-center gap-2 border border-white/20"
           >
             <span>⬇️</span> Export Orders
           </button>
         </div>
       </div>
 
-      {/* EXPORT SUCCESS MESSAGE */}
       {exportSuccess && (
-        <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded-lg">
+        <div className="mb-4 p-3 bg-green-900/30 border border-green-800 text-green-400 rounded-lg">
           {exportSuccess}
         </div>
       )}
 
-      {/* NO ORDERS MESSAGE */}
       {orders.length === 0 && (
-        <div className="bg-white rounded-2xl shadow-sm border p-12 text-center">
-          <p className="text-gray-400 text-lg">No orders to report</p>
-          <p className="text-gray-400 text-sm mt-2">Orders will appear here after you generate them</p>
+        <div className="bg-black border border-white/20 rounded-2xl p-12 text-center">
+          <p className="text-gray-500 text-lg">No orders to report</p>
+          <p className="text-gray-600 text-sm mt-2">Orders will appear here after you generate them</p>
         </div>
       )}
 
-      {/* MONTHLY SUMMARY CARDS */}
       {sortedMonths.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          {/* Current Month Card */}
-          <div className="bg-gradient-to-br from-sky-500 to-sky-600 rounded-2xl shadow-sm p-5 text-white">
-            <p className="text-sm opacity-90 mb-1">Current Month</p>
+          <div className="bg-gradient-to-br from-gray-800 to-black rounded-2xl border border-white/20 p-5 text-white">
+            <p className="text-sm opacity-80 mb-1">Current Month</p>
             <p className="text-3xl font-bold">{currentMonth}</p>
             <p className="text-2xl font-bold mt-2">₱{currentMonthTotal.toFixed(2)}</p>
             <div className="flex items-center mt-2 text-sm">
-              <span className={`${monthOverMonthChange >= '0' ? 'text-green-200' : 'text-red-200'}`}>
+              <span className={monthOverMonthChange >= '0' ? 'text-green-400' : 'text-red-400'}>
                 {monthOverMonthChange}% vs last month
               </span>
             </div>
           </div>
 
-          {/* Monthly Breakdown */}
-          <div className="bg-white rounded-2xl shadow-sm border p-5 col-span-2">
-            <h3 className="font-semibold text-gray-700 mb-3">Monthly Totals</h3>
+          <div className="bg-black border border-white/20 rounded-2xl p-5 col-span-2">
+            <h3 className="font-semibold text-gray-300 mb-3">Monthly Totals</h3>
             <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
               {sortedMonths.map(([month, total]) => {
                 const [year, mon] = month.split('-');
                 const monthName = new Date(parseInt(year), parseInt(mon)-1).toLocaleString('default', { month: 'short' });
                 return (
                   <div key={month} className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">{monthName} {year}</span>
-                    <span className="font-semibold text-gray-800">₱{total.toFixed(2)}</span>
+                    <span className="text-gray-400">{monthName} {year}</span>
+                    <span className="font-semibold text-white">₱{total.toFixed(2)}</span>
                   </div>
                 );
               })}
@@ -1830,80 +2186,65 @@ function ReportsScreen() {
         </div>
       )}
 
-      {/* Sales by Day */}
       {sortedDays.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-sm border p-5 mb-6">
-          <h2 className="font-bold text-lg text-gray-800 mb-4">Daily Sales</h2>
+        <div className="bg-black border border-white/20 rounded-2xl p-5 mb-6">
+          <h2 className="font-bold text-lg text-white mb-4">Daily Sales</h2>
           <div className="space-y-2">
             {sortedDays.map(([day, total]) => (
               <div key={day} className="flex items-center gap-3">
-                <span className="w-28 text-sm font-medium text-gray-600 shrink-0">{day}</span>
-                <div className="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden">
-                  <div
-                    className="bg-sky-500 h-full rounded-full transition-all"
-                    style={{ width: `${(total / maxDayRevenue) * 100}%` }}
-                  />
+                <span className="w-28 text-sm font-medium text-gray-400 shrink-0">{day}</span>
+                <div className="flex-1 bg-white/10 rounded-full h-6 overflow-hidden">
+                  <div className="bg-white h-full rounded-full transition-all" style={{ width: `${(total / maxDayRevenue) * 100}%` }} />
                 </div>
-                <span className="w-24 text-right text-sm font-bold text-gray-700">₱{total.toFixed(0)}</span>
+                <span className="w-24 text-right text-sm font-bold text-white">₱{total.toFixed(0)}</span>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Sales by Item */}
       {sortedItems.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-sm border p-5 mb-6">
-          <h2 className="font-bold text-lg text-gray-800 mb-4">Sales by Item</h2>
+        <div className="bg-black border border-white/20 rounded-2xl p-5 mb-6">
+          <h2 className="font-bold text-lg text-white mb-4">Sales by Item</h2>
           <div className="space-y-2">
-            {sortedItems.slice(0, 20).map(item => (
-              <div key={item.name} className="flex items-center gap-3">
-                <span className="w-44 text-sm font-medium text-gray-600 shrink-0 truncate">{item.name}</span>
-                <div className="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden">
-                  <div
-                    className="bg-emerald-500 h-full rounded-full transition-all"
-                    style={{ width: `${(item.revenue / maxItemRevenue) * 100}%` }}
-                  />
+            {sortedItems.slice(0, 20).map((item, index) => (
+              <div key={`${item.name}-${index}`} className="flex items-center gap-3">
+                <span className="w-44 text-sm font-medium text-gray-400 shrink-0 truncate">{item.name}</span>
+                <div className="flex-1 bg-white/10 rounded-full h-6 overflow-hidden">
+                  <div className="bg-green-500 h-full rounded-full transition-all" style={{ width: `${(item.revenue / maxItemRevenue) * 100}%` }} />
                 </div>
                 <span className="w-16 text-right text-xs text-gray-500">{item.qty} sold</span>
-                <span className="w-24 text-right text-sm font-bold text-gray-700">₱{item.revenue.toFixed(0)}</span>
+                <span className="w-24 text-right text-sm font-bold text-white">₱{item.revenue.toFixed(0)}</span>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Sales by Category */}
       {sortedCats.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-sm border p-5 mb-6">
-          <h2 className="font-bold text-lg text-gray-800 mb-4">Sales by Category</h2>
+        <div className="bg-black border border-white/20 rounded-2xl p-5 mb-6">
+          <h2 className="font-bold text-lg text-white mb-4">Sales by Category</h2>
           <div className="space-y-2">
             {sortedCats.map(([cat, total]) => (
               <div key={cat} className="flex items-center gap-3">
-                <span className="w-44 text-sm font-medium text-gray-600 shrink-0">{cat}</span>
-                <div className="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden">
-                  <div
-                    className="bg-amber-500 h-full rounded-full transition-all"
-                    style={{ width: `${(total / maxCatRevenue) * 100}%` }}
-                  />
+                <span className="w-44 text-sm font-medium text-gray-400 shrink-0">{cat}</span>
+                <div className="flex-1 bg-white/10 rounded-full h-6 overflow-hidden">
+                  <div className="bg-amber-600 h-full rounded-full transition-all" style={{ width: `${(total / maxCatRevenue) * 100}%` }} />
                 </div>
-                <span className="w-24 text-right text-sm font-bold text-gray-700">₱{total.toFixed(0)}</span>
+                <span className="w-24 text-right text-sm font-bold text-white">₱{total.toFixed(0)}</span>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* DATE RANGE PICKER MODAL */}
       {showDatePicker && (
-        <DateRangePicker
-          onExport={handleExport}
-          onClose={() => setShowDatePicker(false)}
-        />
+        <DateRangePicker onExport={handleExport} onClose={() => setShowDatePicker(false)} />
       )}
     </div>
   );
 }
+
 // ─────────────────────────────────────────────
 // MAIN APP
 // ─────────────────────────────────────────────
@@ -1916,7 +2257,7 @@ export default function OceanBrewApp() {
   }, []);
 
   return (
-    <div className="h-screen flex flex-col bg-gray-100 overflow-hidden">
+    <div className="h-screen flex flex-col bg-black overflow-hidden">
       <NavBar screen={screen} setScreen={setScreen} />
       {screen === 'order' && <OrderScreen onOrderPlaced={handleOrderPlaced} />}
       {screen === 'queue' && <QueueScreen refreshKey={refreshKey} />}

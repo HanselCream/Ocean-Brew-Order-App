@@ -1,4 +1,3 @@
-// src/lib/types.ts
 export interface MenuItem {
   id: string;
   name: string;
@@ -7,6 +6,7 @@ export interface MenuItem {
   priceL: number | null;
   available: boolean;
   hasSizeOption: boolean;
+  addOnIds?: string[]; // Add-on IDs assigned to this menu item
 }
 
 export interface AddOn {
@@ -22,7 +22,7 @@ export type Size = 'R' | 'L';
 export interface OrderItemCustomization {
   size: Size;
   temperature?: 'Hot' | 'Cold';
-  sugar?: SugarLevel;  // Made optional for Espresso
+  sugar?: SugarLevel;
   ice: IceLevel;
   addOns: { id: string; name: string; price: number }[];
   discount: { type: 'percent' | 'fixed'; value: number } | null;
@@ -48,9 +48,12 @@ export interface Order {
   total: number;
   createdAt: string;
   status: 'pending' | 'done';
-  printedCount?: number;      // Track how many times printed
-  lastPrintedAt?: string;     // When last printed
-  completedAt?: string;       // When marked DONE
+  printedCount?: number;
+  lastPrintedAt?: string;
+  completedAt?: string;
+  amountPaid?: number;   // ← ADD
+  change?: number;        // ← ADD
+  paymentMethod?: string; // ← ADD (already in DB)
 }
 
 export interface PrinterSettings {
