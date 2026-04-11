@@ -28,6 +28,7 @@ import {
   getDatabaseStats,
   getOrdersByDateRange,
   getStoreSettings,  // ← ADD THIS LINE
+  getDailySales,
 } from '@/lib/supabaseStore';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -1650,6 +1651,7 @@ function DashboardScreen() {
 // SCREEN 5: REPORTS WITH EXPORT - WITH MONTHLY TOTAL
 // ─────────────────────────────────────────────
 function ReportsScreen() {
+  const [dailySales, setDailySales] = useState<{ date: string; total: number; orderCount: number }[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [exportSuccess, setExportSuccess] = useState('');
@@ -1657,6 +1659,7 @@ function ReportsScreen() {
 
   useEffect(() => {
     loadOrders();
+    getDailySales().then(setDailySales);
   }, []);
 
   const loadOrders = async () => {
@@ -1693,17 +1696,16 @@ function ReportsScreen() {
     setShowDatePicker(false);
   };
 
+  // Sales calculations — ADD .filter() here
+  const doneOrders = orders.filter(o => o.status === 'done'); // ← ADD THIS
+
   // Sales calculations
-  const salesByDay: Record<string, number> = {};
-  orders.forEach(o => {
-    const day = o.createdAt.slice(0, 10);
-    salesByDay[day] = (salesByDay[day] || 0) + o.total;
-  });
-  const sortedDays = Object.entries(salesByDay).sort((a, b) => b[0].localeCompare(a[0]));
+  const sortedDays = dailySales.map(d => [d.date, d.total] as [string, number]);
 
   // Calculate monthly totals
   const salesByMonth: Record<string, number> = {};
-  orders.forEach(o => {
+  doneOrders.forEach(o => {
+
     const month = o.createdAt.slice(0, 7);
     salesByMonth[month] = (salesByMonth[month] || 0) + o.total;
   });
@@ -1723,7 +1725,7 @@ function ReportsScreen() {
     : '0';
 
   const salesByItem: Record<string, { name: string; qty: number; revenue: number }> = {};
-  orders.forEach(o => {
+  doneOrders.forEach(o => {
     o.items.forEach(i => {
       if (!salesByItem[i.menuItemId]) salesByItem[i.menuItemId] = { name: i.name, qty: 0, revenue: 0 };
       salesByItem[i.menuItemId].qty += i.quantity;
@@ -1733,14 +1735,14 @@ function ReportsScreen() {
   const sortedItems = Object.values(salesByItem).sort((a, b) => b.revenue - a.revenue);
 
   const salesByCat: Record<string, number> = {};
-  orders.forEach(o => {
+    doneOrders.forEach(o => {
     o.items.forEach(i => {
       salesByCat[i.category] = (salesByCat[i.category] || 0) + i.lineTotal;
     });
   });
   const sortedCats = Object.entries(salesByCat).sort((a, b) => b[1] - a[1]);
 
-  const maxDayRevenue = sortedDays.length > 0 ? Math.max(...sortedDays.map(d => d[1])) : 1;
+  const maxDayRevenue = dailySales.length > 0 ? Math.max(...dailySales.map(d => d.total)) : 1;
   const maxItemRevenue = sortedItems.length > 0 ? Math.max(...sortedItems.map(i => i.revenue)) : 1;
   const maxCatRevenue = sortedCats.length > 0 ? Math.max(...sortedCats.map(c => c[1])) : 1;
 
@@ -1760,7 +1762,9 @@ function ReportsScreen() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Sales Reports</h1>
-          <p className="text-sm text-gray-500 mt-1">Last 30 days • {orders.length} total orders</p>
+          <p className="text-sm text-gray-500 mt-1">
+          Last 30 days • {doneOrders.length} completed orders
+        </p>
         </div>
         <div className="flex gap-3">
           <button
