@@ -31,6 +31,7 @@ import {
   getDatabaseStats,
   getOrdersByDateRange,
   getStoreSettings,
+  getDailySales,
 } from '@/lib/supabaseStore';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -425,6 +426,7 @@ function OrderScreen({ onOrderPlaced }: { onOrderPlaced: () => void }) {
   const [showFinalConfirmModal, setShowFinalConfirmModal] = useState(false);
   const [amountPaid, setAmountPaid] = useState<number>(0);
   const [changeAmount, setChangeAmount] = useState<number>(0);
+  const [orderLevelDiscount, setOrderLevelDiscount] = useState<number>(0);
 
   useEffect(() => {
     const loadMenu = async () => {
@@ -502,12 +504,12 @@ function OrderScreen({ onOrderPlaced }: { onOrderPlaced: () => void }) {
         orderNumber: nextOrderNumber,
         items: cart,
         subtotal,
-        discount: totalDiscount,
+        discount: totalDiscount + orderLevelDiscount,
         total,
         createdAt: new Date().toISOString(),
         status: 'pending',
-        amountPaid,        // ← ADD
-        change: changeAmount, // ← ADD
+        amountPaid,
+        change: changeAmount,
       };
       await saveOrder(order);
       console.log('✅ Order saved:', nextOrderNumber); // ← ADD
@@ -689,6 +691,7 @@ function OrderScreen({ onOrderPlaced }: { onOrderPlaced: () => void }) {
           subtotal={total}
           onConfirm={(discountAmount: number, amountPaid: number) => {
             setAmountPaid(amountPaid);
+            setOrderLevelDiscount(discountAmount);
             setChangeAmount(amountPaid - (total - discountAmount));
             setShowAmountModal(false);
             setShowFinalConfirmModal(true);
@@ -1916,16 +1919,91 @@ function DashboardScreen() {
   });
   const bestSelling = Object.values(itemCounts).sort((a, b) => b.count - a.count)[0];
 
-  const handleReprint = async (order: Order) => {
-    if (!printerService.isConnected()) {
-      alert('Printer not connected. Please connect printer first.');
-      return;
-    }
+const handleReprint = async (order: Order) => {
     setReprinting(order.id);
     try {
       const settings = await getStoreSettings();
-      await printerService.printReceipt(order, settings);
-      alert(`Receipt #${order.orderNumber} reprinted successfully!`);
+      const date = new Date(order.createdAt).toLocaleString();
+      let receiptText = '';
+      const LINE_WIDTH = 32;
+      const SEPARATOR = '-'.repeat(LINE_WIDTH);
+      const rightAlign = (label: string, value: string): string => {
+        const spaces = LINE_WIDTH - label.length - value.length;
+        return label + ' '.repeat(Math.max(1, spaces)) + value;
+      };
+      const formatItemLine = (qty: number, name: string, amt: number): string => {
+        const qtyStr = qty.toString().padStart(2);
+        const amtStr = amt.toFixed(0).padStart(3);
+        const nameWidth = LINE_WIDTH - qtyStr.length - 1 - 1 - amtStr.length;
+        const truncatedName = name.substring(0, nameWidth).padEnd(nameWidth);
+        return `${qtyStr} ${truncatedName} ${amtStr}`;
+      };
+
+      receiptText += `${settings.storeName}\n`;
+      receiptText += SEPARATOR + '\n';
+      receiptText += `Lopez Jaena St. Brgy. 9 Dapa,\nSiargao Island\n`;
+      receiptText += `Tel: ${settings.storePhone}\n`;
+      receiptText += `oceanbrew.siargao@gmail.com`;
+      receiptText += SEPARATOR + '\n\n';
+      receiptText += `Order #: ${order.orderNumber}\nDate: ${date}\n`;
+      receiptText += SEPARATOR + '\n';
+
+      const qtyH = 'QTY';
+      const amtH = 'AMT';
+      const nameWidth = LINE_WIDTH - qtyH.length - 1 - 1 - amtH.length;
+      receiptText += `${qtyH} ${'ITEM'.padEnd(nameWidth)} ${amtH}\n`;
+      receiptText += SEPARATOR + '\n';
+
+      order.items.forEach(item => {
+        const qty = item.quantity || 1;
+        const name = item.name || 'Item';
+        const price = item.lineTotal && item.lineTotal > 0 ? item.lineTotal : (item.basePrice || 0) * qty;
+        receiptText += formatItemLine(qty, name, price) + '\n';
+
+        const c = item.customization;
+        const details: string[] = [];
+        if (c?.size) details.push(c.size === 'R' ? 'Regular' : 'Large');
+        if (c?.temperature) details.push(c.temperature);
+        if (c?.sugar && c.sugar !== '100%') details.push(`${c.sugar} sugar`);
+        if (c?.ice && c.ice !== 'Normal Ice') details.push(c.ice);
+        if (details.length > 0) receiptText += `   [${details.join(', ')}]\n`;
+        if (c?.discount) {
+          const d = c.discount;
+          receiptText += `   Discount: ${d.type === 'percent' ? `-${d.value}%` : `-P${d.value}`}\n`;
+        }
+        if (c?.addOns?.length > 0) {
+          c.addOns.forEach(ao => { receiptText += `   + ${ao.name} +P${ao.price}\n`; });
+        }
+      });
+
+      receiptText += SEPARATOR + '\n';
+      receiptText += rightAlign('Subtotal', order.subtotal.toFixed(0)) + '\n';
+      if (order.discount > 0) receiptText += rightAlign('Discount', `-${order.discount.toFixed(0)}`) + '\n';
+      receiptText += rightAlign('TOTAL', `P${order.total.toFixed(0)}`) + '\n';
+
+      let paidAmt = 0, changeAmt = 0;
+      if (order.paymentMethod?.startsWith('Cash|')) {
+        const parts = order.paymentMethod.split('|');
+        paidAmt = parseFloat(parts[1]) || 0;
+        changeAmt = parseFloat(parts[2]) || 0;
+      }
+      if (paidAmt > 0) {
+        receiptText += rightAlign('Cash', `P${paidAmt.toFixed(0)}`) + '\n';
+        receiptText += rightAlign('Change', `P${changeAmt.toFixed(0)}`) + '\n';
+      }
+      receiptText += SEPARATOR + '\n\n';
+
+      if (settings.wifiSSID && settings.wifiPassword) {
+        receiptText += `WiFi: ${settings.wifiSSID}\nPass: ${settings.wifiPassword}\n\n`;
+      }
+      receiptText += `Thank you for choosing\n${settings.storeName}!\nVisit us again!\n\n`;
+
+      console.log('🧾 RECEIPT PREVIEW\n' + receiptText);
+      alert('🧾 RECEIPT PREVIEW\n\n' + receiptText);
+
+      // Uncomment when printer is ready:
+      // await printerService.printRawText(receiptText);
+
     } catch (error) {
       alert('Failed to reprint: ' + error);
     } finally {
@@ -1990,13 +2068,55 @@ function DashboardScreen() {
                     <td className="px-4 py-3 font-medium text-white">#{order.orderNumber}</td>
                     <td className="px-4 py-3 text-gray-400">{new Date(order.createdAt).toLocaleTimeString()}</td>
                     <td className="px-4 py-3">
-                      {order.items.map((item, idx) => (
-                        <div key={idx} className="text-sm text-gray-300">
-                          {item.quantity}x {item.name}
-                          {item.customization?.size && ` (${item.customization.size})`}
-                        </div>
-                      ))}
-                    </td>
+                      {order.items.map((item, idx) => {
+                        const c = item.customization;
+                        return (
+                          <div key={idx} className="text-sm text-gray-300 mb-2 last:mb-0">
+                            <div className="font-semibold text-white">
+                              {item.quantity}x {item.name} — ₱{item.lineTotal.toFixed(0)}
+                            </div>
+                            <div className="flex flex-wrap gap-1 mt-1 ml-2">
+                              {c?.size && (
+                                <span className="bg-white/10 px-1.5 py-0.5 rounded text-xs">
+                                  {c.size === 'R' ? 'Regular' : 'Large'}
+                                </span>
+                              )}
+                              {c?.temperature && (
+                                <span className="bg-white/10 px-1.5 py-0.5 rounded text-xs">
+                                  {c.temperature === 'Hot' ? '🔥 Hot' : '❄️ Cold'}
+                                </span>
+                              )}
+                              {c?.sugar && c.sugar !== '100%' && (
+                                <span className="bg-white/10 px-1.5 py-0.5 rounded text-xs">
+                                  {c.sugar} sugar
+                                </span>
+                              )}
+                              {c?.ice && c.ice !== 'Normal Ice' && (
+                                <span className="bg-white/10 px-1.5 py-0.5 rounded text-xs">
+                                  {c.ice}
+                                </span>
+                              )}
+                              {c?.addOns?.length > 0 && c.addOns.map(ao => (
+                                <span key={ao.id} className="bg-green-900 text-green-300 px-1.5 py-0.5 rounded text-xs">
+                                  +{ao.name} ₱{ao.price}
+                                </span>
+                              ))}
+                              {c?.discount && (
+                                <span className="bg-red-900 text-red-300 px-1.5 py-0.5 rounded text-xs">
+                                  -{c.discount.type === 'percent' ? `${c.discount.value}%` : `₱${c.discount.value}`}
+                                </span>
+                              )}
+                            </div>
+                            </div>
+                                  );
+                                })}
+                                {order.discount > 0 && (
+                                  <div className="mt-2 pt-2 border-t border-white/10 flex justify-between text-sm">
+                                    <span className="text-red-400">Order Discount:</span>
+                                    <span className="text-red-400 font-semibold">-₱{order.discount.toFixed(2)}</span>
+                                  </div>
+                                )}
+                              </td>
                     <td className="px-4 py-3 text-right font-semibold text-white">₱{order.total.toFixed(2)}</td>
                     <td className="px-4 py-3 text-center">
                       <button
@@ -2030,6 +2150,7 @@ function DashboardScreen() {
 // REPORTS SCREEN - BLACK & WHITE (simplified)
 // ─────────────────────────────────────────────
 function ReportsScreen() {
+  const [dailySales, setDailySales] = useState<{ date: string; total: number; orderCount: number }[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [exportSuccess, setExportSuccess] = useState('');
@@ -2037,6 +2158,7 @@ function ReportsScreen() {
 
   useEffect(() => {
     loadOrders();
+    getDailySales().then(setDailySales);
   }, []);
 
   const loadOrders = async () => {
@@ -2068,15 +2190,12 @@ function ReportsScreen() {
     setShowDatePicker(false);
   };
 
-  const salesByDay: Record<string, number> = {};
-  orders.forEach(o => {
-    const day = o.createdAt.slice(0, 10);
-    salesByDay[day] = (salesByDay[day] || 0) + o.total;
-  });
-  const sortedDays = Object.entries(salesByDay).sort((a, b) => b[0].localeCompare(a[0]));
+const doneOrders = orders.filter(o => o.status === 'done');
+  const sortedDays = dailySales.map(d => [d.date, d.total] as [string, number]);
+  const maxDayRevenue = dailySales.length > 0 ? Math.max(...dailySales.map(d => d.total)) : 1;
 
   const salesByMonth: Record<string, number> = {};
-  orders.forEach(o => {
+  doneOrders.forEach(o => {
     const month = o.createdAt.slice(0, 7);
     salesByMonth[month] = (salesByMonth[month] || 0) + o.total;
   });
@@ -2090,8 +2209,8 @@ function ReportsScreen() {
   const prevMonthTotal = salesByMonth[prevMonth] || 0;
   const monthOverMonthChange = prevMonthTotal > 0 ? ((currentMonthTotal - prevMonthTotal) / prevMonthTotal * 100).toFixed(1) : '0';
 
-  const salesByItem: Record<string, { name: string; qty: number; revenue: number }> = {};
-  orders.forEach(o => {
+const salesByItem: Record<string, { name: string; qty: number; revenue: number }> = {};
+  doneOrders.forEach(o => {
     o.items.forEach(i => {
       if (!salesByItem[i.menuItemId]) salesByItem[i.menuItemId] = { name: i.name, qty: 0, revenue: 0 };
       salesByItem[i.menuItemId].qty += i.quantity;
@@ -2101,14 +2220,13 @@ function ReportsScreen() {
   const sortedItems = Object.values(salesByItem).sort((a, b) => b.revenue - a.revenue);
 
   const salesByCat: Record<string, number> = {};
-  orders.forEach(o => {
+  doneOrders.forEach(o => {
     o.items.forEach(i => {
       salesByCat[i.category] = (salesByCat[i.category] || 0) + i.lineTotal;
     });
   });
   const sortedCats = Object.entries(salesByCat).sort((a, b) => b[1] - a[1]);
 
-  const maxDayRevenue = sortedDays.length > 0 ? Math.max(...sortedDays.map(d => d[1])) : 1;
   const maxItemRevenue = sortedItems.length > 0 ? Math.max(...sortedItems.map(i => i.revenue)) : 1;
   const maxCatRevenue = sortedCats.length > 0 ? Math.max(...sortedCats.map(c => c[1])) : 1;
 

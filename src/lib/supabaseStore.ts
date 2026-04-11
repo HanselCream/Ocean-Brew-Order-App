@@ -447,3 +447,25 @@ export async function saveStoreSettings(settings: any) {
     console.error('Error in saveStoreSettings:', err);
   }
 }
+
+export async function getDailySales(): Promise<{ date: string; total: number; orderCount: number }[]> {
+  const { data, error } = await supabase
+    .from('orders')
+    .select('created_at, total')
+    .eq('status', 'done')
+    .order('created_at', { ascending: false });
+
+  if (error || !data) return [];
+
+  const byDay: Record<string, { total: number; count: number }> = {};
+  data.forEach(row => {
+    const date = row.created_at.slice(0, 10);
+    if (!byDay[date]) byDay[date] = { total: 0, count: 0 };
+    byDay[date].total += parseFloat(row.total) || 0;
+    byDay[date].count += 1;
+  });
+
+  return Object.entries(byDay)
+    .map(([date, val]) => ({ date, total: val.total, orderCount: val.count }))
+    .sort((a, b) => b.date.localeCompare(a.date));
+}
