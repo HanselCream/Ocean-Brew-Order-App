@@ -1,0 +1,1 @@
+export const addOnsRefreshEvent = new EventTarget();
