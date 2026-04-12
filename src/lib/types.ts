@@ -47,7 +47,7 @@ export interface Order {
   discount: number;
   total: number;
   createdAt: string;
-  status: 'pending' | 'done';
+  status: 'pending' | 'done' | 'cancelled';
   printedCount?: number;
   lastPrintedAt?: string;
   completedAt?: string;

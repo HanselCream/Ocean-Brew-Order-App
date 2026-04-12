@@ -98,6 +98,7 @@ function CustomizationModal({
   const [sugar, setSugar] = useState<SugarLevel>('100%');
   const [ice, setIce] = useState<IceLevel>('Normal Ice');
   const [selectedAddOns, setSelectedAddOns] = useState<Set<string>>(new Set());
+const [activeDiscount, setActiveDiscount] = useState<'none' | 'pwd' | 'student' | 'store'>('none');
   const [discountType, setDiscountType] = useState<'percent' | 'fixed'>('percent');
   const [discountValue, setDiscountValue] = useState('');
   const [quantity, setQuantity] = useState(1);
@@ -330,26 +331,57 @@ function CustomizationModal({
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-gray-300 mb-2">Discount</label>
-            <div className="flex gap-2 items-center">
-              <select
-                value={discountType}
-                onChange={e => setDiscountType(e.target.value as 'percent' | 'fixed')}
-                className="border border-white/20 rounded-xl px-3 py-2 text-sm bg-black text-white"
-              >
-                <option value="percent">%</option>
-                <option value="fixed">₱ Fixed</option>
-              </select>
-              <input
-                type="number"
-                min="0"
-                placeholder="0"
-                value={discountValue}
-                onChange={e => setDiscountValue(e.target.value)}
-                className="border border-white/20 rounded-xl px-3 py-2 text-sm flex-1 bg-black text-white"
-              />
+  <label className="block text-sm font-semibold text-gray-300 mb-2">Discount</label>
+  <div className="grid grid-cols-2 gap-2">
+    {[
+      { type: 'none',    label: 'NONE',    sub: 'No discount' },
+      { type: 'pwd',     label: 'PWD',     sub: '15% off' },
+      { type: 'student', label: 'STUDENT', sub: '10% off' },
+      { type: 'store',   label: 'STORE',   sub: 'Adjustable' },
+    ].map(opt => (
+      <button
+        key={opt.type}
+        onClick={() => {
+          setDiscountType('percent');
+          if (opt.type === 'none')    setDiscountValue('');
+          else if (opt.type === 'pwd')     setDiscountValue('15');
+          else if (opt.type === 'student') setDiscountValue('10');
+          else setDiscountValue('');
+          setActiveDiscount(opt.type as any);
+        }}
+        className={`py-3 rounded-xl border-2 flex flex-col items-center gap-0.5 transition-colors ${
+          activeDiscount === opt.type
+            ? 'border-white bg-white text-black'
+            : 'border-white/30 text-gray-300 hover:border-white/50'
+        }`}
+      >
+        <span className="text-sm font-bold">{opt.label}</span>
+        <span className="text-xs opacity-60">{opt.sub}</span>
+      </button>
+    ))}
+  </div>
+
+{activeDiscount === 'store' && (
+            <div className="mt-3">
+              <p className="text-xs text-gray-500 mb-2">Select store discount %</p>
+              <div className="flex gap-2">
+                {[5, 10, 15, 20].map(pct => (
+                  <button
+                    key={pct}
+                    onClick={() => setDiscountValue(pct.toString())}
+                    className={`flex-1 py-2 rounded-xl text-sm font-bold border-2 transition-colors ${
+                      discountValue === pct.toString()
+                        ? 'border-white bg-white text-black'
+                        : 'border-white/30 text-gray-300 hover:border-white/50'
+                    }`}
+                  >
+                    {pct}%
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+)}
+        </div>
         </div>
 
         <div className="p-5 border-t border-white/20 bg-white/5 rounded-b-2xl flex items-center justify-between">
@@ -427,6 +459,7 @@ function OrderScreen({ onOrderPlaced }: { onOrderPlaced: () => void }) {
   const [amountPaid, setAmountPaid] = useState<number>(0);
   const [changeAmount, setChangeAmount] = useState<number>(0);
   const [orderLevelDiscount, setOrderLevelDiscount] = useState<number>(0);
+  const [paymentMethod, setPaymentMethod] = useState<string>('');
 
   useEffect(() => {
     const loadMenu = async () => {
@@ -510,6 +543,7 @@ function OrderScreen({ onOrderPlaced }: { onOrderPlaced: () => void }) {
         status: 'pending',
         amountPaid,
         change: changeAmount,
+        paymentMethod,
       };
       await saveOrder(order);
       console.log('✅ Order saved:', nextOrderNumber); // ← ADD
@@ -689,10 +723,10 @@ function OrderScreen({ onOrderPlaced }: { onOrderPlaced: () => void }) {
         <AmountPaidModal
           cart={cart}
           subtotal={total}
-          onConfirm={(discountAmount: number, amountPaid: number) => {
+          onConfirm={(amountPaid: number) => {
             setAmountPaid(amountPaid);
-            setOrderLevelDiscount(discountAmount);
-            setChangeAmount(amountPaid - (total - discountAmount));
+            setChangeAmount(amountPaid - total);
+            setPaymentMethod(`Cash|${amountPaid}|${amountPaid - total}`);
             setShowAmountModal(false);
             setShowFinalConfirmModal(true);
           }}
@@ -726,227 +760,74 @@ function AmountPaidModal({
 }: {
   cart: OrderItem[];
   subtotal: number;
-  onConfirm: (discountAmount: number, amountPaid: number) => void;
+  onConfirm: (amountPaid: number) => void;
   onCancel: () => void;
 }) {
-  const [discountType, setDiscountType] = useState<'none' | 'pwd' | 'student' | 'store'>('none');
-  const [storeDiscountValue, setStoreDiscountValue] = useState<number>(0);
-  const [storeDiscountIsPercent, setStoreDiscountIsPercent] = useState<boolean>(true);
   const [amountPaid, setAmountPaid] = useState<number>(0);
-
-  // Calculate discount amount
-  const getDiscountAmount = (): number => {
-    switch (discountType) {
-      case 'pwd':
-        return subtotal * 0.20; // 20% for PWD
-      case 'student':
-        return subtotal * 0.20; // 20% for Student
-      case 'store':
-        if (storeDiscountIsPercent) {
-          return subtotal * (storeDiscountValue / 100);
-        }
-        return storeDiscountValue;
-      default:
-        return 0;
-    }
-  };
-
-  const discountAmount = getDiscountAmount();
-  const totalAfterDiscount = subtotal - discountAmount;
-  const change = amountPaid - totalAfterDiscount;
-
-  const handleConfirm = () => {
-    if (amountPaid < totalAfterDiscount) {
-      alert(`Amount paid (₱${amountPaid.toFixed(2)}) is less than total (₱${totalAfterDiscount.toFixed(2)})`);
-      return;
-    }
-    onConfirm(discountAmount, amountPaid);
-  };
+  const change = amountPaid - subtotal;
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4 overflow-y-auto">
-      <div className="bg-black border border-white/20 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <div className="bg-black border border-white/20 rounded-2xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
         <div className="p-6">
-          <h2 className="text-xl font-bold text-white mb-4">Payment & Discount</h2>
-
-          {/* Order Items with Details */}
+          <h2 className="text-xl font-bold text-white mb-4">Payment</h2>
           <div className="bg-white/5 rounded-xl p-4 mb-4">
             <h3 className="text-sm font-semibold text-gray-400 mb-2">Order Summary</h3>
-            <div className="space-y-2 max-h-64 overflow-y-auto">
+            <div className="space-y-1 max-h-48 overflow-y-auto">
               {cart.map((item, idx) => (
-                <div key={idx} className="border-b border-white/10 pb-2 last:border-0">
-                  <div className="flex justify-between">
-                    <span className="text-white font-semibold">{item.quantity}x {item.name}</span>
-                    <span className="text-white">₱{item.lineTotal.toFixed(2)}</span>
-                  </div>
-                  <div className="text-xs text-gray-400 mt-1 pl-2">
-                    <div className="flex flex-wrap gap-1">
-                      <span className="bg-white/10 px-1.5 py-0.5 rounded">{item.customization.size}</span>
-                      {item.customization.temperature && (
-                        <span className="bg-white/10 px-1.5 py-0.5 rounded">
-                          {item.customization.temperature === 'Hot' ? '🔥 Hot' : '❄️ Cold'}
-                        </span>
-                      )}
-                      {item.customization.sugar !== '100%' && (
-                        <span className="bg-white/10 px-1.5 py-0.5 rounded">{item.customization.sugar} sugar</span>
-                      )}
-                      {item.customization.ice !== 'Normal Ice' && (
-                        <span className="bg-white/10 px-1.5 py-0.5 rounded">{item.customization.ice}</span>
-                      )}
-                      {item.customization.addOns.length > 0 && (
-                        <span className="bg-green-900 text-green-300 px-1.5 py-0.5 rounded">
-                          +{item.customization.addOns.map(a => a.name).join(', ')}
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                <div key={idx} className="flex justify-between text-sm">
+                  <span className="text-gray-300">{item.quantity}x {item.name}
+                    {item.customization.discount && (
+                      <span className="text-red-400 ml-1">
+                        (-{item.customization.discount.type === 'percent'
+                          ? `${item.customization.discount.value}%`
+                          : `₱${item.customization.discount.value}`})
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-white">₱{item.lineTotal.toFixed(2)}</span>
                 </div>
               ))}
             </div>
           </div>
-
-          {/* Discount Options */}
           <div className="bg-white/5 rounded-xl p-4 mb-4">
-            <h3 className="text-sm font-semibold text-gray-400 mb-3">Discount Type</h3>
-            <div className="grid grid-cols-3 gap-2 mb-4">
-              <button
-                onClick={() => setDiscountType('none')}
-                className={`py-2 rounded-lg font-semibold text-sm transition-colors ${
-                  discountType === 'none'
-                    ? 'bg-white text-black'
-                    : 'bg-white/10 text-white hover:bg-white/20'
-                }`}
-              >
-                None
-              </button>
-              <button
-                onClick={() => setDiscountType('pwd')}
-                className={`py-2 rounded-lg font-semibold text-sm transition-colors ${
-                  discountType === 'pwd'
-                    ? 'bg-white text-black'
-                    : 'bg-white/10 text-white hover:bg-white/20'
-                }`}
-              >
-                PWD (20%)
-              </button>
-              <button
-                onClick={() => setDiscountType('student')}
-                className={`py-2 rounded-lg font-semibold text-sm transition-colors ${
-                  discountType === 'student'
-                    ? 'bg-white text-black'
-                    : 'bg-white/10 text-white hover:bg-white/20'
-                }`}
-              >
-                Student (20%)
-              </button>
-            </div>
-
-            {/* Store Discount Section */}
-            <div className="border-t border-white/10 pt-3">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-300">Store Discount</span>
-                <button
-                  onClick={() => {
-                    setDiscountType(discountType === 'store' ? 'none' : 'store');
-                    setStoreDiscountValue(0);
-                  }}
-                  className={`px-3 py-1 rounded-lg text-xs font-semibold ${
-                    discountType === 'store'
-                      ? 'bg-white text-black'
-                      : 'bg-white/10 text-white hover:bg-white/20'
-                  }`}
-                >
-                  {discountType === 'store' ? 'Disable' : 'Enable'}
-                </button>
-              </div>
-
-              {discountType === 'store' && (
-                <div className="flex gap-2 mt-2">
-                  <select
-                    value={storeDiscountIsPercent ? 'percent' : 'fixed'}
-                    onChange={(e) => setStoreDiscountIsPercent(e.target.value === 'percent')}
-                    className="bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm"
-                  >
-                    <option value="percent">% Percent</option>
-                    <option value="fixed">₱ Fixed</option>
-                  </select>
-                  <input
-                    type="number"
-                    value={storeDiscountValue === 0 ? '' : storeDiscountValue}
-                    onChange={(e) => setStoreDiscountValue(parseFloat(e.target.value) || 0)}
-                    placeholder={storeDiscountIsPercent ? 'Discount %' : 'Discount ₱'}
-                    className="flex-1 border border-white/20 rounded-lg px-3 py-2 bg-black text-white focus:border-white/50 focus:outline-none"
-                  />
-                </div>
-              )}
+            <div className="flex justify-between font-bold text-white text-lg">
+              <span>Total</span>
+              <span>₱{subtotal.toFixed(2)}</span>
             </div>
           </div>
-
-          {/* Totals */}
-          <div className="bg-white/5 rounded-xl p-4 mb-4">
-            <div className="flex justify-between mb-2">
-              <span className="text-gray-400">Subtotal</span>
-              <span className="text-white">₱{subtotal.toFixed(2)}</span>
-            </div>
-            {discountAmount > 0 && (
-              <div className="flex justify-between mb-2 text-red-400">
-                <span>Discount</span>
-                <span>-₱{discountAmount.toFixed(2)}</span>
-              </div>
-            )}
-            <div className="flex justify-between pt-2 border-t border-white/20">
-              <span className="text-white font-bold">Total</span>
-              <span className="text-white font-bold text-lg">₱{totalAfterDiscount.toFixed(2)}</span>
-            </div>
-          </div>
-
-          {/* Amount Paid */}
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Amount Paid
-            </label>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Amount Paid</label>
             <input
               type="number"
               value={amountPaid === 0 ? '' : amountPaid}
-              onChange={(e) => {
-                const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                setAmountPaid(value);
-              }}
+              onChange={(e) => setAmountPaid(e.target.value === '' ? 0 : parseFloat(e.target.value))}
               className="w-full border border-white/20 rounded-xl px-4 py-3 bg-black text-white text-lg focus:border-white/50 focus:outline-none"
               placeholder="Enter amount received"
               autoFocus
             />
           </div>
-
-          {/* Change */}
-          {amountPaid >= totalAfterDiscount && amountPaid > 0 && (
+          {amountPaid >= subtotal && amountPaid > 0 && (
             <div className="bg-green-900/30 border border-green-800 rounded-xl p-4 mb-4">
               <p className="text-gray-300 text-sm mb-1">Change</p>
               <p className="text-2xl font-bold text-green-400">₱{change.toFixed(2)}</p>
             </div>
           )}
-
-          {amountPaid > 0 && amountPaid < totalAfterDiscount && (
+          {amountPaid > 0 && amountPaid < subtotal && (
             <div className="bg-red-900/30 border border-red-800 rounded-xl p-4 mb-4">
-              <p className="text-red-400 text-sm">Amount paid is less than total</p>
-              <p className="text-red-300">Short: ₱{(totalAfterDiscount - amountPaid).toFixed(2)}</p>
+              <p className="text-red-400 text-sm">Short: ₱{(subtotal - amountPaid).toFixed(2)}</p>
             </div>
           )}
-
-          {/* Buttons */}
           <div className="flex gap-3">
-            <button
-              onClick={onCancel}
-              className="flex-1 py-3 rounded-xl bg-white/10 font-semibold text-white hover:bg-white/20 transition-colors"
-            >
+            <button onClick={onCancel} className="flex-1 py-3 rounded-xl bg-white/10 font-semibold text-white hover:bg-white/20">
               Cancel
             </button>
             <button
-              onClick={handleConfirm}
-              disabled={amountPaid < totalAfterDiscount}
-              className="flex-1 py-3 rounded-xl bg-white font-semibold text-black hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => onConfirm(amountPaid)}
+              disabled={amountPaid < subtotal}
+              className="flex-1 py-3 rounded-xl bg-white font-semibold text-black hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Continue to Confirmation
+              Continue
             </button>
           </div>
         </div>
@@ -1001,11 +882,11 @@ function FinalConfirmModal({
             </div>
             <div className="flex justify-between mb-2">
               <span className="text-gray-400">Amount Paid:</span>
-              <span className="text-white font-bold">₱{amountPaid.toFixed(2)}</span>
+              <span className="text-white font-bold">₱{(amountPaid || 0).toFixed(2)}</span>
             </div>
             <div className="flex justify-between pt-2 border-t border-white/20">
               <span className="text-green-400">Change:</span>
-              <span className="text-green-400 font-bold text-lg">₱{changeAmount.toFixed(2)}</span>
+              <span className="text-green-400 font-bold text-lg">₱{(changeAmount || 0).toFixed(2)}</span>
             </div>
           </div>
 
@@ -1190,7 +1071,7 @@ function QueueScreen({ refreshKey }: { refreshKey: number }) {
         loadPendingOrders();
       })
       .subscribe();
-    return () => subscription.unsubscribe();
+    return () => { subscription.unsubscribe(); };
   }, [refreshKey]);
 
   const loadPendingOrders = async () => {
@@ -1454,7 +1335,7 @@ const saveMenuItem = async (item: MenuItem) => {
     setIsNew(false);
     
   } catch (error) {
-    console.error('Error saving:', error);
+    console.error('Error saving:', error);  
     alert('Failed to save: ' + error.message);
   }
 };
