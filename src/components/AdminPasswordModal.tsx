@@ -10,7 +10,7 @@ interface AdminPasswordModalProps {
 }
 
 // Simple password - change this to whatever you want
-const ADMIN_PASSWORD = 'owner123';
+const ADMIN_PASSWORD = 'obs123$$';
 
 export default function AdminPasswordModal({ isOpen, onSuccess, onCancel }: AdminPasswordModalProps) {
   const [password, setPassword] = useState('');
