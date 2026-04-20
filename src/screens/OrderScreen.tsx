@@ -45,7 +45,7 @@ function CustomizationModal({
 
   const basePrice = size === 'L' && item.priceL ? item.priceL : item.priceR;
   const isEspresso = item.category === 'Espresso';
-  const isDrink = !['Appetizers', 'Cheesecake', 'Merchandise', 'Supplies', 'Add Ons'].includes(item.category);
+  const isDrink = !['Appetizers', 'Merchandise', 'Supplies', 'Add Ons'].includes(item.category);
 
   const addOnsTotal = (() => {
     if (isEspresso) return ESPRESSO_ADDONS.filter(a => selectedAddOns.has(a.id)).reduce((s, a) => s + a.price, 0);
