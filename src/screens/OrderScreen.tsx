@@ -7,8 +7,9 @@ import {
   Size, SugarLevel, IceLevel, CATEGORIES,
 } from '@/lib/types';
 import {
-  getMenu, getAddOnItems, saveOrder, getNextOrderNumber,
+  getMenu, getAddOnItems, saveOrder, getNextOrderNumber, getStoreSettings,
 } from '@/lib/supabaseStore';
+import PrinterService from '@/lib/printerService';
 
 // ─────────────────────────────────────────────
 const SUGAR_LEVELS: SugarLevel[] = ['0%', '25%', '50%', '75%', '100%'];
@@ -168,8 +169,6 @@ function CustomizationModal({
             <div className="grid grid-cols-2 gap-2">
               {[
                 { type: 'none', label: 'NONE', sub: 'No discount' },
-                { type: 'pwd', label: 'PWD', sub: '15% off' },
-                { type: 'student', label: 'STUDENT', sub: '10% off' },
                 { type: 'store', label: 'STORE', sub: 'Adjustable' },
               ].map(opt => (
                 <button key={opt.type} onClick={() => {
@@ -185,18 +184,18 @@ function CustomizationModal({
                 </button>
               ))}
             </div>
-            {activeDiscount === 'store' && (
-              <div className="mt-3">
-                <p className="text-xs text-gray-500 mb-2">Select store discount %</p>
-                <div className="flex gap-2">
-                  {[5, 10, 15, 20].map(pct => (
-                    <button key={pct} onClick={() => setDiscountValue(pct.toString())} className={`flex-1 py-2 rounded-xl text-sm font-bold border-2 transition-colors ${discountValue === pct.toString() ? 'border-white bg-white text-black' : 'border-white/30 text-gray-300 hover:border-white/50'}`}>
-                      {pct}%
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+{activeDiscount === 'store' && (
+  <div className="mt-3">
+    <p className="text-xs text-gray-500 mb-2">Select store discount (₱)</p>
+    <div className="flex gap-2">
+      {[5, 10, 15, 20].map(amt => (
+        <button key={amt} onClick={() => { setDiscountType('fixed'); setDiscountValue(amt.toString()); }} className={`flex-1 py-2 rounded-xl text-sm font-bold border-2 transition-colors ${discountValue === amt.toString() ? 'border-white bg-white text-black' : 'border-white/30 text-gray-300 hover:border-white/50'}`}>
+          ₱{amt}
+        </button>
+      ))}
+    </div>
+  </div>
+)}
           </div>
         </div>
         <div className="p-5 border-t border-white/20 bg-white/5 rounded-b-2xl flex items-center justify-between">
@@ -392,11 +391,17 @@ export default function OrderScreen({ onOrderPlaced }: { onOrderPlaced: () => vo
         createdAt: new Date().toISOString(), status: 'pending',
         amountPaid, change: changeAmount, paymentMethod,
       };
-      await saveOrder(order);
-      setCart([]);
-      setShowFinalConfirmModal(false);
-      alert(`Order #${nextOrderNumber} completed! Change: ₱${changeAmount.toFixed(2)}`);
-      onOrderPlaced();
+await saveOrder(order);
+
+// Auto-print
+getStoreSettings().then(settings => {
+  PrinterService.printReceipt(order, settings).catch(e => console.error('Print failed:', e));
+}).catch(() => {});
+
+setCart([]);
+setShowFinalConfirmModal(false);
+alert(`Order #${nextOrderNumber} completed! Change: ₱${changeAmount.toFixed(2)}`);
+onOrderPlaced();
     } catch (error: any) {
       alert('Failed to save order: ' + (error?.message || JSON.stringify(error)));
     }

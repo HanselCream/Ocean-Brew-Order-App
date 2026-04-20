@@ -263,15 +263,7 @@ async printReceipt(order: any, settings: any): Promise<void> {
    * SHOW TEST RECEIPT - For phone testing
    */
 private showTestReceipt(order: any, settings: any, receipt: string): void {
-  const deviceName = this.bluetoothDevice?.name || 'Test Mode';
-  
-  // Show FULL receipt in alert
-  alert(`🧾 RECEIPT - ${deviceName}\n\n${receipt}\n\n(Full receipt also in console)`);
-  
-  // Also show in console for debugging
-  console.log('%c🖨️ RECEIPT', 'font-size: 16px; color: green; font-weight: bold');
-  console.log('='.repeat(50));
-  console.log(`Device: ${deviceName}`);
+  console.log('%c🖨️ RECEIPT PREVIEW', 'font-size: 16px; color: green; font-weight: bold');
   console.log('='.repeat(50));
   console.log(receipt);
   console.log('='.repeat(50));
@@ -283,59 +275,80 @@ private showTestReceipt(order: any, settings: any, receipt: string): void {
   
 private generateReceiptText(order: any, settings: any): string {
   const date = new Date(order.createdAt).toLocaleString();
+  const SEP = '-'.repeat(32);
   let receipt = '';
 
   // Header
   receipt += `${settings.storeName}\n`;
-  receipt += '='.repeat(32) + '\n';
+  receipt += `${SEP}\n`;
   receipt += `${settings.storeAddress}\n`;
   receipt += `Tel: ${settings.storePhone}\n`;
   if (settings.storeEmail) receipt += `${settings.storeEmail}\n`;
-  receipt += '='.repeat(32) + '\n\n';
+  receipt += `${SEP}\n`;
 
   // Order info
   receipt += `Order #: ${order.orderNumber}\n`;
   receipt += `Date: ${date}\n`;
-  receipt += '-'.repeat(32) + '\n';
+  receipt += `${SEP}\n`;
 
-  // Items header - TABLE FORMAT
-  receipt += 'QTY ITEM               AMT\n';
-  receipt += '-'.repeat(32) + '\n';
+  // Items header
+  receipt += `QTY ITEM                     AMT\n`;
+  receipt += `${SEP}\n`;
 
   // Items
   if (order.items && order.items.length > 0) {
     for (const item of order.items) {
       const qty = item.quantity || 1;
-      const name = (item.name || 'Item').substring(0, 18).padEnd(18);
-      const price = (item.lineTotal || (item.basePrice * qty)).toFixed(2);
-      const amt = `₱${price}`.padStart(6);
-      receipt += `${qty.toString().padStart(2)} ${name} ${amt}\n`;
+      const name = item.name || 'Item';
+      const price = item.lineTotal ?? (item.basePrice * qty);
+
+      // Main line
+      receipt += ` ${qty} ${name.padEnd(24)} ${Math.round(price)}\n`;
+
+      // Customization line
+      const cust = item.customization;
+      if (cust) {
+        const parts: string[] = [];
+        if (cust.size === 'L') parts.push('Large');
+        else if (cust.size === 'R') parts.push('Regular');
+        if (cust.temperature) parts.push(cust.temperature);
+        if (cust.sugar && cust.sugar !== '100%') parts.push(`${cust.sugar} sugar`);
+        if (cust.ice && cust.ice !== 'Normal Ice') parts.push(cust.ice);
+        if (cust.addOns?.length > 0) parts.push(cust.addOns.map((a: any) => a.name).join(', '));
+        if (parts.length > 0) receipt += `   [${parts.join(', ')}]\n`;
+
+        // Per-item discount
+        if (cust.discount) {
+          const d = cust.discount;
+          const dLabel = d.type === 'percent' ? `${d.value}%` : `P${d.value}`;
+          receipt += `   Discount: -${dLabel}\n`;
+        }
+      }
     }
   } else {
-    receipt += '*** NO ITEMS ***\n';
+    receipt += `*** NO ITEMS ***\n`;
   }
 
-  receipt += '-'.repeat(32) + '\n';
-  receipt += `Subtotal    ₱${(order.subtotal || 0).toFixed(2).padStart(8)}\n`;
-
+  receipt += `${SEP}\n`;
+  receipt += `Subtotal${String(Math.round(order.subtotal || 0)).padStart(24)}\n`;
   if (order.discount && order.discount > 0) {
-    receipt += `Discount   -₱${order.discount.toFixed(2).padStart(8)}\n`;
+    receipt += `Discount${String('-' + Math.round(order.discount)).padStart(24)}\n`;
   }
-
-  receipt += `TOTAL       ₱${(order.total || 0).toFixed(2).padStart(8)}\n`;
-  receipt += '='.repeat(32) + '\n\n';
+  receipt += `TOTAL${String('P' + Math.round(order.total || 0)).padStart(27)}\n`;
+  receipt += `${SEP}\n`;
 
   // WiFi
   if (settings.wifiSSID && settings.wifiPassword) {
     receipt += `WiFi: ${settings.wifiSSID}\n`;
-    receipt += `Pass: ${settings.wifiPassword}\n\n`;
+    receipt += `Pass: ${settings.wifiPassword}\n`;
+    receipt += `${SEP}\n`;
   }
 
   // Footer
-  receipt += `${settings.receiptFooter || 'Thank you!'}\n`;
-  receipt += `Visit us again!\n\n\n`;
+  receipt += `Thank you for choosing\n`;
+  receipt += `${settings.storeName}!\n`;
+  receipt += `Visit us again!\n`;
 
-  console.log('🔴 FINAL RECEIPT:\n', receipt);
   return receipt;
 }
 
