@@ -296,17 +296,16 @@ export async function getNextOrderNumber(): Promise<string> {
   try {
     const { data, error } = await supabase
       .from('orders')
-      .select('order_number');
+      .select('order_number')
+      .order('order_number', { ascending: false })
+      .limit(1);
 
     if (error || !data || data.length === 0) return '1001';
 
-    const nums = data
-      .map(r => parseInt(r.order_number))
-      .filter(n => !isNaN(n));
+    const last = parseInt(data[0].order_number);
+    if (isNaN(last)) return '1001';
 
-    if (nums.length === 0) return '1001';
-
-    return (Math.max(...nums) + 1).toString();
+    return (last + 1).toString();
   } catch (err) {
     return Date.now().toString().slice(-6);
   }
