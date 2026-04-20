@@ -129,14 +129,15 @@ export default function QueueScreen({ refreshKey }: { refreshKey: number }) {
       receiptText += `WiFi: ${settings.wifiSSID}\nPass: ${settings.wifiPassword}\n\n`;
     }
     receiptText += `Thank you for choosing\n${settings.storeName}!\nVisit us again!\n\n`;
+// Uncomment when printer is ready:
+try {
+  await printerService.printRawText(receiptText);
+} catch (error) {
+  console.error('Print failed:', error);
+}
 
-    // Uncomment when printer is ready:
-    // try {
-    //   await printerService.printRawText(receiptText);
-    //   alert(`Receipt #${order.orderNumber} printed!`);
-    // } catch (error) {
-    //   alert('Failed to print: ' + error);
-    // }
+
+console.log('🧾 RECEIPT PREVIEW\n' + receiptText);
     console.log('🧾 RECEIPT PREVIEW\n' + receiptText);
     alert('🧾 RECEIPT PREVIEW\n\n' + receiptText);
   };
