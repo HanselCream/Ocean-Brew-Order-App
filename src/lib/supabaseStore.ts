@@ -37,7 +37,7 @@ export async function getMenu(): Promise<MenuItem[]> {
       priceR: parseFloat(item.pricer) || 0,
       priceL: item.pricel ? parseFloat(item.pricel) : null,
       available: item.available,
-      hasSizeOption: item.hassizeoption || false,
+      hasSizeOption: !!(item.pricel && parseFloat(item.pricel) > 0),
       addOnIds: addonMap[item.id] || [],
       }));
     } catch (err) {
@@ -183,7 +183,7 @@ export async function getAddOnItems(): Promise<MenuItem[]> {
       priceR: parseFloat(item.pricer) || 0,
       priceL: item.pricel ? parseFloat(item.pricel) : null,
       available: item.available,
-      hasSizeOption: item.hassizeoption || false,
+      hasSizeOption: !!(item.pricel && parseFloat(item.pricel) > 0),
     }));
   } catch (err) {
     console.error('Error in getAddOnItems:', err);
