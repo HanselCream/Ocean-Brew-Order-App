@@ -6,8 +6,10 @@ import QueueScreen from '@/screens/QueueScreen';
 import AdminScreen from '@/screens/AdminScreen';
 import DashboardScreen from '@/screens/DashboardScreen';
 import ReportsScreen from '@/screens/ReportsScreen';
+import InventoryScreen from '@/screens/InventoryScreen';  // ← ADD THIS IMPORT
 
-type Screen = 'order' | 'queue' | 'admin' | 'dashboard' | 'reports';
+
+type Screen = 'order' | 'queue' | 'admin' | 'dashboard' | 'reports' | 'inventory';
 
 function NavBar({ screen, setScreen }: { screen: Screen; setScreen: (s: Screen) => void }) {
   const tabs: { key: Screen; label: string }[] = [
@@ -16,6 +18,7 @@ function NavBar({ screen, setScreen }: { screen: Screen; setScreen: (s: Screen) 
     { key: 'dashboard', label: 'Dashboard' },
     { key: 'reports', label: 'Reports' },
     { key: 'admin', label: 'Admin' },
+    { key: 'inventory', label: 'Inventory' }, 
   ];
   return (
     <nav className="flex items-center bg-black text-white border-b border-white/20 px-4 h-14 shrink-0">
@@ -44,6 +47,7 @@ export default function OceanBrewApp() {
       {screen === 'admin' && <AdminScreen />}
       {screen === 'dashboard' && <DashboardScreen />}
       {screen === 'reports' && <ReportsScreen />}
+      {screen === 'inventory' && <InventoryScreen />} 
     </div>
   );
 }

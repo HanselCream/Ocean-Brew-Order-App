@@ -136,20 +136,50 @@ try {
   console.error('Print failed:', error);
 }
 
-
-console.log('🧾 RECEIPT PREVIEW\n' + receiptText);
     console.log('🧾 RECEIPT PREVIEW\n' + receiptText);
     alert('🧾 RECEIPT PREVIEW\n\n' + receiptText);
   };
+  
+const deductStock = async (orderItems: any[], orderId: string) => {
+  for (const orderItem of orderItems) {
+    const { data: recipeData } = await supabase
+      .from('recipes')
+      .select(`*, ingredients:ingredient_id (*)`)
+      .eq('menu_item_id', orderItem.menuItemId);
 
-  const markDone = async (id: string) => {
-    try {
-      await updateOrder(id, { status: 'done', completedAt: new Date().toISOString() });
-      setOrders(prev => prev.filter(o => o.id !== id));
-    } catch (error) {
-      console.error('Failed to mark order as done:', error);
+    for (const recipe of recipeData || []) {
+      const ingredient = recipe.ingredients;
+      const quantityNeeded = recipe.quantity * (orderItem.quantity || 1);
+      const newStock = Math.max(0, ingredient.current_stock - quantityNeeded);
+
+      await supabase
+        .from('ingredients')
+        .update({ current_stock: newStock, updated_at: new Date().toISOString() })
+        .eq('id', ingredient.id);
+
+      await supabase.from('stock_logs').insert([{
+        ingredient_id: ingredient.id,
+        previous_stock: ingredient.current_stock,
+        new_stock: newStock,
+        quantity_change: -quantityNeeded,
+        reason: 'order',
+        reference_id: orderId
+      }]);
     }
-  };
+  }
+};
+
+const markDone = async (id: string, orderItems?: any[]) => {
+  try {
+    if (orderItems && orderItems.length > 0) {
+      await deductStock(orderItems, id);
+    }
+    await updateOrder(id, { status: 'done', completedAt: new Date().toISOString() });
+    setOrders(prev => prev.filter(o => o.id !== id));
+  } catch (error) {
+    console.error('Failed to mark order as done:', error);
+  }
+};
 
   if (loading) {
     return <div className="flex-1 p-4 bg-black text-white">Loading orders...</div>;
@@ -208,12 +238,12 @@ console.log('🧾 RECEIPT PREVIEW\n' + receiptText);
               >
                 🖨️ Print
               </button>
-              <button
-                onClick={() => markDone(order.id)}
-                className="flex-1 py-2 rounded-xl bg-white text-black font-bold text-sm hover:bg-gray-200 transition-colors"
-              >
-                DONE
-              </button>
+<button
+  onClick={() => markDone(order.id, order.items)}
+  className="flex-1 py-2 rounded-xl bg-white text-black font-bold text-sm hover:bg-gray-200 transition-colors"
+>
+  DONE
+</button>
             </div>
           </div>
         ))}
