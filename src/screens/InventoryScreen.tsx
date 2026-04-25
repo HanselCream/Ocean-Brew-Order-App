@@ -35,6 +35,11 @@ interface StockLog {
   ingredient_name?: string;
 }
 
+const INGREDIENT_CATEGORIES = [
+  'Tea Base', 'Syrups', 'Powders', 'Dairy',
+  'Toppings', 'Cups & Packaging', 'Straws', 'Supplies', 'Other',
+];
+
 export default function InventoryScreen() {
   const [activeTab, setActiveTab] = useState<'ingredients' | 'recipes' | 'logs'>('ingredients');
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
@@ -46,7 +51,8 @@ export default function InventoryScreen() {
   const [showAdjustStock, setShowAdjustStock] = useState<string | null>(null);
   const [showAddRecipe, setShowAddRecipe] = useState(false);
   const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
+const [searchTerm, setSearchTerm] = useState('');
+const [categoryFilter, setCategoryFilter] = useState('All');
   const [drinksLeft, setDrinksLeft] = useState<Record<string, number>>({});
   
   // New ingredient form
@@ -474,10 +480,11 @@ const loadAllData = async () => {
 
   // Get low stock ingredients
   const lowStockIngredients = ingredients.filter(ing => ing.current_stock <= ing.min_stock_threshold);
-  const filteredIngredients = ingredients.filter(ing =>
-    ing.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    ing.category.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+const filteredIngredients = ingredients.filter(ing => {
+  const matchesSearch = ing.name.toLowerCase().includes(searchTerm.toLowerCase());
+  const matchesCategory = categoryFilter === 'All' || ing.category === categoryFilter;
+  return matchesSearch && matchesCategory;
+});
 
   if (loading) {
     return <div className="flex-1 p-8 bg-black text-white">Loading inventory...</div>;
@@ -590,21 +597,31 @@ const loadAllData = async () => {
       {/* INGREDIENTS TAB */}
       {activeTab === 'ingredients' && (
         <>
-          <div className="flex items-center justify-between mb-4">
-            <input
-              type="text"
-              placeholder="Search ingredients..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:border-white/50 w-64"
-            />
-            <button
-              onClick={() => setShowAddIngredient(true)}
-              className="px-5 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200"
-            >
-              + Add Ingredient
-            </button>
-          </div>
+<div className="flex items-center gap-3 mb-4">
+  <input
+    type="text"
+    placeholder="Search ingredients..."
+    value={searchTerm}
+    onChange={(e) => setSearchTerm(e.target.value)}
+    className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:border-white/50 w-56"
+  />
+  <select
+    value={categoryFilter}
+    onChange={(e) => setCategoryFilter(e.target.value)}
+    className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white focus:outline-none"
+  >
+    <option value="All" className="bg-black">All Categories</option>
+    {INGREDIENT_CATEGORIES.map(cat => (
+      <option key={cat} value={cat} className="bg-black">{cat}</option>
+    ))}
+  </select>
+  <button
+    onClick={() => setShowAddIngredient(true)}
+    className="ml-auto px-5 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200"
+  >
+    + Add Ingredient
+  </button>
+</div>
 
           <div className="bg-black border border-white/20 rounded-xl overflow-hidden">
             <table className="w-full text-sm">
@@ -717,7 +734,7 @@ const loadAllData = async () => {
               <div><label className="block text-sm font-semibold text-gray-300 mb-1">Unit</label><select value={newIngredient.unit} onChange={(e) => setNewIngredient({ ...newIngredient, unit: e.target.value })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"><option value="pieces">pieces</option><option value="ml">ml</option><option value="grams">grams</option><option value="shots">shots</option><option value="cups">cups</option></select></div>
               <div><label className="block text-sm font-semibold text-gray-300 mb-1">Initial Stock</label><input type="number" value={newIngredient.current_stock} onChange={(e) => setNewIngredient({ ...newIngredient, current_stock: parseFloat(e.target.value) })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" /></div>
               <div><label className="block text-sm font-semibold text-gray-300 mb-1">Low Stock Threshold</label><input type="number" value={newIngredient.min_stock_threshold} onChange={(e) => setNewIngredient({ ...newIngredient, min_stock_threshold: parseFloat(e.target.value) })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" /></div>
-              <div><label className="block text-sm font-semibold text-gray-300 mb-1">Category</label><input value={newIngredient.category} onChange={(e) => setNewIngredient({ ...newIngredient, category: e.target.value })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" placeholder="e.g., Coffee, Milk, Syrups" /></div>
+              <div><label className="block text-sm font-semibold text-gray-300 mb-1">Category</label><select value={newIngredient.category} onChange={(e) => setNewIngredient({ ...newIngredient, category: e.target.value })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white">{INGREDIENT_CATEGORIES.map(cat => <option key={cat} value={cat} className="bg-black">{cat}</option>)}</select></div>
             </div>
             <div className="p-5 border-t border-white/20 flex justify-end gap-3"><button onClick={() => setShowAddIngredient(false)} className="px-5 py-2 rounded-xl bg-white/10 text-white font-semibold">Cancel</button><button onClick={addIngredient} className="px-5 py-2 rounded-xl bg-white text-black font-semibold">Save</button></div>
           </div>
@@ -732,7 +749,7 @@ const loadAllData = async () => {
               <div><label className="block text-sm font-semibold text-gray-300 mb-1">Name</label><input value={editingIngredient.name} onChange={(e) => setEditingIngredient({ ...editingIngredient, name: e.target.value })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" /></div>
               <div><label className="block text-sm font-semibold text-gray-300 mb-1">Unit</label><select value={editingIngredient.unit} onChange={(e) => setEditingIngredient({ ...editingIngredient, unit: e.target.value })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"><option value="pieces">pieces</option><option value="ml">ml</option><option value="grams">grams</option><option value="shots">shots</option><option value="cups">cups</option></select></div>
               <div><label className="block text-sm font-semibold text-gray-300 mb-1">Low Stock Threshold</label><input type="number" value={editingIngredient.min_stock_threshold} onChange={(e) => setEditingIngredient({ ...editingIngredient, min_stock_threshold: parseFloat(e.target.value) })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" /></div>
-              <div><label className="block text-sm font-semibold text-gray-300 mb-1">Category</label><input value={editingIngredient.category} onChange={(e) => setEditingIngredient({ ...editingIngredient, category: e.target.value })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" /></div>
+              <div><label className="block text-sm font-semibold text-gray-300 mb-1">Category</label><select value={editingIngredient.category} onChange={(e) => setEditingIngredient({ ...editingIngredient, category: e.target.value })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white">{INGREDIENT_CATEGORIES.map(cat => <option key={cat} value={cat} className="bg-black">{cat}</option>)}</select></div>
             </div>
             <div className="p-5 border-t border-white/20 flex justify-end gap-3"><button onClick={() => setEditingIngredient(null)} className="px-5 py-2 rounded-xl bg-white/10 text-white font-semibold">Cancel</button><button onClick={updateIngredient} className="px-5 py-2 rounded-xl bg-white text-black font-semibold">Save</button></div>
           </div>
