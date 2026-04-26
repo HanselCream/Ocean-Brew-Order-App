@@ -36,8 +36,10 @@ interface StockLog {
 }
 
 const INGREDIENT_CATEGORIES = [
-  'Tea Base', 'Syrups', 'Powders', 'Dairy',
-  'Toppings', 'Cups & Packaging', 'Straws', 'Supplies', 'Other',
+  'Milktea Ingredients',
+  'Syrups & Fruit Bases',
+  'Coffee Ingredients',
+  'Packaging Supplies',
 ];
 
 export default function InventoryScreen() {
