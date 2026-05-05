@@ -46,7 +46,21 @@ export default function ReportsScreen() {
     setShowDatePicker(false);
   };
 
+  // ── All derived data AFTER hooks ──
   const doneOrders = orders.filter(o => o.status === 'done');
+
+  const staffPunched: Record<string, number> = {};
+  const staffMade: Record<string, number> = {};
+  doneOrders.forEach(o => {
+    const p = (o as any).punchedBy;
+    const m = (o as any).madeBy;
+    const drinkCount = o.items.reduce((s, i) => s + i.quantity, 0);
+    if (p) staffPunched[p] = (staffPunched[p] || 0) + 1;
+    if (m) staffMade[m] = (staffMade[m] || 0) + drinkCount;
+  });
+  const sortedPunched = Object.entries(staffPunched).sort((a, b) => b[1] - a[1]);
+  const sortedMade = Object.entries(staffMade).sort((a, b) => b[1] - a[1]);
+
   const sortedDays = dailySales.map(d => [d.date, d.total] as [string, number]);
   const maxDayRevenue = dailySales.length > 0 ? Math.max(...dailySales.map(d => d.total)) : 1;
 
@@ -82,7 +96,27 @@ export default function ReportsScreen() {
   const sortedCats = Object.entries(salesByCat).sort((a, b) => b[1] - a[1]);
 
   const maxItemRevenue = sortedItems.length > 0 ? Math.max(...sortedItems.map(i => i.revenue)) : 1;
-  const maxCatRevenue = sortedCats.length > 0 ? Math.max(...sortedCats.map(c => c[1])) : 1;
+
+  const PIE_COLORS = ['#ffffff', '#a3a3a3', '#525252', '#d4a574', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b'];
+  const totalCatRevenue = sortedCats.reduce((s, [, v]) => s + v, 0);
+  let cumulativeAngle = 0;
+  const pieSlices = sortedCats.map(([cat, total], i) => {
+    const pct = total / totalCatRevenue;
+    const angle = pct * 360;
+    const startAngle = cumulativeAngle;
+    cumulativeAngle += angle;
+    const start = startAngle * (Math.PI / 180);
+    const end = (startAngle + angle) * (Math.PI / 180);
+    const r = 80;
+    const cx = 100, cy = 100;
+    const x1 = cx + r * Math.sin(start);
+    const y1 = cy - r * Math.cos(start);
+    const x2 = cx + r * Math.sin(end);
+    const y2 = cy - r * Math.cos(end);
+    const largeArc = angle > 180 ? 1 : 0;
+    const path = `M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${largeArc},1 ${x2},${y2} Z`;
+    return { cat, total, pct, path, color: PIE_COLORS[i % PIE_COLORS.length] };
+  });
 
   if (loading) return <div className="flex-1 p-6 bg-black text-white">Loading reports...</div>;
 
@@ -149,16 +183,18 @@ export default function ReportsScreen() {
       {sortedDays.length > 0 && (
         <div className="bg-black border border-white/20 rounded-2xl p-5 mb-6">
           <h2 className="font-bold text-lg text-white mb-4">Daily Sales</h2>
-          <div className="space-y-2">
-            {sortedDays.map(([day, total]) => (
-              <div key={day} className="flex items-center gap-3">
-                <span className="w-28 text-sm font-medium text-gray-400 shrink-0">{day}</span>
-                <div className="flex-1 bg-white/10 rounded-full h-6 overflow-hidden">
-                  <div className="bg-white h-full rounded-full transition-all" style={{ width: `${(total / maxDayRevenue) * 100}%` }} />
+          <div className="flex items-end gap-2 h-48 overflow-x-auto pb-2">
+            {sortedDays.map(([day, total]) => {
+              const heightPct = Math.max(4, (total / maxDayRevenue) * 100);
+              const shortDay = day.slice(5);
+              return (
+                <div key={day} className="flex flex-col items-center gap-1 min-w-[48px] flex-1">
+                  <span className="text-xs font-bold text-white">₱{(total / 1000).toFixed(1)}k</span>
+                  <div className="w-full rounded-t-lg bg-white transition-all" style={{ height: `${heightPct}%` }} />
+                  <span className="text-xs text-gray-500 whitespace-nowrap">{shortDay}</span>
                 </div>
-                <span className="w-24 text-right text-sm font-bold text-white">₱{total.toFixed(0)}</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -184,16 +220,70 @@ export default function ReportsScreen() {
       {sortedCats.length > 0 && (
         <div className="bg-black border border-white/20 rounded-2xl p-5 mb-6">
           <h2 className="font-bold text-lg text-white mb-4">Sales by Category</h2>
-          <div className="space-y-2">
-            {sortedCats.map(([cat, total]) => (
-              <div key={cat} className="flex items-center gap-3">
-                <span className="w-44 text-sm font-medium text-gray-400 shrink-0">{cat}</span>
-                <div className="flex-1 bg-white/10 rounded-full h-6 overflow-hidden">
-                  <div className="bg-amber-600 h-full rounded-full transition-all" style={{ width: `${(total / maxCatRevenue) * 100}%` }} />
+          <div className="flex flex-col md:flex-row items-center gap-8">
+            <svg viewBox="0 0 200 200" className="w-48 h-48 shrink-0">
+              {pieSlices.map((slice, i) => (
+                <path key={i} d={slice.path} fill={slice.color} stroke="#000" strokeWidth="1" />
+              ))}
+              <circle cx="100" cy="100" r="40" fill="#000" />
+              <text x="100" y="96" textAnchor="middle" fill="white" fontSize="8" fontWeight="bold">TOTAL</text>
+              <text x="100" y="108" textAnchor="middle" fill="white" fontSize="9" fontWeight="bold">₱{(totalCatRevenue / 1000).toFixed(1)}k</text>
+            </svg>
+            <div className="flex-1 space-y-2 w-full">
+              {pieSlices.map((slice, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: slice.color }} />
+                  <span className="text-sm text-gray-400 flex-1">{slice.cat}</span>
+                  <span className="text-xs text-gray-500">{(slice.pct * 100).toFixed(1)}%</span>
+                  <span className="text-sm font-bold text-white w-24 text-right">₱{slice.total.toFixed(0)}</span>
                 </div>
-                <span className="w-24 text-right text-sm font-bold text-white">₱{total.toFixed(0)}</span>
-              </div>
-            ))}
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {(sortedPunched.length > 0 || sortedMade.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div className="bg-black border border-white/20 rounded-2xl p-5">
+            <h2 className="font-bold text-lg text-white mb-4">🖊️ Most Orders Punched</h2>
+            <div className="space-y-3">
+              {sortedPunched.map(([name, count], i) => (
+                <div key={name} className="flex items-center gap-3">
+                  <span className="text-lg font-bold text-gray-500 w-6">{i + 1}</span>
+                  <div className="flex-1">
+                    <div className="flex justify-between mb-1">
+                      <span className="text-sm font-semibold text-white">{name}</span>
+                      <span className="text-sm font-bold text-white">{count} orders</span>
+                    </div>
+                    <div className="w-full bg-white/10 rounded-full h-2">
+                      <div className="bg-white h-2 rounded-full" style={{ width: `${(count / (sortedPunched[0]?.[1] || 1)) * 100}%` }} />
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {sortedPunched.length === 0 && <p className="text-gray-500 text-sm">No data yet</p>}
+            </div>
+          </div>
+          <div className="bg-black border border-white/20 rounded-2xl p-5">
+            <h2 className="font-bold text-lg text-white mb-4">☕ Most Drinks Made</h2>
+            <div className="space-y-3">
+              {sortedMade.map(([name, count], i) => (
+                <div key={name} className="flex items-center gap-3">
+                  <span className="text-lg font-bold text-gray-500 w-6">{i + 1}</span>
+                  <div className="flex-1">
+                    <div className="flex justify-between mb-1">
+                      <span className="text-sm font-semibold text-white">{name}</span>
+                      <span className="text-sm font-bold text-white">{count} drinks</span>
+                    </div>
+                    <div className="w-full bg-white/10 rounded-full h-2">
+                      <div className="bg-amber-500 h-2 rounded-full" style={{ width: `${(count / (sortedMade[0]?.[1] || 1)) * 100}%` }} />
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {sortedMade.length === 0 && <p className="text-gray-500 text-sm">No data yet</p>}
+            </div>
           </div>
         </div>
       )}

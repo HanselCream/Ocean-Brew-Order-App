@@ -9,11 +9,11 @@ interface Ingredient {
   id: string;
   name: string;
   unit: string;
+  unit_size: number | null;
   current_stock: number;
   min_stock_threshold: number;
   category: string;
 }
-
 interface Recipe {
   id: string;
   menu_item_id: string;
@@ -81,18 +81,18 @@ const [categoryFilter, setCategoryFilter] = useState('All');
   // LOAD FUNCTIONS
   // ============================================
 
-  const loadIngredients = async () => {
-    const { data, error } = await supabase
-      .from('ingredients')
-      .select('*')
-      .order('category', { ascending: true })
-      .order('name', { ascending: true });
-    
-    if (error) throw error;
-    setIngredients(data || []);
-  };
+const loadIngredients = async () => {
+  const { data, error } = await supabase
+    .from('ingredients')
+    .select('*')
+    .order('category', { ascending: true })
+    .order('name', { ascending: true });
 
-  const loadRecipes = async () => {
+  if (error) throw error;
+  setIngredients(data || []);
+};
+
+const loadRecipes = async () => {
     const { data, error } = await supabase
       .from('recipes')
       .select(`
@@ -274,16 +274,17 @@ const loadAllData = async () => {
   const updateIngredient = async () => {
     if (!editingIngredient) return;
     
-    const { error } = await supabase
-      .from('ingredients')
-      .update({
-        name: editingIngredient.name,
-        unit: editingIngredient.unit,
-        min_stock_threshold: editingIngredient.min_stock_threshold,
-        category: editingIngredient.category,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', editingIngredient.id);
+const { error } = await supabase
+  .from('ingredients')
+  .update({
+    name: editingIngredient.name,
+    unit: editingIngredient.unit,
+    unit_size: editingIngredient.unit_size,
+    min_stock_threshold: editingIngredient.min_stock_threshold,
+    category: editingIngredient.category,
+    updated_at: new Date().toISOString()
+  })
+  .eq('id', editingIngredient.id);
     
     if (error) {
       alert('Error updating ingredient: ' + error.message);
@@ -627,50 +628,64 @@ const filteredIngredients = ingredients.filter(ing => {
 
           <div className="bg-black border border-white/20 rounded-xl overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-white/5 text-gray-300 border-b border-white/10">
-                <tr>
-                  <th className="px-4 py-3 text-left">Ingredient</th>
-                  <th className="px-4 py-3 text-left">Category</th>
-                  <th className="px-4 py-3 text-right">Stock</th>
-                  <th className="px-4 py-3 text-right">Threshold</th>
-                  <th className="px-4 py-3 text-center">Status</th>
-                  <th className="px-4 py-3 text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredIngredients.map(ing => {
-                  const isLowStock = ing.current_stock <= ing.min_stock_threshold;
-                  return (
-                    <tr key={ing.id} className="border-t border-white/10 hover:bg-white/5">
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-white">{ing.name}</div>
-                        <div className="text-xs text-gray-500">{ing.unit}</div>
-                      </td>
-                      <td className="px-4 py-3 text-gray-400">{ing.category}</td>
-                      <td className="px-4 py-3 text-right">
-                        <span className={`font-semibold ${isLowStock ? 'text-red-400' : 'text-white'}`}>
-                          {ing.current_stock}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right text-gray-400">{ing.min_stock_threshold}</td>
-                      <td className="px-4 py-3 text-center">
-                        {isLowStock ? (
-                          <span className="px-2 py-1 rounded-full bg-red-900/50 text-red-300 text-xs font-semibold">LOW STOCK</span>
-                        ) : (
-                          <span className="px-2 py-1 rounded-full bg-green-900/50 text-green-300 text-xs font-semibold">OK</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <div className="flex gap-2 justify-center">
-                          <button onClick={() => setEditingIngredient(ing)} className="text-gray-300 hover:text-white text-xs">Edit</button>
-                          <button onClick={() => { setShowAdjustStock(ing.id); setAdjustAmount(0); }} className="text-blue-400 hover:text-blue-300 text-xs">Adjust</button>
-                          <button onClick={() => deleteIngredient(ing.id)} className="text-red-400 hover:text-red-300 text-xs">Delete</button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
+<thead className="bg-white/5 text-gray-300 border-b border-white/10">
+  <tr>
+    <th className="px-4 py-3 text-left">Category</th>
+    <th className="px-4 py-3 text-left">Item</th>
+    <th className="px-4 py-3 text-right">Stocks</th>
+    <th className="px-4 py-3 text-right">Total Wt.</th>
+    <th className="px-4 py-3 text-right">Threshold</th>
+    <th className="px-4 py-3 text-center">Status</th>
+    <th className="px-4 py-3 text-center">Actions</th>
+  </tr>
+</thead>
+<tbody>
+  {filteredIngredients.map(ing => {
+    const isLowStock = ing.current_stock <= ing.min_stock_threshold;
+    const packCount = ing.unit_size ? Math.floor(ing.current_stock / ing.unit_size) : null;
+    const thresholdPacks = ing.unit_size ? Math.ceil(ing.min_stock_threshold / ing.unit_size) : ing.min_stock_threshold;
+    return (
+      <tr key={ing.id} className="border-t border-white/10 hover:bg-white/5">
+        <td className="px-4 py-3 text-gray-400 text-sm">{ing.category}</td>
+        <td className="px-4 py-3">
+          <div className="font-medium text-white">{ing.name}</div>
+          <div className="text-xs text-gray-500">{ing.unit}</div>
+        </td>
+        <td className="px-4 py-3 text-right">
+          {packCount !== null ? (
+            <span className={`font-semibold ${isLowStock ? 'text-red-400' : 'text-white'}`}>
+              {packCount} pcs
+            </span>
+          ) : (
+            <span className="text-gray-600 text-xs">—</span>
+          )}
+        </td>
+        <td className="px-4 py-3 text-right">
+          <span className={`font-semibold ${isLowStock ? 'text-red-400' : 'text-white'}`}>
+            {ing.current_stock} {ing.unit}
+          </span>
+        </td>
+        <td className="px-4 py-3 text-right text-gray-400">{thresholdPacks}{ing.unit_size ? ' pcs' : ` ${ing.unit}`}</td>
+        <td className="px-4 py-3 text-center">
+          {ing.current_stock === 0 ? (
+            <span className="px-2 py-1 rounded-full bg-gray-800 text-gray-400 text-xs font-semibold">NO STOCK</span>
+          ) : isLowStock ? (
+            <span className="px-2 py-1 rounded-full bg-red-900/50 text-red-300 text-xs font-semibold">LOW STOCK</span>
+          ) : (
+            <span className="px-2 py-1 rounded-full bg-green-900/50 text-green-300 text-xs font-semibold">OK</span>
+          )}
+        </td>
+        <td className="px-4 py-3 text-center">
+          <div className="flex gap-2 justify-center">
+            <button onClick={() => setEditingIngredient(ing)} className="text-gray-300 hover:text-white text-xs">Edit</button>
+            <button onClick={() => { setShowAdjustStock(ing.id); setAdjustAmount(0); }} className="text-blue-400 hover:text-blue-300 text-xs">Adjust</button>
+            <button onClick={() => deleteIngredient(ing.id)} className="text-red-400 hover:text-red-300 text-xs">Delete</button>
+          </div>
+        </td>
+      </tr>
+    );
+  })}
+</tbody>
             </table>
           </div>
         </>
@@ -751,7 +766,8 @@ const filteredIngredients = ingredients.filter(ing => {
               <div><label className="block text-sm font-semibold text-gray-300 mb-1">Name</label><input value={editingIngredient.name} onChange={(e) => setEditingIngredient({ ...editingIngredient, name: e.target.value })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" /></div>
               <div><label className="block text-sm font-semibold text-gray-300 mb-1">Unit</label><select value={editingIngredient.unit} onChange={(e) => setEditingIngredient({ ...editingIngredient, unit: e.target.value })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"><option value="pieces">pieces</option><option value="ml">ml</option><option value="grams">grams</option><option value="shots">shots</option><option value="cups">cups</option></select></div>
               <div><label className="block text-sm font-semibold text-gray-300 mb-1">Low Stock Threshold</label><input type="number" value={editingIngredient.min_stock_threshold} onChange={(e) => setEditingIngredient({ ...editingIngredient, min_stock_threshold: parseFloat(e.target.value) })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" /></div>
-              <div><label className="block text-sm font-semibold text-gray-300 mb-1">Category</label><select value={editingIngredient.category} onChange={(e) => setEditingIngredient({ ...editingIngredient, category: e.target.value })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white">{INGREDIENT_CATEGORIES.map(cat => <option key={cat} value={cat} className="bg-black">{cat}</option>)}</select></div>
+<div><label className="block text-sm font-semibold text-gray-300 mb-1">Pack Size <span className="text-gray-500 font-normal">(e.g. 1000 for 1kg bag)</span></label><input type="number" value={editingIngredient.unit_size ?? ''} onChange={(e) => setEditingIngredient({ ...editingIngredient, unit_size: e.target.value ? parseFloat(e.target.value) : null })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" placeholder={`Amount per pack in ${editingIngredient.unit}`} /></div>
+<div><label className="block text-sm font-semibold text-gray-300 mb-1">Category</label><select value={editingIngredient.category} onChange={(e) => setEditingIngredient({ ...editingIngredient, category: e.target.value })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white">{INGREDIENT_CATEGORIES.map(cat => <option key={cat} value={cat} className="bg-black">{cat}</option>)}</select></div>
             </div>
             <div className="p-5 border-t border-white/20 flex justify-end gap-3"><button onClick={() => setEditingIngredient(null)} className="px-5 py-2 rounded-xl bg-white/10 text-white font-semibold">Cancel</button><button onClick={updateIngredient} className="px-5 py-2 rounded-xl bg-white text-black font-semibold">Save</button></div>
           </div>

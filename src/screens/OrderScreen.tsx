@@ -21,6 +21,7 @@ const ESPRESSO_ADDONS = [
   { id: 'es-addon-4', name: 'Espresso Shot', price: 55 },
   { id: 'es-addon-5', name: 'Cold Foam', price: 30 },
 ];
+  
 
 // ─────────────────────────────────────────────
 // CUSTOMIZATION MODAL
@@ -39,7 +40,7 @@ function CustomizationModal({
   const [ice, setIce] = useState<IceLevel>('Normal Ice');
   const [selectedAddOns, setSelectedAddOns] = useState<Set<string>>(new Set());
   const [activeDiscount, setActiveDiscount] = useState<'none' | 'pwd' | 'student' | 'store'>('none');
-  const [discountType, setDiscountType] = useState<'percent' | 'fixed'>('percent');
+const [discountType, setDiscountType] = useState<'percent' | 'fixed'>('fixed');
   const [discountValue, setDiscountValue] = useState('');
   const [quantity, setQuantity] = useState(1);
 
@@ -166,34 +167,52 @@ function CustomizationModal({
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-300 mb-2">Discount</label>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { type: 'none', label: 'NONE', sub: 'No discount' },
-                { type: 'store', label: 'STORE', sub: 'Adjustable' },
-              ].map(opt => (
-                <button key={opt.type} onClick={() => {
-                  setDiscountType('percent');
-                  if (opt.type === 'none') setDiscountValue('');
-                  else if (opt.type === 'pwd') setDiscountValue('15');
-                  else if (opt.type === 'student') setDiscountValue('10');
-                  else setDiscountValue('');
-                  setActiveDiscount(opt.type as any);
-                }} className={`py-3 rounded-xl border-2 flex flex-col items-center gap-0.5 transition-colors ${activeDiscount === opt.type ? 'border-white bg-white text-black' : 'border-white/30 text-gray-300 hover:border-white/50'}`}>
-                  <span className="text-sm font-bold">{opt.label}</span>
-                  <span className="text-xs opacity-60">{opt.sub}</span>
-                </button>
-              ))}
-            </div>
+<div className="flex gap-2">
+  {[
+    { type: 'none', label: 'NONE' },
+    { type: 'store', label: 'STORE' },
+  ].map(opt => (
+    <button key={opt.type} onClick={() => {
+      setDiscountType('percent');
+      if (opt.type === 'none') setDiscountValue('');
+      else setDiscountValue('');
+      setActiveDiscount(opt.type as any);
+    }} className={`px-3 py-1 rounded-lg border text-xs font-bold transition-colors ${activeDiscount === opt.type ? 'border-white bg-white text-black' : 'border-white/30 text-gray-400 hover:border-white/50'}`}>
+      {opt.label}
+    </button>
+  ))}
+</div>
 {activeDiscount === 'store' && (
   <div className="mt-3">
-    <p className="text-xs text-gray-500 mb-2">Select store discount (₱)</p>
-    <div className="flex gap-2">
-      {[5, 10, 15, 20].map(amt => (
-        <button key={amt} onClick={() => { setDiscountType('fixed'); setDiscountValue(amt.toString()); }} className={`flex-1 py-2 rounded-xl text-sm font-bold border-2 transition-colors ${discountValue === amt.toString() ? 'border-white bg-white text-black' : 'border-white/30 text-gray-300 hover:border-white/50'}`}>
-          ₱{amt}
-        </button>
-      ))}
+    <div className="flex gap-2 mb-2">
+      <button onClick={() => { setDiscountType('fixed'); setDiscountValue(''); }}
+        className={`px-3 py-1 rounded-lg border text-xs font-bold transition-colors ${discountType === 'fixed' ? 'border-white bg-white text-black' : 'border-white/30 text-gray-400 hover:border-white/50'}`}>
+        ₱ Peso
+      </button>
+      <button onClick={() => { setDiscountType('percent'); setDiscountValue(''); }}
+        className={`px-3 py-1 rounded-lg border text-xs font-bold transition-colors ${discountType === 'percent' ? 'border-white bg-white text-black' : 'border-white/30 text-gray-400 hover:border-white/50'}`}>
+        % Percent
+      </button>
     </div>
+    {discountType === 'fixed' ? (
+      <div className="flex gap-2">
+        {[5, 10, 15, 20].map(amt => (
+          <button key={amt} onClick={() => setDiscountValue(amt.toString())}
+            className={`flex-1 py-2 rounded-xl text-sm font-bold border-2 transition-colors ${discountValue === amt.toString() ? 'border-white bg-white text-black' : 'border-white/30 text-gray-300 hover:border-white/50'}`}>
+            ₱{amt}
+          </button>
+        ))}
+      </div>
+    ) : (
+      <div className="flex gap-2">
+        {[5, 10, 15, 20].map(amt => (
+          <button key={amt} onClick={() => setDiscountValue(amt.toString())}
+            className={`flex-1 py-2 rounded-xl text-sm font-bold border-2 transition-colors ${discountValue === amt.toString() ? 'border-white bg-white text-black' : 'border-white/30 text-gray-300 hover:border-white/50'}`}>
+            {amt}%
+          </button>
+        ))}
+      </div>
+    )}
   </div>
 )}
           </div>
@@ -252,10 +271,18 @@ function AmountPaidModal({
               <span>Total</span><span>₱{subtotal.toFixed(2)}</span>
             </div>
           </div>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-300 mb-2">Amount Paid</label>
-            <input type="number" value={amountPaid === 0 ? '' : amountPaid} onChange={(e) => setAmountPaid(e.target.value === '' ? 0 : parseFloat(e.target.value))} className="w-full border border-white/20 rounded-xl px-4 py-3 bg-black text-white text-lg focus:border-white/50 focus:outline-none" placeholder="Enter amount received" autoFocus />
-          </div>
+<div className="mb-4">
+  <label className="block text-sm font-medium text-gray-300 mb-2">Amount Paid</label>
+  <input type="number" value={amountPaid === 0 ? '' : amountPaid} onChange={(e) => setAmountPaid(e.target.value === '' ? 0 : parseFloat(e.target.value))} className="w-full border border-white/20 rounded-xl px-4 py-3 bg-black text-white text-lg focus:border-white/50 focus:outline-none" placeholder="Enter amount received" autoFocus />
+  <div className="flex gap-2 mt-2">
+    {[100, 200, 500, 1000].map(amt => (
+      <button key={amt} onClick={() => setAmountPaid(amt)}
+        className={`flex-1 py-2 rounded-xl text-sm font-bold border-2 transition-colors ${amountPaid === amt ? 'border-white bg-white text-black' : 'border-white/30 text-gray-300 hover:border-white/50'}`}>
+        ₱{amt}
+      </button>
+    ))}
+  </div>
+</div>
           {amountPaid >= subtotal && amountPaid > 0 && (
             <div className="bg-green-900/30 border border-green-800 rounded-xl p-4 mb-4">
               <p className="text-gray-300 text-sm mb-1">Change</p>
@@ -282,6 +309,7 @@ function AmountPaidModal({
 // ─────────────────────────────────────────────
 function FinalConfirmModal({
   cart, total, amountPaid, changeAmount, onConfirm, onCancel,
+  punchedBy, madeBy, setPunchedBy, setMadeBy, staffList,
 }: {
   cart: OrderItem[];
   total: number;
@@ -289,6 +317,11 @@ function FinalConfirmModal({
   changeAmount: number;
   onConfirm: () => void;
   onCancel: () => void;
+  punchedBy: string;
+  madeBy: string;
+  setPunchedBy: (v: string) => void;
+  setMadeBy: (v: string) => void;
+  staffList: string[];
 }) {
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4">
@@ -310,6 +343,24 @@ function FinalConfirmModal({
             <div className="flex justify-between mb-2"><span className="text-gray-400">Total:</span><span className="text-white font-bold">₱{total.toFixed(2)}</span></div>
             <div className="flex justify-between mb-2"><span className="text-gray-400">Amount Paid:</span><span className="text-white font-bold">₱{(amountPaid || 0).toFixed(2)}</span></div>
             <div className="flex justify-between pt-2 border-t border-white/20"><span className="text-green-400">Change:</span><span className="text-green-400 font-bold text-lg">₱{(changeAmount || 0).toFixed(2)}</span></div>
+          </div>
+<div className="space-y-2 mb-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400 w-20 shrink-0">🖊️ Punched by</span>
+              <select value={punchedBy} onChange={e => setPunchedBy(e.target.value)}
+                className="flex-1 bg-white/10 border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none">
+                <option value="">-- Select --</option>
+                {staffList.map(s => <option key={s} value={s} className="bg-black">{s}</option>)}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400 w-20 shrink-0">☕ Made by</span>
+              <select value={madeBy} onChange={e => setMadeBy(e.target.value)}
+                className="flex-1 bg-white/10 border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none">
+                <option value="">-- Select --</option>
+                {staffList.map(s => <option key={s} value={s} className="bg-black">{s}</option>)}
+              </select>
+            </div>
           </div>
           <div className="flex gap-3">
             <button onClick={onCancel} className="flex-1 py-3 rounded-xl bg-white/10 font-semibold text-white hover:bg-white/20 transition-colors">No, Go Back</button>
@@ -336,7 +387,10 @@ export default function OrderScreen({ onOrderPlaced }: { onOrderPlaced: () => vo
   const [changeAmount, setChangeAmount] = useState<number>(0);
   const [orderLevelDiscount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<string>('');
-
+  const [orderType, setOrderType] = useState<'Dine In' | 'Takeout' | 'Delivery'>('Dine In');
+  const [punchedBy, setPunchedBy] = useState<string>('');
+  const [madeBy, setMadeBy] = useState<string>('');
+  const STAFF_LIST = ['Staff 1', 'Staff 2', 'Staff 3', 'Staff 4'];
   useEffect(() => {
     const loadMenu = async () => {
       try {
@@ -385,12 +439,13 @@ export default function OrderScreen({ onOrderPlaced }: { onOrderPlaced: () => vo
     try {
       const nextOrderNumberStr = await getNextOrderNumber();
       const nextOrderNumber = parseInt(nextOrderNumberStr);
-      const order: Order = {
-        id: '', orderNumber: nextOrderNumber, items: cart, subtotal,
-        discount: totalDiscount + orderLevelDiscount, total,
-        createdAt: new Date().toISOString(), status: 'pending',
-        amountPaid, change: changeAmount, paymentMethod,
-      };
+const order: Order = {
+  id: '', orderNumber: nextOrderNumber, items: cart, subtotal,
+  discount: totalDiscount + orderLevelDiscount, total,
+  createdAt: new Date().toISOString(), status: 'pending',
+  amountPaid, change: changeAmount, paymentMethod,
+  orderType, punchedBy, madeBy,
+};
 await saveOrder(order);
 
 // Auto-print
@@ -399,6 +454,8 @@ getStoreSettings().then(settings => {
 }).catch(() => {});
 
 setCart([]);
+setPunchedBy('');
+setMadeBy('');
 setShowFinalConfirmModal(false);
 alert(`Order #${nextOrderNumber} completed! Change: ₱${changeAmount.toFixed(2)}`);
 onOrderPlaced();
@@ -428,8 +485,19 @@ onOrderPlaced();
         </div>
       </div>
       <div className="w-80 bg-black border-l border-white/10 flex flex-col shrink-0">
-        <div className="px-4 py-3 border-b border-white/10 bg-white/5 text-white"><h2 className="font-bold text-base">Current Order</h2></div>
-        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+
+<div className="px-4 py-3 border-b border-white/10 bg-white/5 text-white">
+  <h2 className="font-bold text-base mb-2">Current Order</h2>
+  <div className="flex gap-1">
+    {(['Dine In', 'Takeout', 'Delivery'] as const).map(type => (
+      <button key={type} onClick={() => setOrderType(type)}
+        className={`flex-1 py-1 rounded-lg text-xs font-bold transition-colors ${orderType === type ? 'bg-white text-black' : 'bg-white/10 text-gray-400 hover:bg-white/20'}`}>
+        {type}
+      </button>
+    ))}
+  </div>
+</div>
+   <div className="flex-1 overflow-y-auto p-3 space-y-2">
           {cart.length === 0 && <p className="text-gray-500 text-sm text-center py-8">Tap an item to start</p>}
           {cart.map(item => (
             <div key={item.id} className="bg-white/5 rounded-lg p-3 border border-white/10 text-sm">
@@ -482,8 +550,8 @@ onOrderPlaced();
       )}
 
       {showFinalConfirmModal && (
-        <FinalConfirmModal cart={cart} total={total} amountPaid={amountPaid} changeAmount={changeAmount} onConfirm={handleFinalConfirm} onCancel={() => setShowFinalConfirmModal(false)} />
-      )}
+<FinalConfirmModal cart={cart} total={total} amountPaid={amountPaid} changeAmount={changeAmount} onConfirm={handleFinalConfirm} onCancel={() => setShowFinalConfirmModal(false)}
+  punchedBy={punchedBy} madeBy={madeBy} setPunchedBy={setPunchedBy} setMadeBy={setMadeBy} staffList={STAFF_LIST} />      )}
     </div>
   );
 }

@@ -74,7 +74,7 @@ export default function QueueScreen({ refreshKey }: { refreshKey: number }) {
     receiptText += `Tel: ${settings.storePhone}\n`;
     if (settings.storeEmail) receiptText += `${settings.storeEmail}\n`;
     receiptText += SEPARATOR + '\n\n';
-    receiptText += `Order #: ${order.orderNumber}\nDate: ${date}\n`;
+receiptText += `Order #: ${order.orderNumber}\nType: ${(order as any).orderType || 'Dine In'}\nDate: ${date}\n${SEPARATOR}\n`;
     receiptText += SEPARATOR + '\n';
 
     const qtyH = 'QTY';

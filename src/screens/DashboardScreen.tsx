@@ -158,8 +158,12 @@ export default function DashboardScreen() {
               <tbody>
                 {completedOrders.map(order => (
                   <tr key={order.id} className="border-t border-white/10 hover:bg-white/5">
-                    <td className="px-4 py-3 font-medium text-white">#{order.orderNumber}</td>
-                    <td className="px-4 py-3 text-gray-400">{new Date(order.createdAt).toLocaleTimeString()}</td>
+                 <td className="px-4 py-3 font-medium text-white">
+  <div>#{order.orderNumber}</div>
+  {(order as any).punchedBy && <div className="text-xs text-gray-500">🖊️ {(order as any).punchedBy}</div>}
+  {(order as any).madeBy && <div className="text-xs text-gray-500">☕ {(order as any).madeBy}</div>}
+</td>
+<td className="px-4 py-3 text-gray-400">{new Date(order.createdAt).toLocaleTimeString()}</td>
                     <td className="px-4 py-3">
                       {order.items.map((item, idx) => {
                         const c = item.customization;

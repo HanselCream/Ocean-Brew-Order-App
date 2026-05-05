@@ -49,11 +49,14 @@ export interface Order {
   createdAt: string;
   status: 'pending' | 'done' | 'cancelled';
   printedCount?: number;
+  punchedBy?: string;
+madeBy?: string;
   lastPrintedAt?: string;
   completedAt?: string;
   amountPaid?: number;   // ← ADD
   change?: number;        // ← ADD
   paymentMethod?: string; // ← ADD (already in DB)
+  orderType?: 'Dine In' | 'Takeout' | 'Delivery';
 }
 
 export interface PrinterSettings {
