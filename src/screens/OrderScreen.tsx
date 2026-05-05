@@ -48,10 +48,9 @@ const [discountType, setDiscountType] = useState<'percent' | 'fixed'>('fixed');
   const isEspresso = item.category === 'Espresso';
   const isDrink = !['Appetizers', 'Merchandise', 'Supplies', 'Add Ons'].includes(item.category);
 
-  const addOnsTotal = (() => {
-    if (isEspresso) return ESPRESSO_ADDONS.filter(a => selectedAddOns.has(a.id)).reduce((s, a) => s + a.price, 0);
-    return addOnItems.filter(a => selectedAddOns.has(a.id)).reduce((s, a) => s + a.priceR, 0);
-  })();
+const addOnsTotal = addOnItems
+  .filter(a => selectedAddOns.has(a.id))
+  .reduce((s, a) => s + a.priceR, 0);
 
   const subtotal = (basePrice + addOnsTotal) * quantity;
   const dv = parseFloat(discountValue) || 0;
@@ -67,10 +66,9 @@ const [discountType, setDiscountType] = useState<'percent' | 'fixed'>('fixed');
   };
 
   const handleConfirm = () => {
-    const addOnsArray = isEspresso
-      ? ESPRESSO_ADDONS.filter(a => selectedAddOns.has(a.id)).map(a => ({ id: a.id, name: a.name, price: a.price }))
-      : addOnItems.filter(a => selectedAddOns.has(a.id)).map(a => ({ id: a.id, name: a.name, price: a.priceR }));
-
+const addOnsArray = addOnItems
+  .filter(a => selectedAddOns.has(a.id))
+  .map(a => ({ id: a.id, name: a.name, price: a.priceR }));
     const cust: OrderItemCustomization = {
       size,
       temperature: isEspresso ? temperature : undefined,
@@ -134,29 +132,21 @@ const [discountType, setDiscountType] = useState<'percent' | 'fixed'>('fixed');
               </div>
             </div>
           )}
-          {isDrink && (
-            <div>
-              <label className="block text-sm font-semibold text-gray-300 mb-2">{isEspresso ? 'Espresso Add-ons' : 'Add-ons (select multiple)'}</label>
-              <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-1">
-                {isEspresso ? (
-                  ESPRESSO_ADDONS.map(a => (
-                    <button key={a.id} onClick={() => toggleAddOn(a.id)} className={`px-3 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${selectedAddOns.has(a.id) ? 'border-white bg-white text-black' : 'border-white/30 text-gray-300 hover:border-white/50'}`}>
-                      {a.name} +₱{a.price}
-                    </button>
-                  ))
-                ) : (
-                  addOnItems.filter(addOn => item.addOnIds?.includes(addOn.id)).map(a => (
-                    <button key={a.id} onClick={() => toggleAddOn(a.id)} className={`px-3 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${selectedAddOns.has(a.id) ? 'border-white bg-white text-black' : 'border-white/30 text-gray-300 hover:border-white/50'}`}>
-                      {a.name} +₱{a.priceR}
-                    </button>
-                  ))
-                )}
-              </div>
-              {!isEspresso && (!item.addOnIds || item.addOnIds.length === 0) && (
-                <p className="text-xs text-gray-500 mt-1">No add-ons available for this item. Edit this item in Admin to add add-ons.</p>
-              )}
-            </div>
-          )}
+{isDrink && (
+  <div>
+    <label className="block text-sm font-semibold text-gray-300 mb-2">Add-ons (select multiple)</label>
+    <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-1">
+      {addOnItems.filter(addOn => item.addOnIds?.includes(addOn.id)).map(a => (
+        <button key={a.id} onClick={() => toggleAddOn(a.id)} className={`px-3 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${selectedAddOns.has(a.id) ? 'border-white bg-white text-black' : 'border-white/30 text-gray-300 hover:border-white/50'}`}>
+          {a.name} +₱{a.priceR}
+        </button>
+      ))}
+    </div>
+    {(!item.addOnIds || item.addOnIds.length === 0) && (
+      <p className="text-xs text-gray-500 mt-1">No add-ons available. Edit this item in Admin to add add-ons.</p>
+    )}
+  </div>
+)}
           <div>
             <label className="block text-sm font-semibold text-gray-300 mb-2">Quantity</label>
             <div className="flex items-center gap-4">
