@@ -54,8 +54,8 @@ export default function InventoryScreen() {
   const [showAdjustStock, setShowAdjustStock] = useState<string | null>(null);
   const [showAddRecipe, setShowAddRecipe] = useState(false);
   const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null);
-const [searchTerm, setSearchTerm] = useState('');
-const [categoryFilter, setCategoryFilter] = useState('All');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('All');
   const [drinksLeft, setDrinksLeft] = useState<Record<string, number>>({});
   
   // New ingredient form
@@ -68,10 +68,10 @@ const [categoryFilter, setCategoryFilter] = useState('All');
   });
   
   // Stock adjustment
-const [adjustAmount, setAdjustAmount] = useState(0);
-const [adjustReason, setAdjustReason] = useState('manual_adjustment');
-const [inlineEditId, setInlineEditId] = useState<string | null>(null);
-const [inlineEditData, setInlineEditData] = useState<Partial<Ingredient>>({});
+  const [adjustAmount, setAdjustAmount] = useState(0);
+  const [adjustReason, setAdjustReason] = useState('manual_adjustment');
+  const [inlineEditId, setInlineEditId] = useState<string | null>(null);
+  const [inlineEditData, setInlineEditData] = useState<Partial<Ingredient>>({});
   
   // New recipe form
   const [newRecipe, setNewRecipe] = useState({
@@ -84,18 +84,18 @@ const [inlineEditData, setInlineEditData] = useState<Partial<Ingredient>>({});
   // LOAD FUNCTIONS
   // ============================================
 
-const loadIngredients = async () => {
-  const { data, error } = await supabase
-    .from('ingredients')
-    .select('*')
-    .order('category', { ascending: true })
-    .order('name', { ascending: true });
+  const loadIngredients = async () => {
+    const { data, error } = await supabase
+      .from('ingredients')
+      .select('*')
+      .order('category', { ascending: true })
+      .order('name', { ascending: true });
 
-  if (error) throw error;
-  setIngredients(data || []);
-};
+    if (error) throw error;
+    setIngredients(data || []);
+  };
 
-const loadRecipes = async () => {
+  const loadRecipes = async () => {
     const { data, error } = await supabase
       .from('recipes')
       .select(`
@@ -148,45 +148,42 @@ const loadRecipes = async () => {
   // CALCULATE DRINKS LEFT
   // ============================================
   const calculateDrinksLeft = async () => {
-  console.log('📊 Calculating drinks left...');
-  const drinks: Record<string, number> = {};
-  
-  for (const menuItem of menuItems) {
-    // Get recipe ingredients for this menu item
-    const { data: recipeData, error } = await supabase
-      .from('recipes')
-      .select(`
-        quantity,
-        ingredient_id,
-        ingredients (current_stock)
-      `)
-      .eq('menu_item_id', menuItem.id);
+    console.log('📊 Calculating drinks left...');
+    const drinks: Record<string, number> = {};
     
-    if (error) {
-      console.error('Error fetching recipe for', menuItem.name, error);
-      continue;
+    for (const menuItem of menuItems) {
+      const { data: recipeData, error } = await supabase
+        .from('recipes')
+        .select(`
+          quantity,
+          ingredient_id,
+          ingredients (current_stock)
+        `)
+        .eq('menu_item_id', menuItem.id);
+      
+      if (error) {
+        console.error('Error fetching recipe for', menuItem.name, error);
+        continue;
+      }
+      
+      if (!recipeData || recipeData.length === 0) {
+        drinks[menuItem.id] = 999;
+        continue;
+      }
+      
+      let maxDrinks = Infinity;
+      for (const recipe of recipeData) {
+        const stock = (recipe.ingredients as any)?.current_stock || 0;
+        const needed = recipe.quantity;
+        const possible = Math.floor(stock / needed);
+        maxDrinks = Math.min(maxDrinks, possible);
+      }
+      
+      drinks[menuItem.id] = maxDrinks === Infinity ? 999 : maxDrinks;
     }
     
-    if (!recipeData || recipeData.length === 0) {
-      drinks[menuItem.id] = 999;
-      continue;
-    }
-    
-    let maxDrinks = Infinity;
-    for (const recipe of recipeData) {
-      const stock = (recipe.ingredients as any)?.current_stock || 0;
-      const needed = recipe.quantity;
-      const possible = Math.floor(stock / needed);
-      console.log(`${menuItem.name}: ${recipe.ingredient_id} - stock: ${stock}, needed: ${needed}, possible: ${possible}`);
-      maxDrinks = Math.min(maxDrinks, possible);
-    }
-    
-    drinks[menuItem.id] = maxDrinks === Infinity ? 999 : maxDrinks;
-    console.log(`${menuItem.name} can make: ${drinks[menuItem.id]} drinks`);
-  }
-  
-  setDrinksLeft(drinks);
-};
+    setDrinksLeft(drinks);
+  };
 
   // ============================================
   // AUTO-DEDUCT STOCK
@@ -228,21 +225,21 @@ const loadRecipes = async () => {
   // ============================================
   // MAIN LOAD FUNCTION
   // ============================================
-const loadAllData = async () => {
-  setLoading(true);
-  try {
-    await loadIngredients();
-    await loadRecipes();
-    await loadStockLogs();
-    await loadMenuItems();
-    await calculateDrinksLeft();  // ← Make sure this is AFTER loadMenuItems
-  } catch (error) {
-    console.error('Error loading inventory data:', error);
-    alert('Failed to load inventory data');
-  } finally {
-    setLoading(false);
-  }
-};
+  const loadAllData = async () => {
+    setLoading(true);
+    try {
+      await loadIngredients();
+      await loadRecipes();
+      await loadStockLogs();
+      await loadMenuItems();
+      await calculateDrinksLeft();
+    } catch (error) {
+      console.error('Error loading inventory data:', error);
+      alert('Failed to load inventory data');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // ============================================
   // CRUD OPERATIONS
@@ -263,7 +260,7 @@ const loadAllData = async () => {
       return;
     }
     
-setShowAddIngredient(false);
+    setShowAddIngredient(false);
     setNewIngredient({
       name: '',
       unit: 'pieces',
@@ -277,47 +274,49 @@ setShowAddIngredient(false);
   const updateIngredient = async () => {
     if (!editingIngredient) return;
     
-const { error } = await supabase
-  .from('ingredients')
-  .update({
-    name: editingIngredient.name,
-    unit: editingIngredient.unit,
-    unit_size: editingIngredient.unit_size,
-    min_stock_threshold: editingIngredient.min_stock_threshold,
-    category: editingIngredient.category,
-    updated_at: new Date().toISOString()
-  })
-  .eq('id', editingIngredient.id);
+    const { error } = await supabase
+      .from('ingredients')
+      .update({
+        name: editingIngredient.name,
+        unit: editingIngredient.unit,
+        unit_size: editingIngredient.unit_size,
+        min_stock_threshold: editingIngredient.min_stock_threshold,
+        category: editingIngredient.category,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', editingIngredient.id);
     
     if (error) {
       alert('Error updating ingredient: ' + error.message);
       return;
     }
-setEditingIngredient(null);
+    setEditingIngredient(null);
     await loadIngredients();
   };
-const saveInlineEdit = async () => {
-  if (!inlineEditId) return;
-  const { error } = await supabase
-    .from('ingredients')
-    .update({
-      name: inlineEditData.name,
-      unit: inlineEditData.unit,
-      unit_size: inlineEditData.unit_size ?? null,
-      min_stock_threshold: inlineEditData.min_stock_threshold,
-      category: inlineEditData.category,
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', inlineEditId);
-  if (error) { alert('Error: ' + error.message); return; }
-  setInlineEditId(null);
-  setInlineEditData({});
-  await loadIngredients();
-};
+
+  const saveInlineEdit = async () => {
+    if (!inlineEditId) return;
+    const { error } = await supabase
+      .from('ingredients')
+      .update({
+        name: inlineEditData.name,
+        unit: inlineEditData.unit,
+        unit_size: inlineEditData.unit_size ?? null,
+        min_stock_threshold: inlineEditData.min_stock_threshold,
+        category: inlineEditData.category,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', inlineEditId);
+    if (error) { alert('Error: ' + error.message); return; }
+    setInlineEditId(null);
+    setInlineEditData({});
+    await loadIngredients();
+  };
 
 const adjustStock = async (ingredientId: string) => {
-  if (adjustAmount === 0) {
-    alert('Please enter an amount');
+  // Check if adjustAmount is 0 or NaN
+  if (adjustAmount === 0 || isNaN(adjustAmount)) {
+    alert('Please enter a valid amount');
     return;
   }
   
@@ -333,33 +332,34 @@ const adjustStock = async (ingredientId: string) => {
     return;
   }
     
-    const { error: updateError } = await supabase
-      .from('ingredients')
-      .update({ 
-        current_stock: newStock,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', ingredientId);
+  const { error: updateError } = await supabase
+    .from('ingredients')
+    .update({ 
+      current_stock: newStock,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', ingredientId);
     
-    if (updateError) {
-      alert('Error updating stock: ' + updateError.message);
-      return;
-    }
+  if (updateError) {
+    alert('Error updating stock: ' + updateError.message);
+    return;
+  }
     
-    await supabase.from('stock_logs').insert([{
+  await supabase.from('stock_logs').insert([{
     ingredient_id: ingredientId,
     previous_stock: ingredient.current_stock,
     new_stock: newStock,
     quantity_change: rawAdjust,
-      reason: adjustReason,
-      reference_id: 'manual_' + Date.now()
-    }]);
+    reason: adjustReason,
+    reference_id: 'manual_' + Date.now()
+  }]);
     
-setShowAdjustStock(null);
-    setAdjustAmount(0);
-    await loadIngredients();
-    await loadStockLogs();
-  };
+  setShowAdjustStock(null);
+  setAdjustAmount(0);
+  await loadIngredients();
+  await loadStockLogs();
+};
+
   const addRecipe = async () => {
     if (!newRecipe.menu_item_id || !newRecipe.ingredient_id || newRecipe.quantity <= 0) {
       alert('Please fill all recipe fields');
@@ -506,16 +506,17 @@ setShowAdjustStock(null);
 
   // Get low stock ingredients
   const lowStockIngredients = ingredients.filter(ing => ing.current_stock <= ing.min_stock_threshold);
-const filteredIngredients = ingredients.filter(ing => {
-  const matchesSearch = ing.name.toLowerCase().includes(searchTerm.toLowerCase());
-  const matchesCategory = categoryFilter === 'All' || ing.category === categoryFilter;
-  return matchesSearch && matchesCategory;
-});
+  const filteredIngredients = ingredients.filter(ing => {
+    const matchesSearch = ing.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = categoryFilter === 'All' || ing.category === categoryFilter;
+    return matchesSearch && matchesCategory;
+  });
 
-const allCategories = Array.from(new Set([
-  ...INGREDIENT_CATEGORIES,
-  ...ingredients.map(i => i.category).filter(Boolean)
-])).sort();
+  const allCategories = Array.from(new Set([
+    ...INGREDIENT_CATEGORIES,
+    ...ingredients.map(i => i.category).filter(Boolean)
+  ])).sort();
+  
   if (loading) {
     return <div className="flex-1 p-8 bg-black text-white">Loading inventory...</div>;
   }
@@ -627,92 +628,92 @@ const allCategories = Array.from(new Set([
       {/* INGREDIENTS TAB */}
       {activeTab === 'ingredients' && (
         <>
-<div className="flex items-center gap-3 mb-4">
-  <input
-    type="text"
-    placeholder="Search ingredients..."
-    value={searchTerm}
-    onChange={(e) => setSearchTerm(e.target.value)}
-    className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:border-white/50 w-56"
-  />
-  <select
-    value={categoryFilter}
-    onChange={(e) => setCategoryFilter(e.target.value)}
-    className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white focus:outline-none"
-  >
-    <option value="All" className="bg-black">All Categories</option>
-    {INGREDIENT_CATEGORIES.map(cat => (
-      <option key={cat} value={cat} className="bg-black">{cat}</option>
-    ))}
-  </select>
-  <button
-    onClick={() => setShowAddIngredient(true)}
-    className="ml-auto px-5 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200"
-  >
-    + Add Ingredient
-  </button>
-</div>
+          <div className="flex items-center gap-3 mb-4">
+            <input
+              type="text"
+              placeholder="Search ingredients..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:border-white/50 w-56"
+            />
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white focus:outline-none"
+            >
+              <option value="All" className="bg-black">All Categories</option>
+              {INGREDIENT_CATEGORIES.map(cat => (
+                <option key={cat} value={cat} className="bg-black">{cat}</option>
+              ))}
+            </select>
+            <button
+              onClick={() => setShowAddIngredient(true)}
+              className="ml-auto px-5 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200"
+            >
+              + Add Ingredient
+            </button>
+          </div>
 
           <div className="bg-black border border-white/20 rounded-xl overflow-hidden">
             <table className="w-full text-sm">
-<thead className="bg-white/5 text-gray-300 border-b border-white/10">
-  <tr>
-    <th className="px-4 py-3 text-left">Category</th>
-    <th className="px-4 py-3 text-left">Item</th>
-    <th className="px-4 py-3 text-right">Stocks</th>
-<th className="px-4 py-3 text-right">Wt.</th>
-    <th className="px-4 py-3 text-right">Threshold</th>
-    <th className="px-4 py-3 text-center">Status</th>
-    <th className="px-4 py-3 text-center">Actions</th>
-  </tr>
-</thead>
-<tbody>
-  {filteredIngredients.map(ing => {
-    const isLowStock = ing.current_stock <= ing.min_stock_threshold;
-    const packCount = ing.unit_size ? Math.floor(ing.current_stock / ing.unit_size) : null;
-    const thresholdPacks = ing.unit_size ? Math.ceil(ing.min_stock_threshold / ing.unit_size) : ing.min_stock_threshold;
-    return (
-      <tr key={ing.id} className="border-t border-white/10 hover:bg-white/5">
-        <td className="px-4 py-3 text-gray-400 text-sm">{ing.category}</td>
-        <td className="px-4 py-3">
-          <div className="font-medium text-white">{ing.name}</div>
-          <div className="text-xs text-gray-500">{ing.unit}</div>
-        </td>
-        <td className="px-4 py-3 text-right">
-          {packCount !== null ? (
-            <span className={`font-semibold ${isLowStock ? 'text-red-400' : 'text-white'}`}>
-              {packCount} pcs
-            </span>
-          ) : (
-            <span className="text-gray-600 text-xs">—</span>
-          )}
-        </td>
-        <td className="px-4 py-3 text-right">
-          <span className={`font-semibold ${isLowStock ? 'text-red-400' : 'text-white'}`}>
-            {ing.current_stock} {ing.unit}
-          </span>
-        </td>
-        <td className="px-4 py-3 text-right text-gray-400">{thresholdPacks}{ing.unit_size ? ' pcs' : ` ${ing.unit}`}</td>
-        <td className="px-4 py-3 text-center">
-{ing.current_stock === 0 ? (
-  <span className="px-2 py-1 rounded-full bg-red-900/60 text-red-300 text-xs font-semibold">NO STOCK</span>
-) : isLowStock ? (
-  <span className="px-2 py-1 rounded-full bg-yellow-900/60 text-yellow-300 text-xs font-semibold">LOW STOCK</span>
-) : (
-  <span className="px-2 py-1 rounded-full bg-green-900/50 text-green-300 text-xs font-semibold">IN STOCK</span>
-)}
-        </td>
-        <td className="px-4 py-3 text-center">
-          <div className="flex gap-2 justify-center">
-            <button onClick={() => setEditingIngredient(ing)} className="text-gray-300 hover:text-white text-xs">Edit</button>
-            <button onClick={() => { setShowAdjustStock(ing.id); setAdjustAmount(0); }} className="text-blue-400 hover:text-blue-300 text-xs">Adjust</button>
-            <button onClick={() => deleteIngredient(ing.id)} className="text-red-400 hover:text-red-300 text-xs">Delete</button>
-          </div>
-        </td>
-      </tr>
-    );
-  })}
-</tbody>
+              <thead className="bg-white/5 text-gray-300 border-b border-white/10">
+                <tr>
+                  <th className="px-4 py-3 text-left">Category</th>
+                  <th className="px-4 py-3 text-left">Item</th>
+                  <th className="px-4 py-3 text-right">Stocks</th>
+                  <th className="px-4 py-3 text-right">Wt.</th>
+                  <th className="px-4 py-3 text-right">Threshold</th>
+                  <th className="px-4 py-3 text-center">Status</th>
+                  <th className="px-4 py-3 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredIngredients.map(ing => {
+                  const isLowStock = ing.current_stock <= ing.min_stock_threshold;
+                  const packCount = ing.unit_size ? Math.floor(ing.current_stock / ing.unit_size) : null;
+                  const thresholdPacks = ing.unit_size ? Math.ceil(ing.min_stock_threshold / ing.unit_size) : ing.min_stock_threshold;
+                  return (
+                    <tr key={ing.id} className="border-t border-white/10 hover:bg-white/5">
+                      <td className="px-4 py-3 text-gray-400 text-sm">{ing.category}</td>
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-white">{ing.name}</div>
+                        <div className="text-xs text-gray-500">{ing.unit}</div>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {packCount !== null ? (
+                          <span className={`font-semibold ${isLowStock ? 'text-red-400' : 'text-white'}`}>
+                            {packCount} pcs
+                          </span>
+                        ) : (
+                          <span className="text-gray-600 text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <span className={`font-semibold ${isLowStock ? 'text-red-400' : 'text-white'}`}>
+                          {ing.current_stock} {ing.unit}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-400">{thresholdPacks}{ing.unit_size ? ' pcs' : ` ${ing.unit}`}</td>
+                      <td className="px-4 py-3 text-center">
+                        {ing.current_stock === 0 ? (
+                          <span className="px-2 py-1 rounded-full bg-red-900/60 text-red-300 text-xs font-semibold">NO STOCK</span>
+                        ) : isLowStock ? (
+                          <span className="px-2 py-1 rounded-full bg-yellow-900/60 text-yellow-300 text-xs font-semibold">LOW STOCK</span>
+                        ) : (
+                          <span className="px-2 py-1 rounded-full bg-green-900/50 text-green-300 text-xs font-semibold">IN STOCK</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <div className="flex gap-2 justify-center">
+                          <button onClick={() => setEditingIngredient(ing)} className="text-gray-300 hover:text-white text-xs">Edit</button>
+                          <button onClick={() => { setShowAdjustStock(ing.id); setAdjustAmount(0); }} className="text-blue-400 hover:text-blue-300 text-xs">Adjust</button>
+                          <button onClick={() => deleteIngredient(ing.id)} className="text-red-400 hover:text-red-300 text-xs">Delete</button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
             </table>
           </div>
         </>
@@ -729,7 +730,12 @@ const allCategories = Array.from(new Set([
           <div className="bg-black border border-white/20 rounded-xl overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-white/5 text-gray-300 border-b border-white/10">
-                <tr><th className="px-4 py-3 text-left">Menu Item</th><th className="px-4 py-3 text-left">Ingredient</th><th className="px-4 py-3 text-right">Quantity</th><th className="px-4 py-3 text-center">Actions</th></tr>
+                <tr>
+                  <th className="px-4 py-3 text-left">Menu Item</th>
+                  <th className="px-4 py-3 text-left">Ingredient</th>
+                  <th className="px-4 py-3 text-right">Quantity</th>
+                  <th className="px-4 py-3 text-center">Actions</th>
+                </tr>
               </thead>
               <tbody>
                 {recipes.map(recipe => (
@@ -751,7 +757,13 @@ const allCategories = Array.from(new Set([
         <div className="bg-black border border-white/20 rounded-xl overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-white/5 text-gray-300 border-b border-white/10">
-              <tr><th className="px-4 py-3 text-left">Date & Time</th><th className="px-4 py-3 text-left">Ingredient</th><th className="px-4 py-3 text-right">Change</th><th className="px-4 py-3 text-right">Previous → New</th><th className="px-4 py-3 text-left">Reason</th></tr>
+              <tr>
+                <th className="px-4 py-3 text-left">Date & Time</th>
+                <th className="px-4 py-3 text-left">Ingredient</th>
+                <th className="px-4 py-3 text-right">Change</th>
+                <th className="px-4 py-3 text-right">Previous → New</th>
+                <th className="px-4 py-3 text-left">Reason</th>
+              </tr>
             </thead>
             <tbody>
               {stockLogs.map(log => (
@@ -768,7 +780,9 @@ const allCategories = Array.from(new Set([
         </div>
       )}
 
-      {/* MODALS - same as before, keeping them short */}
+      {/* MODALS */}
+      
+      {/* Add Ingredient Modal */}
       {showAddIngredient && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setShowAddIngredient(false)}>
           <div className="bg-black border border-white/20 rounded-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
@@ -778,55 +792,107 @@ const allCategories = Array.from(new Set([
               <div><label className="block text-sm font-semibold text-gray-300 mb-1">Unit</label><select value={newIngredient.unit} onChange={(e) => setNewIngredient({ ...newIngredient, unit: e.target.value })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"><option value="pieces">pieces</option><option value="ml">ml</option><option value="grams">grams</option><option value="shots">shots</option><option value="cups">cups</option></select></div>
               <div><label className="block text-sm font-semibold text-gray-300 mb-1">Initial Stock</label><input type="number" value={newIngredient.current_stock} onChange={(e) => setNewIngredient({ ...newIngredient, current_stock: parseFloat(e.target.value) })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" /></div>
               <div><label className="block text-sm font-semibold text-gray-300 mb-1">Low Stock Threshold</label><input type="number" value={newIngredient.min_stock_threshold} onChange={(e) => setNewIngredient({ ...newIngredient, min_stock_threshold: parseFloat(e.target.value) })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" /></div>
-<div><label className="block text-sm font-semibold text-gray-300 mb-1">Category <span className="text-gray-500 font-normal">(pick or type new)</span></label>
-<input list="cat-list-add" value={newIngredient.category} onChange={(e) => setNewIngredient({ ...newIngredient, category: e.target.value })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" placeholder="Select or type category" />
-<datalist id="cat-list-add">{allCategories.map(cat => <option key={cat} value={cat} />)}</datalist></div>
+              <div><label className="block text-sm font-semibold text-gray-300 mb-1">Category <span className="text-gray-500 font-normal">(pick or type new)</span></label>
+              <input list="cat-list-add" value={newIngredient.category} onChange={(e) => setNewIngredient({ ...newIngredient, category: e.target.value })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" placeholder="Select or type category" />
+              <datalist id="cat-list-add">{allCategories.map(cat => <option key={cat} value={cat} />)}</datalist></div>
             </div>
             <div className="p-5 border-t border-white/20 flex justify-end gap-3"><button onClick={() => setShowAddIngredient(false)} className="px-5 py-2 rounded-xl bg-white/10 text-white font-semibold">Cancel</button><button onClick={addIngredient} className="px-5 py-2 rounded-xl bg-white text-black font-semibold">Save</button></div>
           </div>
         </div>
       )}
 
-      {showAdjustStock && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setShowAdjustStock(null)}>
-          <div className="bg-black border border-white/20 rounded-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
-            <div className="p-5 border-b border-white/20"><h2 className="text-lg font-bold text-white">Adjust Stock</h2><p className="text-sm text-gray-400">{ingredients.find(i => i.id === showAdjustStock)?.name}</p></div>
-            <div className="p-5 space-y-4">
-<div>
-  <label className="block text-sm font-semibold text-gray-300 mb-1">
-    {ingredients.find(i => i.id === showAdjustStock)?.unit_size
-      ? 'Number of Packs to Add/Remove'
-      : 'Amount (+/-)'}
-  </label>
-  <input
-    type="number"
-    value={adjustAmount}
-    onChange={(e) => setAdjustAmount(parseFloat(e.target.value))}
-    className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
-    placeholder="Positive to add, negative to remove"
-  />
-  {(() => {
-    const ing = ingredients.find(i => i.id === showAdjustStock);
-    if (ing?.unit_size && adjustAmount !== 0) {
-      const raw = adjustAmount * ing.unit_size;
-      const currentPacks = Math.floor(ing.current_stock / ing.unit_size);
-      const newPacks = currentPacks + adjustAmount;
-      return (
-        <p className="text-xs text-gray-400 mt-1">
-          = {raw} {ing.unit} | {currentPacks} packs → <span className="text-white font-semibold">{newPacks} packs ({newPacks * ing.unit_size} {ing.unit})</span>
-        </p>
-      );
-    }
-    return null;
-  })()}
-</div>
-              <div><label className="block text-sm font-semibold text-gray-300 mb-1">Reason</label><select value={adjustReason} onChange={(e) => setAdjustReason(e.target.value)} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"><option value="manual_adjustment">Manual Adjustment</option><option value="restock">Restock</option><option value="wastage">Wastage</option><option value="damage">Damaged Goods</option></select></div>
-            </div>
-            <div className="p-5 border-t border-white/20 flex justify-end gap-3"><button onClick={() => setShowAdjustStock(null)} className="px-5 py-2 rounded-xl bg-white/10 text-white font-semibold">Cancel</button><button onClick={() => adjustStock(showAdjustStock)} className="px-5 py-2 rounded-xl bg-white text-black font-semibold">Apply</button></div>
-          </div>
+  {/* Adjust Stock Modal - COMPLETELY FIXED */}
+{showAdjustStock && (
+  <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setShowAdjustStock(null)}>
+    <div className="bg-black border border-white/20 rounded-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+      <div className="p-5 border-b border-white/20">
+        <h2 className="text-lg font-bold text-white">Adjust Stock</h2>
+        <p className="text-sm text-gray-400">{ingredients.find(i => i.id === showAdjustStock)?.name}</p>
+      </div>
+      <div className="p-5 space-y-4">
+        <div>
+          <label className="block text-sm font-semibold text-gray-300 mb-1">
+            {ingredients.find(i => i.id === showAdjustStock)?.unit_size
+              ? 'Number of Packs to Add/Remove'
+              : 'Amount (+/-)'}
+          </label>
+          <input
+            type="number"
+            value={adjustAmount === 0 ? '' : adjustAmount}
+            onChange={(e) => {
+              const value = e.target.value;
+              setAdjustAmount(value === '' ? 0 : parseFloat(value));
+            }}
+            className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
+            placeholder="Positive to add, negative to remove"
+          />
+          {/* FIXED: Preview now shows even when amount is 0, and handles invalid numbers */}
+          {(() => {
+            const ing = ingredients.find(i => i.id === showAdjustStock);
+            if (ing?.unit_size && adjustAmount !== 0 && !isNaN(adjustAmount)) {
+              const raw = adjustAmount * ing.unit_size;
+              const currentPacks = Math.floor(ing.current_stock / ing.unit_size);
+              const newPacks = currentPacks + adjustAmount;
+              const newStockAmount = newPacks * ing.unit_size;
+              
+              return (
+                <div className="text-xs text-gray-400 mt-2 p-2 bg-white/5 rounded">
+                  <div>📦 Current: {currentPacks} packs ({ing.current_stock} {ing.unit})</div>
+                  <div>➕ Adding: {adjustAmount} packs ({raw} {ing.unit})</div>
+                  <div>✨ New total: <span className="text-white font-semibold">{newPacks} packs ({newStockAmount} {ing.unit})</span></div>
+                </div>
+              );
+            }
+            // Optional: Show simple preview for non-pack items
+            if (!ing?.unit_size && adjustAmount !== 0 && !isNaN(adjustAmount)) {
+              const newStock = ing?.current_stock + adjustAmount;
+              return (
+                <div className="text-xs text-gray-400 mt-2 p-2 bg-white/5 rounded">
+                  <div>📦 Current: {ing?.current_stock} {ing?.unit}</div>
+                  <div>{adjustAmount > 0 ? '➕ Adding' : '➖ Removing'}: {Math.abs(adjustAmount)} {ing?.unit}</div>
+                  <div>✨ New total: <span className="text-white font-semibold">{newStock} {ing?.unit}</span></div>
+                </div>
+              );
+            }
+            return null;
+          })()}
         </div>
-      )}
+        <div>
+          <label className="block text-sm font-semibold text-gray-300 mb-1">Reason</label>
+          <select 
+            value={adjustReason} 
+            onChange={(e) => setAdjustReason(e.target.value)} 
+            className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
+          >
+            <option value="manual_adjustment">Manual Adjustment</option>
+            <option value="restock">Restock</option>
+            <option value="wastage">Wastage</option>
+            <option value="damage">Damaged Goods</option>
+          </select>
+        </div>
+      </div>
+      <div className="p-5 border-t border-white/20 flex justify-end gap-3">
+        <button 
+          onClick={() => {
+            setShowAdjustStock(null);
+            setAdjustAmount(0);
+          }} 
+          className="px-5 py-2 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20"
+        >
+          Cancel
+        </button>
+        <button 
+          onClick={() => adjustStock(showAdjustStock)} 
+          className="px-5 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200"
+        >
+          Apply
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
+      {/* Add Recipe Modal */}
       {showAddRecipe && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setShowAddRecipe(false)}>
           <div className="bg-black border border-white/20 rounded-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
@@ -837,6 +903,116 @@ const allCategories = Array.from(new Set([
               <div><label className="block text-sm font-semibold text-gray-300 mb-1">Quantity Needed</label><input type="number" value={newRecipe.quantity} onChange={(e) => setNewRecipe({ ...newRecipe, quantity: parseFloat(e.target.value) })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" placeholder="e.g., 2, 150, 30" /></div>
             </div>
             <div className="p-5 border-t border-white/20 flex justify-end gap-3"><button onClick={() => setShowAddRecipe(false)} className="px-5 py-2 rounded-xl bg-white/10 text-white font-semibold">Cancel</button><button onClick={addRecipe} className="px-5 py-2 rounded-xl bg-white text-black font-semibold">Save</button></div>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT INGREDIENT MODAL - FIXED: Now properly inside the return statement */}
+      {editingIngredient && (
+        <div
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+          onClick={() => setEditingIngredient(null)}
+        >
+          <div
+            className="bg-black border border-white/20 rounded-2xl w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-5 border-b border-white/20">
+              <h2 className="text-lg font-bold text-white">Edit Ingredient</h2>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-300 mb-1">Name</label>
+                <input
+                  value={editingIngredient.name}
+                  onChange={(e) =>
+                    setEditingIngredient({ ...editingIngredient, name: e.target.value })
+                  }
+                  className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-300 mb-1">Unit</label>
+                <select
+                  value={editingIngredient.unit}
+                  onChange={(e) =>
+                    setEditingIngredient({ ...editingIngredient, unit: e.target.value })
+                  }
+                  className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
+                >
+                  <option value="pieces">pieces</option>
+                  <option value="ml">ml</option>
+                  <option value="grams">grams</option>
+                  <option value="shots">shots</option>
+                  <option value="cups">cups</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-300 mb-1">Unit Size (packs)</label>
+                <input
+                  type="number"
+                  value={editingIngredient.unit_size || ''}
+                  onChange={(e) =>
+                    setEditingIngredient({ 
+                      ...editingIngredient, 
+                      unit_size: e.target.value ? parseFloat(e.target.value) : null 
+                    })
+                  }
+                  className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
+                  placeholder="Optional: e.g., 1000 for 1kg pack"
+                />
+                <p className="text-xs text-gray-500 mt-1">If set, stock will be measured in packs</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-300 mb-1">Low Stock Threshold</label>
+                <input
+                  type="number"
+                  value={editingIngredient.min_stock_threshold}
+                  onChange={(e) =>
+                    setEditingIngredient({
+                      ...editingIngredient,
+                      min_stock_threshold: parseFloat(e.target.value),
+                    })
+                  }
+                  className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-300 mb-1">Category</label>
+                <input
+                  list="cat-list-edit"
+                  value={editingIngredient.category}
+                  onChange={(e) =>
+                    setEditingIngredient({ ...editingIngredient, category: e.target.value })
+                  }
+                  className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
+                  placeholder="Select or type category"
+                />
+                <datalist id="cat-list-edit">
+                  {allCategories.map(cat => <option key={cat} value={cat} />)}
+                </datalist>
+              </div>
+            </div>
+
+            <div className="p-5 border-t border-white/20 flex justify-end gap-3">
+              <button 
+                onClick={() => setEditingIngredient(null)} 
+                className="px-5 py-2 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={updateIngredient} 
+                className="px-5 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200"
+              >
+                Save Changes
+              </button>
+            </div>
           </div>
         </div>
       )}
