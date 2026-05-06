@@ -1,13 +1,12 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';  // ← ADD useEffect
 import OrderScreen from '@/screens/OrderScreen';
 import QueueScreen from '@/screens/QueueScreen';
 import AdminScreen from '@/screens/AdminScreen';
 import DashboardScreen from '@/screens/DashboardScreen';
 import ReportsScreen from '@/screens/ReportsScreen';
-import InventoryScreen from '@/screens/InventoryScreen';  // ← ADD THIS IMPORT
-
+import InventoryScreen from '@/screens/InventoryScreen';
 
 type Screen = 'order' | 'queue' | 'admin' | 'dashboard' | 'reports' | 'inventory';
 
@@ -39,15 +38,29 @@ export default function OceanBrewApp() {
   const [refreshKey, setRefreshKey] = useState(0);
   const handleOrderPlaced = useCallback(() => setRefreshKey(k => k + 1), []);
 
+  // Load saved tab from localStorage on mount
+  useEffect(() => {
+    const savedTab = localStorage.getItem('selectedTab') as Screen;
+    if (savedTab && ['order', 'queue', 'admin', 'dashboard', 'reports', 'inventory'].includes(savedTab)) {
+      setScreen(savedTab);
+    }
+  }, []);
+
+  // Save tab to localStorage whenever it changes
+  const handleSetScreen = (newScreen: Screen) => {
+    setScreen(newScreen);
+    localStorage.setItem('selectedTab', newScreen);
+  };
+
   return (
     <div className="h-screen flex flex-col bg-black overflow-hidden">
-      <NavBar screen={screen} setScreen={setScreen} />
+      <NavBar screen={screen} setScreen={handleSetScreen} />
       {screen === 'order' && <OrderScreen onOrderPlaced={handleOrderPlaced} />}
       {screen === 'queue' && <QueueScreen refreshKey={refreshKey} />}
       {screen === 'admin' && <AdminScreen />}
       {screen === 'dashboard' && <DashboardScreen />}
-      {screen === 'reports' && <ReportsScreen />}
-      {screen === 'inventory' && <InventoryScreen />} 
+      {screen === 'reports' && <ReportsScreen onSwitchToAdmin={() => handleSetScreen('admin')} />}
+      {screen === 'inventory' && <InventoryScreen />}
     </div>
   );
 }

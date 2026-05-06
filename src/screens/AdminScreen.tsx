@@ -1,5 +1,6 @@
 'use client';
 
+import { useAuth } from '@/context/AuthContext';
 import { useState, useEffect } from 'react';
 import AdminPasswordModal from '@/components/AdminPasswordModal';
 import { addOnsRefreshEvent } from '@/lib/events';
@@ -122,36 +123,34 @@ function AdminEditModal({
 // ADMIN SCREEN
 // ─────────────────────────────────────────────
 export default function AdminScreen() {
+  const { isAuthenticated, login } = useAuth();  // ← ADD login
   const [menu, setMenuState] = useState<MenuItem[]>([]);
   const [addOns, setAddOns] = useState<MenuItem[]>([]);
   const [activeTab, setActiveTab] = useState<'menu' | 'addons'>('menu');
   const [editing, setEditing] = useState<MenuItem | null>(null);
   const [isNew, setIsNew] = useState(false);
-  const [isLocked, setIsLocked] = useState(true);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      try {
-        const menuData = await getMenu();
-        setMenuState(Array.isArray(menuData) ? menuData : []);
-        const addOnsData = await getAddOnItems();
-        setAddOns(Array.isArray(addOnsData) ? addOnsData : []);
-      } catch (error) {
-        console.error('Failed to load data:', error);
-        setMenuState([]); setAddOns([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadData();
-    setShowPasswordModal(true);
-  }, []);
-
-  const handlePasswordSuccess = () => { setShowPasswordModal(false); setIsLocked(false); };
-  const handlePasswordCancel = () => { setShowPasswordModal(false); setIsLocked(true); };
+    if (isAuthenticated) {
+      const loadData = async () => {
+        setLoading(true);
+        try {
+          const menuData = await getMenu();
+          setMenuState(Array.isArray(menuData) ? menuData : []);
+          const addOnsData = await getAddOnItems();
+          setAddOns(Array.isArray(addOnsData) ? addOnsData : []);
+        } catch (error) {
+          console.error('Failed to load data:', error);
+          setMenuState([]); setAddOns([]);
+        } finally {
+          setLoading(false);
+        }
+      };
+      loadData();
+    }
+  }, [isAuthenticated]);
 
   const saveMenuItem = async (item: MenuItem) => {
     try {
@@ -237,23 +236,32 @@ export default function AdminScreen() {
     setIsNew(true);
   };
 
-  if (loading) return <div className="flex-1 p-4 bg-black text-white">Loading...</div>;
-
-  if (isLocked) {
-    return (
-      <>
-        <div className="flex-1 p-4 bg-black flex items-center justify-center">
-          <div className="bg-black border border-white/20 rounded-2xl p-8 text-center max-w-md">
-            <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center mx-auto mb-4"><span className="text-4xl">🔒</span></div>
-            <h2 className="text-2xl font-bold text-white mb-2">Admin Area Locked</h2>
-            <p className="text-gray-400 mb-6">Enter password to access management</p>
-            <button onClick={() => setShowPasswordModal(true)} className="px-6 py-3 rounded-xl bg-white text-black font-semibold hover:bg-gray-200">Enter Password</button>
-          </div>
+// FIRST: Check if NOT authenticated - show password modal immediately
+if (!isAuthenticated) {
+  return (
+    <>
+      <div className="flex-1 p-4 bg-black flex items-center justify-center">
+        <div className="bg-black border border-white/20 rounded-2xl p-8 text-center max-w-md">
+          <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center mx-auto mb-4"><span className="text-4xl">🔒</span></div>
+          <h2 className="text-2xl font-bold text-white mb-2">Admin Area Locked</h2>
+          <p className="text-gray-400 mb-6">Enter password to access management</p>
+          <button onClick={() => setShowPasswordModal(true)} className="px-6 py-3 rounded-xl bg-white text-black font-semibold hover:bg-gray-200">Enter Password</button>
         </div>
-        <AdminPasswordModal isOpen={showPasswordModal} onSuccess={handlePasswordSuccess} onCancel={handlePasswordCancel} />
-      </>
-    );
-  }
+      </div>
+      <AdminPasswordModal 
+        isOpen={showPasswordModal} 
+        onSuccess={(enteredPassword) => {
+          const success = login(enteredPassword);
+          if (success) setShowPasswordModal(false);
+        }} 
+        onCancel={() => setShowPasswordModal(false)} 
+      />
+    </>
+  );
+}
+
+// SECOND: Then check loading (only after authenticated)
+if (loading) return <div className="flex-1 p-4 bg-black text-white">Loading...</div>;
 
   return (
     <div className="flex-1 p-4 overflow-y-auto bg-black">

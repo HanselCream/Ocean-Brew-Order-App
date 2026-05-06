@@ -824,42 +824,48 @@ const adjustStock = async (ingredientId: string) => {
               setAdjustAmount(value === '' ? 0 : parseFloat(value));
             }}
             className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
-            placeholder="Positive to add, negative to remove"
-          />
-          {/* FIXED: Preview now shows even when amount is 0, and handles invalid numbers */}
-          {(() => {
-            const ing = ingredients.find(i => i.id === showAdjustStock);
-            if (ing?.unit_size && adjustAmount !== 0 && !isNaN(adjustAmount)) {
-              const raw = adjustAmount * ing.unit_size;
-              const currentPacks = Math.floor(ing.current_stock / ing.unit_size);
-              const newPacks = currentPacks + adjustAmount;
-              const newStockAmount = newPacks * ing.unit_size;
-              
-              return (
-                <div className="text-xs text-gray-400 mt-2 p-2 bg-white/5 rounded">
-                  <div>📦 Current: {currentPacks} packs ({ing.current_stock} {ing.unit})</div>
-                  <div>➕ Adding: {adjustAmount} packs ({raw} {ing.unit})</div>
-                  <div>✨ New total: <span className="text-white font-semibold">{newPacks} packs ({newStockAmount} {ing.unit})</span></div>
-                </div>
-              );
-            }
-            // Optional: Show simple preview for non-pack items
-            if (!ing?.unit_size && adjustAmount !== 0 && !isNaN(adjustAmount)) {
-              const newStock = ing?.current_stock + adjustAmount;
-              return (
-                <div className="text-xs text-gray-400 mt-2 p-2 bg-white/5 rounded">
-                  <div>📦 Current: {ing?.current_stock} {ing?.unit}</div>
-                  <div>{adjustAmount > 0 ? '➕ Adding' : '➖ Removing'}: {Math.abs(adjustAmount)} {ing?.unit}</div>
-                  <div>✨ New total: <span className="text-white font-semibold">{newStock} {ing?.unit}</span></div>
-                </div>
-              );
-            }
-            return null;
-          })()}
-        </div>
-        <div>
-          <label className="block text-sm font-semibold text-gray-300 mb-1">Reason</label>
-          <select 
+ placeholder="Positive to add, negative to remove"
+/>
+{/* FIXED: Preview now shows even when amount is 0, and handles invalid numbers */}
+{(() => {
+  const ing = ingredients.find(i => i.id === showAdjustStock);
+  if (!ing) return null;
+  
+  // Handle pack-based items (with unit_size)
+  if (ing.unit_size && adjustAmount !== 0 && !isNaN(adjustAmount)) {
+    const raw = adjustAmount * ing.unit_size;
+    const currentStock = ing.current_stock ?? 0;  // FIXED: default to 0 if undefined
+    const currentPacks = Math.floor(currentStock / ing.unit_size);
+    const newPacks = currentPacks + adjustAmount;
+    const newStockAmount = newPacks * ing.unit_size;
+    
+    return (
+      <div className="text-xs text-gray-400 mt-2 p-2 bg-white/5 rounded">
+        <div>📦 Current: {currentPacks} packs ({currentStock} {ing.unit})</div>
+        <div>➕ Adding: {adjustAmount} packs ({raw} {ing.unit})</div>
+        <div>✨ New total: <span className="text-white font-semibold">{newPacks} packs ({newStockAmount} {ing.unit})</span></div>
+      </div>
+    );
+  }
+  
+  // Handle regular items (no unit_size)
+  if (!ing.unit_size && adjustAmount !== 0 && !isNaN(adjustAmount)) {
+    const currentStock = ing.current_stock ?? 0;  // FIXED: default to 0 if undefined
+    const newStock = currentStock + adjustAmount;
+    return (
+      <div className="text-xs text-gray-400 mt-2 p-2 bg-white/5 rounded">
+        <div>📦 Current: {currentStock} {ing.unit}</div>
+        <div>{adjustAmount > 0 ? '➕ Adding' : '➖ Removing'}: {Math.abs(adjustAmount)} {ing.unit}</div>
+        <div>✨ New total: <span className="text-white font-semibold">{newStock} {ing.unit}</span></div>
+      </div>
+    );
+  }
+  return null;
+})()}
+</div>
+<div>
+  <label className="block text-sm font-semibold text-gray-300 mb-1">Reason</label>
+  <select
             value={adjustReason} 
             onChange={(e) => setAdjustReason(e.target.value)} 
             className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"

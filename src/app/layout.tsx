@@ -4,6 +4,7 @@ import ErrorReporter from "@/components/ErrorReporter";
 import Script from "next/script";
 import DatabaseInitializer from "@/components/DatabaseInitializer";
 import SimplePassword from "@/components/SimplePassword";
+import { AuthProvider } from "@/context/AuthContext";  // <-- IMPORT
 
 export const metadata: Metadata = {
   title: "Ocean Brew POS",
@@ -30,20 +31,22 @@ export default function RootLayout({
       </head>
       <body className="antialiased">
         <SimplePassword>
-          <DatabaseInitializer>
-            <ErrorReporter />
-            <Script
-              src="https://slelguoygbfzlpylpxfs.supabase.co/storage/v1/object/public/scripts//route-messenger.js"
-              strategy="afterInteractive"
-              data-target-origin="*"
-              data-message-type="ROUTE_CHANGE"
-              data-include-search-params="true"
-              data-only-in-iframe="true"
-              data-debug="true"
-              data-custom-data='{"appName": "Ocean Brew POS", "version": "1.0.0"}'
-            />
-            {children}
-          </DatabaseInitializer>
+          <AuthProvider>  {/* <-- WRAP WITH AuthProvider */}
+            <DatabaseInitializer>
+              <ErrorReporter />
+              <Script
+                src="https://slelguoygbfzlpylpxfs.supabase.co/storage/v1/object/public/scripts//route-messenger.js"
+                strategy="afterInteractive"
+                data-target-origin="*"
+                data-message-type="ROUTE_CHANGE"
+                data-include-search-params="true"
+                data-only-in-iframe="true"
+                data-debug="true"
+                data-custom-data='{"appName": "Ocean Brew POS", "version": "1.0.0"}'
+              />
+              {children}
+            </DatabaseInitializer>
+          </AuthProvider>  {/* <-- CLOSE AuthProvider */}
         </SimplePassword>
       </body>
     </html>

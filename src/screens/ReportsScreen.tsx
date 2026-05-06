@@ -4,22 +4,31 @@ import { useState, useEffect } from 'react';
 import DateRangePicker from '@/components/DateRangePicker';
 import ExcelExport from '@/lib/excelExport';
 import { Order } from '@/lib/types';
+import { useAuth } from '@/context/AuthContext';
 import {
   getOrders, getDatabaseStats, getOrdersByDateRange, getDailySales,
 } from '@/lib/supabaseStore';
 
-export default function ReportsScreen() {
+interface ReportsScreenProps {
+  onSwitchToAdmin?: () => void;  // ← ADD THIS
+}
+
+export default function ReportsScreen({ onSwitchToAdmin }: ReportsScreenProps) { 
+  const { isAuthenticated } = useAuth();
   const [dailySales, setDailySales] = useState<{ date: string; total: number; orderCount: number }[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [exportSuccess, setExportSuccess] = useState('');
   const [loading, setLoading] = useState(true);
   const [activeReport, setActiveReport] = useState<'overview' | 'items' | 'category' | 'staff'>('overview');
+  
 
   useEffect(() => {
-    loadOrders();
-    getDailySales().then(setDailySales);
-  }, []);
+    if (isAuthenticated) {
+      loadOrders();
+      getDailySales().then(setDailySales);
+    }
+  }, [isAuthenticated]);
 
   const loadOrders = async () => {
     setLoading(true);
@@ -122,6 +131,28 @@ export default function ReportsScreen() {
   });
 
   const MOM = parseFloat(monthOverMonthChange);
+
+
+
+  if (!isAuthenticated) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-black p-4">
+        <div className="bg-black border border-white/20 rounded-2xl p-8 text-center max-w-md">
+          <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center mx-auto mb-4">
+            <span className="text-4xl">🔒</span>
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">Reports Locked</h2>
+          <p className="text-gray-400 mb-4">Please login to Admin area first to access reports.</p>
+          <button 
+            onClick={() => onSwitchToAdmin?.()}
+            className="inline-block px-6 py-3 rounded-xl bg-white text-black font-semibold hover:bg-gray-200"
+          >
+            Go to Admin Login
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) return (
     <div className="flex-1 flex items-center justify-center bg-black">
