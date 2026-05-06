@@ -208,19 +208,23 @@ export async function getOrders(): Promise<Order[]> {
     
     if (!data) return [];
     
-    return data.map(order => ({
-      id: order.id,
-      orderNumber: order.order_number,
-      items: order.items as OrderItem[],
-      subtotal: parseFloat(order.subtotal) || calculateSubtotal(order.items),
-      discount: parseFloat(order.discount) || 0,
-      total: parseFloat(order.total),
-      status: order.status || 'pending',
-      createdAt: order.created_at,
-      printedCount: order.printed_count || 0,
-      lastPrintedAt: order.last_printed_at,
-      completedAt: order.completed_at,
-    }));
+return data.map(order => ({
+  id: order.id,
+  orderNumber: order.order_number,
+  items: order.items as OrderItem[],
+  subtotal: parseFloat(order.subtotal) || calculateSubtotal(order.items),
+  discount: parseFloat(order.discount) || 0,
+  total: parseFloat(order.total),
+  status: order.status || 'pending',
+  createdAt: order.created_at,
+  printedCount: order.printed_count || 0,
+  lastPrintedAt: order.last_printed_at,
+  completedAt: order.completed_at,
+  paymentMethod: order.payment_method,
+  punchedBy: order.punched_by || '',
+  madeBy: order.made_by || '',
+  orderType: order.order_type || 'Dine In',
+}));
   } catch (err) {
     console.error('Error in getOrders:', err);
     return [];
@@ -236,27 +240,31 @@ function calculateSubtotal(items: OrderItem[]): number {
 
 export async function saveOrder(order: Order) {
   try {
-    const orderData = {
-      order_number: order.orderNumber.toString(),
-      items: order.items,
-      subtotal: order.subtotal,
-      discount: order.discount || 0,
-      total: order.total,
-      status: order.status,
-      created_at: order.createdAt,
-      printed_count: order.printedCount || 0,
-      last_printed_at: order.lastPrintedAt ?? null,
-      completed_at: order.completedAt ?? null,
-      payment_method: order.amountPaid 
-        ? `Cash|${order.amountPaid}|${order.change ?? 0}` 
-        : null,
-    };
+const orderData = {
+  order_number: order.orderNumber.toString(),
+  items: order.items,
+  subtotal: order.subtotal,
+  discount: order.discount || 0,
+  total: order.total,
+  status: order.status,
+  created_at: order.createdAt,
+  printed_count: order.printedCount || 0,
+  last_printed_at: order.lastPrintedAt ?? null,
+  completed_at: order.completedAt ?? null,
+  payment_method: order.amountPaid 
+    ? `Cash|${order.amountPaid}|${order.change ?? 0}` 
+    : null,
+  punched_by: (order as any).punchedBy ?? null,
+  made_by: (order as any).madeBy ?? null,
+  order_type: (order as any).orderType ?? null,
+};
 
     console.log('📤 Inserting to Supabase:', orderData.order_number);
 
     const { data, error } = await supabase
       .from('orders')
       .insert([orderData])
+      
       .select();
 
     if (error) {

@@ -40,6 +40,7 @@ const INGREDIENT_CATEGORIES = [
   'Syrups & Fruit Bases',
   'Coffee Ingredients',
   'Packaging Supplies',
+  'Food Supplies',
 ];
 
 export default function InventoryScreen() {
@@ -67,8 +68,10 @@ const [categoryFilter, setCategoryFilter] = useState('All');
   });
   
   // Stock adjustment
-  const [adjustAmount, setAdjustAmount] = useState(0);
-  const [adjustReason, setAdjustReason] = useState('manual_adjustment');
+const [adjustAmount, setAdjustAmount] = useState(0);
+const [adjustReason, setAdjustReason] = useState('manual_adjustment');
+const [inlineEditId, setInlineEditId] = useState<string | null>(null);
+const [inlineEditData, setInlineEditData] = useState<Partial<Ingredient>>({});
   
   // New recipe form
   const [newRecipe, setNewRecipe] = useState({
@@ -260,7 +263,7 @@ const loadAllData = async () => {
       return;
     }
     
-    setShowAddIngredient(false);
+setShowAddIngredient(false);
     setNewIngredient({
       name: '',
       unit: 'pieces',
@@ -268,7 +271,7 @@ const loadAllData = async () => {
       min_stock_threshold: 10,
       category: 'General'
     });
-    loadAllData();
+    await loadIngredients();
   };
 
   const updateIngredient = async () => {
@@ -290,25 +293,45 @@ const { error } = await supabase
       alert('Error updating ingredient: ' + error.message);
       return;
     }
-    
-    setEditingIngredient(null);
-    loadAllData();
+setEditingIngredient(null);
+    await loadIngredients();
   };
+const saveInlineEdit = async () => {
+  if (!inlineEditId) return;
+  const { error } = await supabase
+    .from('ingredients')
+    .update({
+      name: inlineEditData.name,
+      unit: inlineEditData.unit,
+      unit_size: inlineEditData.unit_size ?? null,
+      min_stock_threshold: inlineEditData.min_stock_threshold,
+      category: inlineEditData.category,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', inlineEditId);
+  if (error) { alert('Error: ' + error.message); return; }
+  setInlineEditId(null);
+  setInlineEditData({});
+  await loadIngredients();
+};
 
-  const adjustStock = async (ingredientId: string) => {
-    if (adjustAmount === 0) {
-      alert('Please enter an amount');
-      return;
-    }
-    
-    const ingredient = ingredients.find(i => i.id === ingredientId);
-    if (!ingredient) return;
-    
-    const newStock = ingredient.current_stock + adjustAmount;
-    if (newStock < 0) {
-      alert('Stock cannot be negative!');
-      return;
-    }
+const adjustStock = async (ingredientId: string) => {
+  if (adjustAmount === 0) {
+    alert('Please enter an amount');
+    return;
+  }
+  
+  const ingredient = ingredients.find(i => i.id === ingredientId);
+  if (!ingredient) return;
+
+  // If unit_size is set, user inputs packs → convert to raw wt.
+  const rawAdjust = ingredient.unit_size ? adjustAmount * ingredient.unit_size : adjustAmount;
+  const newStock = ingredient.current_stock + rawAdjust;
+
+  if (newStock < 0) {
+    alert('Stock cannot be negative!');
+    return;
+  }
     
     const { error: updateError } = await supabase
       .from('ingredients')
@@ -324,19 +347,19 @@ const { error } = await supabase
     }
     
     await supabase.from('stock_logs').insert([{
-      ingredient_id: ingredientId,
-      previous_stock: ingredient.current_stock,
-      new_stock: newStock,
-      quantity_change: adjustAmount,
+    ingredient_id: ingredientId,
+    previous_stock: ingredient.current_stock,
+    new_stock: newStock,
+    quantity_change: rawAdjust,
       reason: adjustReason,
       reference_id: 'manual_' + Date.now()
     }]);
     
-    setShowAdjustStock(null);
+setShowAdjustStock(null);
     setAdjustAmount(0);
-    loadAllData();
+    await loadIngredients();
+    await loadStockLogs();
   };
-
   const addRecipe = async () => {
     if (!newRecipe.menu_item_id || !newRecipe.ingredient_id || newRecipe.quantity <= 0) {
       alert('Please fill all recipe fields');
@@ -489,6 +512,10 @@ const filteredIngredients = ingredients.filter(ing => {
   return matchesSearch && matchesCategory;
 });
 
+const allCategories = Array.from(new Set([
+  ...INGREDIENT_CATEGORIES,
+  ...ingredients.map(i => i.category).filter(Boolean)
+])).sort();
   if (loading) {
     return <div className="flex-1 p-8 bg-black text-white">Loading inventory...</div>;
   }
@@ -633,7 +660,7 @@ const filteredIngredients = ingredients.filter(ing => {
     <th className="px-4 py-3 text-left">Category</th>
     <th className="px-4 py-3 text-left">Item</th>
     <th className="px-4 py-3 text-right">Stocks</th>
-    <th className="px-4 py-3 text-right">Total Wt.</th>
+<th className="px-4 py-3 text-right">Wt.</th>
     <th className="px-4 py-3 text-right">Threshold</th>
     <th className="px-4 py-3 text-center">Status</th>
     <th className="px-4 py-3 text-center">Actions</th>
@@ -667,13 +694,13 @@ const filteredIngredients = ingredients.filter(ing => {
         </td>
         <td className="px-4 py-3 text-right text-gray-400">{thresholdPacks}{ing.unit_size ? ' pcs' : ` ${ing.unit}`}</td>
         <td className="px-4 py-3 text-center">
-          {ing.current_stock === 0 ? (
-            <span className="px-2 py-1 rounded-full bg-gray-800 text-gray-400 text-xs font-semibold">NO STOCK</span>
-          ) : isLowStock ? (
-            <span className="px-2 py-1 rounded-full bg-red-900/50 text-red-300 text-xs font-semibold">LOW STOCK</span>
-          ) : (
-            <span className="px-2 py-1 rounded-full bg-green-900/50 text-green-300 text-xs font-semibold">OK</span>
-          )}
+{ing.current_stock === 0 ? (
+  <span className="px-2 py-1 rounded-full bg-red-900/60 text-red-300 text-xs font-semibold">NO STOCK</span>
+) : isLowStock ? (
+  <span className="px-2 py-1 rounded-full bg-yellow-900/60 text-yellow-300 text-xs font-semibold">LOW STOCK</span>
+) : (
+  <span className="px-2 py-1 rounded-full bg-green-900/50 text-green-300 text-xs font-semibold">IN STOCK</span>
+)}
         </td>
         <td className="px-4 py-3 text-center">
           <div className="flex gap-2 justify-center">
@@ -751,25 +778,11 @@ const filteredIngredients = ingredients.filter(ing => {
               <div><label className="block text-sm font-semibold text-gray-300 mb-1">Unit</label><select value={newIngredient.unit} onChange={(e) => setNewIngredient({ ...newIngredient, unit: e.target.value })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"><option value="pieces">pieces</option><option value="ml">ml</option><option value="grams">grams</option><option value="shots">shots</option><option value="cups">cups</option></select></div>
               <div><label className="block text-sm font-semibold text-gray-300 mb-1">Initial Stock</label><input type="number" value={newIngredient.current_stock} onChange={(e) => setNewIngredient({ ...newIngredient, current_stock: parseFloat(e.target.value) })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" /></div>
               <div><label className="block text-sm font-semibold text-gray-300 mb-1">Low Stock Threshold</label><input type="number" value={newIngredient.min_stock_threshold} onChange={(e) => setNewIngredient({ ...newIngredient, min_stock_threshold: parseFloat(e.target.value) })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" /></div>
-              <div><label className="block text-sm font-semibold text-gray-300 mb-1">Category</label><select value={newIngredient.category} onChange={(e) => setNewIngredient({ ...newIngredient, category: e.target.value })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white">{INGREDIENT_CATEGORIES.map(cat => <option key={cat} value={cat} className="bg-black">{cat}</option>)}</select></div>
+<div><label className="block text-sm font-semibold text-gray-300 mb-1">Category <span className="text-gray-500 font-normal">(pick or type new)</span></label>
+<input list="cat-list-add" value={newIngredient.category} onChange={(e) => setNewIngredient({ ...newIngredient, category: e.target.value })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" placeholder="Select or type category" />
+<datalist id="cat-list-add">{allCategories.map(cat => <option key={cat} value={cat} />)}</datalist></div>
             </div>
             <div className="p-5 border-t border-white/20 flex justify-end gap-3"><button onClick={() => setShowAddIngredient(false)} className="px-5 py-2 rounded-xl bg-white/10 text-white font-semibold">Cancel</button><button onClick={addIngredient} className="px-5 py-2 rounded-xl bg-white text-black font-semibold">Save</button></div>
-          </div>
-        </div>
-      )}
-
-      {editingIngredient && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setEditingIngredient(null)}>
-          <div className="bg-black border border-white/20 rounded-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
-            <div className="p-5 border-b border-white/20"><h2 className="text-lg font-bold text-white">Edit Ingredient</h2></div>
-            <div className="p-5 space-y-4">
-              <div><label className="block text-sm font-semibold text-gray-300 mb-1">Name</label><input value={editingIngredient.name} onChange={(e) => setEditingIngredient({ ...editingIngredient, name: e.target.value })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" /></div>
-              <div><label className="block text-sm font-semibold text-gray-300 mb-1">Unit</label><select value={editingIngredient.unit} onChange={(e) => setEditingIngredient({ ...editingIngredient, unit: e.target.value })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"><option value="pieces">pieces</option><option value="ml">ml</option><option value="grams">grams</option><option value="shots">shots</option><option value="cups">cups</option></select></div>
-              <div><label className="block text-sm font-semibold text-gray-300 mb-1">Low Stock Threshold</label><input type="number" value={editingIngredient.min_stock_threshold} onChange={(e) => setEditingIngredient({ ...editingIngredient, min_stock_threshold: parseFloat(e.target.value) })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" /></div>
-<div><label className="block text-sm font-semibold text-gray-300 mb-1">Pack Size <span className="text-gray-500 font-normal">(e.g. 1000 for 1kg bag)</span></label><input type="number" value={editingIngredient.unit_size ?? ''} onChange={(e) => setEditingIngredient({ ...editingIngredient, unit_size: e.target.value ? parseFloat(e.target.value) : null })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" placeholder={`Amount per pack in ${editingIngredient.unit}`} /></div>
-<div><label className="block text-sm font-semibold text-gray-300 mb-1">Category</label><select value={editingIngredient.category} onChange={(e) => setEditingIngredient({ ...editingIngredient, category: e.target.value })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white">{INGREDIENT_CATEGORIES.map(cat => <option key={cat} value={cat} className="bg-black">{cat}</option>)}</select></div>
-            </div>
-            <div className="p-5 border-t border-white/20 flex justify-end gap-3"><button onClick={() => setEditingIngredient(null)} className="px-5 py-2 rounded-xl bg-white/10 text-white font-semibold">Cancel</button><button onClick={updateIngredient} className="px-5 py-2 rounded-xl bg-white text-black font-semibold">Save</button></div>
           </div>
         </div>
       )}
@@ -779,7 +792,34 @@ const filteredIngredients = ingredients.filter(ing => {
           <div className="bg-black border border-white/20 rounded-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
             <div className="p-5 border-b border-white/20"><h2 className="text-lg font-bold text-white">Adjust Stock</h2><p className="text-sm text-gray-400">{ingredients.find(i => i.id === showAdjustStock)?.name}</p></div>
             <div className="p-5 space-y-4">
-              <div><label className="block text-sm font-semibold text-gray-300 mb-1">Amount (+/-)</label><input type="number" value={adjustAmount} onChange={(e) => setAdjustAmount(parseFloat(e.target.value))} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" placeholder="Positive to add, negative to remove" /></div>
+<div>
+  <label className="block text-sm font-semibold text-gray-300 mb-1">
+    {ingredients.find(i => i.id === showAdjustStock)?.unit_size
+      ? 'Number of Packs to Add/Remove'
+      : 'Amount (+/-)'}
+  </label>
+  <input
+    type="number"
+    value={adjustAmount}
+    onChange={(e) => setAdjustAmount(parseFloat(e.target.value))}
+    className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
+    placeholder="Positive to add, negative to remove"
+  />
+  {(() => {
+    const ing = ingredients.find(i => i.id === showAdjustStock);
+    if (ing?.unit_size && adjustAmount !== 0) {
+      const raw = adjustAmount * ing.unit_size;
+      const currentPacks = Math.floor(ing.current_stock / ing.unit_size);
+      const newPacks = currentPacks + adjustAmount;
+      return (
+        <p className="text-xs text-gray-400 mt-1">
+          = {raw} {ing.unit} | {currentPacks} packs → <span className="text-white font-semibold">{newPacks} packs ({newPacks * ing.unit_size} {ing.unit})</span>
+        </p>
+      );
+    }
+    return null;
+  })()}
+</div>
               <div><label className="block text-sm font-semibold text-gray-300 mb-1">Reason</label><select value={adjustReason} onChange={(e) => setAdjustReason(e.target.value)} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"><option value="manual_adjustment">Manual Adjustment</option><option value="restock">Restock</option><option value="wastage">Wastage</option><option value="damage">Damaged Goods</option></select></div>
             </div>
             <div className="p-5 border-t border-white/20 flex justify-end gap-3"><button onClick={() => setShowAdjustStock(null)} className="px-5 py-2 rounded-xl bg-white/10 text-white font-semibold">Cancel</button><button onClick={() => adjustStock(showAdjustStock)} className="px-5 py-2 rounded-xl bg-white text-black font-semibold">Apply</button></div>

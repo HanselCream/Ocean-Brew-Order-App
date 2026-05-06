@@ -149,6 +149,8 @@ const deductStock = async (orderItems: any[], orderId: string) => {
 
     for (const recipe of recipeData || []) {
       const ingredient = recipe.ingredients;
+      if (!ingredient || ingredient.current_stock == null) continue;
+
       const quantityNeeded = recipe.quantity * (orderItem.quantity || 1);
       const newStock = Math.max(0, ingredient.current_stock - quantityNeeded);
 
@@ -169,7 +171,13 @@ const deductStock = async (orderItems: any[], orderId: string) => {
   }
 };
 
+const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
+const [errorIds, setErrorIds] = useState<Set<string>>(new Set());
+
 const markDone = async (id: string, orderItems?: any[]) => {
+  if (processingIds.has(id)) return;
+  setProcessingIds(prev => new Set(prev).add(id));
+  setErrorIds(prev => { const n = new Set(prev); n.delete(id); return n; });
   try {
     if (orderItems && orderItems.length > 0) {
       await deductStock(orderItems, id);
@@ -178,6 +186,9 @@ const markDone = async (id: string, orderItems?: any[]) => {
     setOrders(prev => prev.filter(o => o.id !== id));
   } catch (error) {
     console.error('Failed to mark order as done:', error);
+    setErrorIds(prev => new Set(prev).add(id));
+  } finally {
+    setProcessingIds(prev => { const n = new Set(prev); n.delete(id); return n; });
   }
 };
 
@@ -224,8 +235,7 @@ const markDone = async (id: string, orderItems?: any[]) => {
                   <div className="text-xs text-gray-400 ml-4">
                     {item.customization.size}
                     {item.customization.temperature && ` | ${item.customization.temperature}`}
-                    {item.customization.sugar !== '100%' && ` | ${item.customization.sugar} sugar`}
-                    {item.customization.ice !== 'Normal Ice' && ` | ${item.customization.ice}`}
+{item.customization.sugar && item.customization.sugar !== '100%' && ` | ${item.customization.sugar} sugar`}                    {item.customization.ice !== 'Normal Ice' && ` | ${item.customization.ice}`}
                     {item.customization.addOns.length > 0 && ` | +${item.customization.addOns.map(a => a.name).join(', ')}`}
                   </div>
                 </div>
@@ -238,12 +248,24 @@ const markDone = async (id: string, orderItems?: any[]) => {
               >
                 🖨️ Print
               </button>
-<button
-  onClick={() => markDone(order.id, order.items)}
-  className="flex-1 py-2 rounded-xl bg-white text-black font-bold text-sm hover:bg-gray-200 transition-colors"
->
-  DONE
-</button>
+              {errorIds.has(order.id) ? (
+                <button
+                  onClick={() => markDone(order.id, order.items)}
+                  className="flex-1 py-2 rounded-xl bg-red-700 text-white font-bold text-sm hover:bg-red-600 transition-colors flex items-center justify-center gap-1"
+                >
+                  🔄 Retry
+                </button>
+              ) : (
+                <button
+                  onClick={() => markDone(order.id, order.items)}
+                  disabled={processingIds.has(order.id)}
+                  className="flex-1 py-2 rounded-xl bg-white text-black font-bold text-sm hover:bg-gray-200 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-1"
+                >
+                  {processingIds.has(order.id) ? (
+                    <><span className="animate-spin">⏳</span> Processing...</>
+                  ) : 'DONE'}
+                </button>
+              )}
             </div>
           </div>
         ))}

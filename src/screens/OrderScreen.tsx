@@ -14,13 +14,6 @@ import PrinterService from '@/lib/printerService';
 // ─────────────────────────────────────────────
 const SUGAR_LEVELS: SugarLevel[] = ['0%', '25%', '50%', '75%', '100%'];
 const ICE_LEVELS: IceLevel[] = ['No Ice', 'Less Ice', 'Normal Ice'];
-const ESPRESSO_ADDONS = [
-  { id: 'es-addon-1', name: 'Whipped Cream', price: 25 },
-  { id: 'es-addon-2', name: 'Extra Syrup', price: 25 },
-  { id: 'es-addon-3', name: 'Extra Sauce', price: 25 },
-  { id: 'es-addon-4', name: 'Espresso Shot', price: 55 },
-  { id: 'es-addon-5', name: 'Cold Foam', price: 30 },
-];
   
 
 // ─────────────────────────────────────────────
@@ -158,10 +151,10 @@ const addOnsArray = addOnItems
           <div>
             <label className="block text-sm font-semibold text-gray-300 mb-2">Discount</label>
 <div className="flex gap-2">
-  {[
-    { type: 'none', label: 'NONE' },
-    { type: 'store', label: 'STORE' },
-  ].map(opt => (
+{[
+  { type: 'none', label: 'None' },
+  { type: 'store', label: 'Store Discount' },
+].map(opt => (
     <button key={opt.type} onClick={() => {
       setDiscountType('percent');
       if (opt.type === 'none') setDiscountValue('');
@@ -227,11 +220,17 @@ const addOnsArray = addOnItems
 // ─────────────────────────────────────────────
 function AmountPaidModal({
   cart, subtotal, onConfirm, onCancel,
+  punchedBy, madeBy, setPunchedBy, setMadeBy, staffList,
 }: {
   cart: OrderItem[];
   subtotal: number;
   onConfirm: (amountPaid: number) => void;
   onCancel: () => void;
+  punchedBy: string;
+  madeBy: string;
+  setPunchedBy: (v: string) => void;
+  setMadeBy: (v: string) => void;
+  staffList: string[];
 }) {
   const [amountPaid, setAmountPaid] = useState<number>(0);
   const change = amountPaid - subtotal;
@@ -261,7 +260,20 @@ function AmountPaidModal({
               <span>Total</span><span>₱{subtotal.toFixed(2)}</span>
             </div>
           </div>
+
 <div className="mb-4">
+  <div className="flex gap-2 mb-3">
+    <select value={punchedBy} onChange={e => setPunchedBy(e.target.value)}
+      className="flex-1 bg-white/10 border border-white/20 rounded-lg px-2 py-2 text-sm text-white focus:outline-none">
+      <option value="">👤 Cashier</option>
+      {staffList.map(s => <option key={s} value={s} className="bg-black">{s}</option>)}
+    </select>
+    <select value={madeBy} onChange={e => setMadeBy(e.target.value)}
+      className="flex-1 bg-white/10 border border-white/20 rounded-lg px-2 py-2 text-sm text-white focus:outline-none">
+      <option value="">☕ Barista</option>
+      {staffList.map(s => <option key={s} value={s} className="bg-black">{s}</option>)}
+    </select>
+  </div>
   <label className="block text-sm font-medium text-gray-300 mb-2">Amount Paid</label>
   <input type="number" value={amountPaid === 0 ? '' : amountPaid} onChange={(e) => setAmountPaid(e.target.value === '' ? 0 : parseFloat(e.target.value))} className="w-full border border-white/20 rounded-xl px-4 py-3 bg-black text-white text-lg focus:border-white/50 focus:outline-none" placeholder="Enter amount received" autoFocus />
   <div className="flex gap-2 mt-2">
@@ -299,7 +311,7 @@ function AmountPaidModal({
 // ─────────────────────────────────────────────
 function FinalConfirmModal({
   cart, total, amountPaid, changeAmount, onConfirm, onCancel,
-  punchedBy, madeBy, setPunchedBy, setMadeBy, staffList,
+  punchedBy, madeBy,
 }: {
   cart: OrderItem[];
   total: number;
@@ -309,9 +321,6 @@ function FinalConfirmModal({
   onCancel: () => void;
   punchedBy: string;
   madeBy: string;
-  setPunchedBy: (v: string) => void;
-  setMadeBy: (v: string) => void;
-  staffList: string[];
 }) {
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4">
@@ -334,24 +343,10 @@ function FinalConfirmModal({
             <div className="flex justify-between mb-2"><span className="text-gray-400">Amount Paid:</span><span className="text-white font-bold">₱{(amountPaid || 0).toFixed(2)}</span></div>
             <div className="flex justify-between pt-2 border-t border-white/20"><span className="text-green-400">Change:</span><span className="text-green-400 font-bold text-lg">₱{(changeAmount || 0).toFixed(2)}</span></div>
           </div>
-<div className="space-y-2 mb-4">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-400 w-20 shrink-0">🖊️ Punched by</span>
-              <select value={punchedBy} onChange={e => setPunchedBy(e.target.value)}
-                className="flex-1 bg-white/10 border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none">
-                <option value="">-- Select --</option>
-                {staffList.map(s => <option key={s} value={s} className="bg-black">{s}</option>)}
-              </select>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-400 w-20 shrink-0">☕ Made by</span>
-              <select value={madeBy} onChange={e => setMadeBy(e.target.value)}
-                className="flex-1 bg-white/10 border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none">
-                <option value="">-- Select --</option>
-                {staffList.map(s => <option key={s} value={s} className="bg-black">{s}</option>)}
-              </select>
-            </div>
-          </div>
+<div className="bg-white/5 rounded-xl px-4 py-2 mb-4 flex justify-between text-xs text-gray-400">
+  <span>👤 {punchedBy || 'No cashier'}</span>
+  <span>☕ {madeBy || 'No barista'}</span>
+</div>
           <div className="flex gap-3">
             <button onClick={onCancel} className="flex-1 py-3 rounded-xl bg-white/10 font-semibold text-white hover:bg-white/20 transition-colors">No, Go Back</button>
             <button onClick={onConfirm} className="flex-1 py-3 rounded-xl bg-white font-semibold text-black hover:bg-gray-200 transition-colors">Yes, Generate Order</button>
@@ -444,8 +439,6 @@ getStoreSettings().then(settings => {
 }).catch(() => {});
 
 setCart([]);
-setPunchedBy('');
-setMadeBy('');
 setShowFinalConfirmModal(false);
 alert(`Order #${nextOrderNumber} completed! Change: ₱${changeAmount.toFixed(2)}`);
 onOrderPlaced();
@@ -475,7 +468,6 @@ onOrderPlaced();
         </div>
       </div>
       <div className="w-80 bg-black border-l border-white/10 flex flex-col shrink-0">
-
 <div className="px-4 py-3 border-b border-white/10 bg-white/5 text-white">
   <h2 className="font-bold text-base mb-2">Current Order</h2>
   <div className="flex gap-1">
@@ -500,8 +492,7 @@ onOrderPlaced();
                   <div className="flex flex-wrap gap-1 mt-1.5 pl-1">
                     <span className="bg-white/10 px-1.5 py-0.5 rounded text-xs">{item.customization.size}</span>
                     {item.customization.temperature && <span className="bg-white/10 px-1.5 py-0.5 rounded text-xs">{item.customization.temperature}</span>}
-                    {item.customization.sugar !== '100%' && <span className="bg-white/10 px-1.5 py-0.5 rounded text-xs">{item.customization.sugar} sugar</span>}
-                    {item.customization.ice !== 'Normal Ice' && <span className="bg-white/10 px-1.5 py-0.5 rounded text-xs">{item.customization.ice}</span>}
+{item.customization.sugar && item.customization.sugar !== '100%' && <span className="bg-white/10 px-1.5 py-0.5 rounded text-xs">{item.customization.sugar} sugar</span>}                    {item.customization.ice !== 'Normal Ice' && <span className="bg-white/10 px-1.5 py-0.5 rounded text-xs">{item.customization.ice}</span>}
                     {item.customization.addOns.length > 0 && <span className="bg-green-900 text-green-300 px-1.5 py-0.5 rounded text-xs">+{item.customization.addOns.map(a => a.name).join(', ')}</span>}
                     {item.customization.discount && <span className="bg-red-900 text-red-300 px-1.5 py-0.5 rounded text-xs">-{item.customization.discount.type === 'percent' ? `${item.customization.discount.value}%` : `₱${item.customization.discount.value}`}</span>}
                   </div>
@@ -529,19 +520,23 @@ onOrderPlaced();
 
       {modalItem && <CustomizationModal item={modalItem} addOnItems={addOnItems} onConfirm={addToCart} onCancel={() => setModalItem(null)} />}
 
-      {showAmountModal && (
-        <AmountPaidModal cart={cart} subtotal={total} onConfirm={(paid) => {
-          setAmountPaid(paid);
-          setChangeAmount(paid - total);
-          setPaymentMethod(`Cash|${paid}|${paid - total}`);
-          setShowAmountModal(false);
-          setShowFinalConfirmModal(true);
-        }} onCancel={() => setShowAmountModal(false)} />
-      )}
 
+{showAmountModal && (
+  <AmountPaidModal cart={cart} subtotal={total} onConfirm={(paid) => {
+    setAmountPaid(paid);
+    setChangeAmount(paid - total);
+    setPaymentMethod(`Cash|${paid}|${paid - total}`);
+    setShowAmountModal(false);
+    setShowFinalConfirmModal(true);
+  }} onCancel={() => setShowAmountModal(false)}
+    punchedBy={punchedBy} madeBy={madeBy}
+    setPunchedBy={setPunchedBy} setMadeBy={setMadeBy}
+    staffList={STAFF_LIST} />
+)}
+  
       {showFinalConfirmModal && (
 <FinalConfirmModal cart={cart} total={total} amountPaid={amountPaid} changeAmount={changeAmount} onConfirm={handleFinalConfirm} onCancel={() => setShowFinalConfirmModal(false)}
-  punchedBy={punchedBy} madeBy={madeBy} setPunchedBy={setPunchedBy} setMadeBy={setMadeBy} staffList={STAFF_LIST} />      )}
+  punchedBy={punchedBy} madeBy={madeBy} />   )}
     </div>
   );
 }
