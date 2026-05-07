@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import * as XLSX from 'xlsx';
 
@@ -517,6 +517,176 @@ const adjustStock = async (ingredientId: string) => {
     ...ingredients.map(i => i.category).filter(Boolean)
   ])).sort();
   
+// ============================================
+  // PIVOT RECIPES FOR DISPLAY
+  // ============================================
+const pivotedRecipes = useMemo(() => {
+  // ── exact ingredient name sets from your inventory ──────────────────
+  const POWDER_NAMES = new Set([
+    'okinawa', 'hokkaido', 'uji matcha', 'taro', 'dark choco',
+    'oreo', 'wintermelon', 'rock salt & cheese', 'cheesecake',
+  ]);
+  const CREAMER_NAMES = new Set(['creamer']);
+  const FRUCTOSE_NAMES = new Set(['fructose']);
+  const CUP_NAMES = new Set([
+    'hard cups 22oz', 'regular u cups 16oz', 'dabba cups 16oz',
+    'hot coffee cups 12oz',
+  ]);
+  const STRAW_NAMES = new Set([
+    'boba straw 21cm', 'boba straw 23cm',
+    'thin coffee straws', 'boba straws 21cm', 'boba straws 23cm',
+  ]);
+  const SAUCE_NAMES = new Set([
+    'condensed milk', 'caramel sauce monin',
+    'dark chocolate sauce monin',
+  ]);
+  // everything else that is NOT in any of the above sets = syrup
+
+  const classify = (name: string): 'powder' | 'creamer' | 'fructose' | 'cup' | 'straw' | 'sauce' | 'syrup' => {
+    const n = name.toLowerCase().trim();
+    if (POWDER_NAMES.has(n))   return 'powder';
+    if (CREAMER_NAMES.has(n))  return 'creamer';
+    if (FRUCTOSE_NAMES.has(n)) return 'fructose';
+    if (CUP_NAMES.has(n))      return 'cup';
+    if (STRAW_NAMES.has(n))    return 'straw';
+    if (SAUCE_NAMES.has(n))    return 'sauce';
+    return 'syrup';
+  };
+
+  const fmt = (r: Recipe) => {
+    const unit = ingredients.find(i => i.id === r.ingredient_id)?.unit || '';
+    return `${r.quantity} ${unit}`.trim();
+  };
+
+  // ── group by menuItemId + size (R/L) so R and L are separate rows ──
+  const grouped: Record<string, Recipe[]> = {};
+
+  recipes.forEach(r => {
+    // determine size from the cup ingredient in this recipe's sibling rows
+    // We'll resolve size after grouping — for now group by menuItemId only
+    // then split by size inside
+    if (!grouped[r.menu_item_id]) grouped[r.menu_item_id] = [];
+    grouped[r.menu_item_id].push(r);
+  });
+
+  const result: any[] = [];
+
+  Object.entries(grouped).forEach(([menuItemId, rows]) => {
+    const menuItem = rows[0]?.menu_item_name || '';
+
+    // Find all cup rows — each cup row defines a size variant
+    const cupRows = rows.filter(r => classify(r.ingredient_name || '') === 'cup');
+
+    if (cupRows.length === 0) {
+      // No cup info — single row, no size
+      const pivot = buildPivotRow(menuItemId, menuItem, '', rows);
+      result.push(pivot);
+      return;
+    }
+
+    // Group cup rows by their ingredient name to get distinct sizes
+    const sizeGroups: Record<string, string> = {};
+    cupRows.forEach(c => {
+      const cupName = (c.ingredient_name || '').toLowerCase();
+      if (cupName.includes('hard cups')) sizeGroups[c.ingredient_id] = 'L';
+      else if (cupName.includes('regular') || cupName.includes('dabba') || cupName.includes('hot coffee')) sizeGroups[c.ingredient_id] = 'R';
+    });
+
+    const uniqueSizes = Array.from(new Set(Object.values(sizeGroups)));
+
+    if (uniqueSizes.length <= 1) {
+      // Only one size variant
+      const size = uniqueSizes[0] || '';
+      const pivot = buildPivotRow(menuItemId, menuItem, size, rows);
+      result.push(pivot);
+    } else {
+      // Multiple size variants (R and L) — split rows by which cup they share
+      // Rows without a cup (fructose, powder etc) appear in both — assign by quantity
+      // Strategy: separate rows that belong to R-cup group vs L-cup group
+      // We identify R/L by finding the cup ingredient_id for each size
+      const rCupIds = new Set(Object.entries(sizeGroups).filter(([, s]) => s === 'R').map(([id]) => id));
+      const lCupIds = new Set(Object.entries(sizeGroups).filter(([, s]) => s === 'L').map(([id]) => id));
+
+      // Non-cup rows: assign to R or L based on their quantity
+      // (R recipes use smaller quantities than L)
+      // We'll use the cup row's recipe id to split: find all recipe ids
+      // belonging to each size group by cross-referencing quantity patterns
+
+      // Simpler: split all rows into R-group and L-group
+      // Cup rows: assign by their own ingredient_id
+      // Non-cup rows: if there are 2 rows of same ingredient → smaller qty = R, larger = L
+      //               if only 1 row → assign to both (shared)
+
+      const rRows: Recipe[] = [];
+      const lRows: Recipe[] = [];
+
+      // First pass: cups go to their size
+      rows.forEach(r => {
+        const type = classify(r.ingredient_name || '');
+        if (type === 'cup') {
+          if (rCupIds.has(r.ingredient_id)) rRows.push(r);
+          else if (lCupIds.has(r.ingredient_id)) lRows.push(r);
+        }
+      });
+
+      // Second pass: non-cup rows — group by ingredient_id
+      const nonCupRows = rows.filter(r => classify(r.ingredient_name || '') !== 'cup');
+      const byIngredient: Record<string, Recipe[]> = {};
+      nonCupRows.forEach(r => {
+        if (!byIngredient[r.ingredient_id]) byIngredient[r.ingredient_id] = [];
+        byIngredient[r.ingredient_id].push(r);
+      });
+
+      Object.values(byIngredient).forEach(ingRows => {
+        if (ingRows.length === 1) {
+          // shared — add to both
+          rRows.push(ingRows[0]);
+          lRows.push(ingRows[0]);
+        } else {
+          // sort by quantity: smaller = R, larger = L
+          const sorted = [...ingRows].sort((a, b) => a.quantity - b.quantity);
+          rRows.push(sorted[0]);
+          lRows.push(sorted[sorted.length - 1]);
+        }
+      });
+
+      result.push(buildPivotRow(menuItemId, menuItem, 'R', rRows));
+      result.push(buildPivotRow(menuItemId, menuItem, 'L', lRows));
+    }
+  });
+
+  return result.sort((a, b) => a.menuItem.localeCompare(b.menuItem));
+
+  // ── helper ────────────────────────────────────────────────────────────
+  function buildPivotRow(menuItemId: string, menuItem: string, size: string, rows: Recipe[]) {
+    const find = (type: ReturnType<typeof classify>) =>
+      rows.find(r => classify(r.ingredient_name || '') === type);
+    const findAll = (type: ReturnType<typeof classify>) =>
+      rows.filter(r => classify(r.ingredient_name || '') === type);
+
+    const powderRow   = find('powder');
+    const creamerRow  = find('creamer');
+    const fructoseRow = find('fructose');
+    const cupRow      = find('cup');
+    const strawRow    = find('straw');
+    const syrupRows   = findAll('syrup');
+    const sauceRows   = findAll('sauce');
+
+    return {
+      menuItemId,
+      menuItem,
+      size,
+      powder:   powderRow  ? fmt(powderRow)  : '',
+      creamer:  creamerRow ? fmt(creamerRow) : '',
+      fructose: fructoseRow ? fmt(fructoseRow) : '',
+      syrup:    syrupRows.map(r => `${fmt(r)} ${r.ingredient_name}`).join(', '),
+      sauce:    sauceRows.map(r => `${fmt(r)} ${r.ingredient_name}`).join(', '),
+      cups:     cupRow?.ingredient_name || '',
+      straws:   strawRow?.ingredient_name || '',
+      allIds:   rows.map(r => r.id),
+    };
+  }
+}, [recipes, ingredients]);
   if (loading) {
     return <div className="flex-1 p-8 bg-black text-white">Loading inventory...</div>;
   }
@@ -719,7 +889,7 @@ const adjustStock = async (ingredientId: string) => {
         </>
       )}
 
-      {/* RECIPES TAB */}
+     {/* RECIPES TAB */}
       {activeTab === 'recipes' && (
         <>
           <div className="flex items-center justify-between mb-4">
@@ -727,23 +897,53 @@ const adjustStock = async (ingredientId: string) => {
             <button onClick={() => setShowAddRecipe(true)} className="px-5 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200">+ Add Recipe</button>
           </div>
 
-          <div className="bg-black border border-white/20 rounded-xl overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="bg-black border border-white/20 rounded-xl overflow-x-auto">
+            <table className="w-full text-sm min-w-[900px]">
               <thead className="bg-white/5 text-gray-300 border-b border-white/10">
                 <tr>
-                  <th className="px-4 py-3 text-left">Menu Item</th>
-                  <th className="px-4 py-3 text-left">Ingredient</th>
-                  <th className="px-4 py-3 text-right">Quantity</th>
-                  <th className="px-4 py-3 text-center">Actions</th>
+                  <th className="px-3 py-3 text-left">Menu Item</th>
+                  <th className="px-3 py-3 text-center">Size</th>
+                  <th className="px-3 py-3 text-right">Powder</th>
+                  <th className="px-3 py-3 text-right">Creamer</th>
+                  <th className="px-3 py-3 text-right">Fructose</th>
+                  <th className="px-3 py-3 text-left">Syrup</th>
+                  <th className="px-3 py-3 text-left">Sauce</th>
+                  <th className="px-3 py-3 text-left">Cups</th>
+                  <th className="px-3 py-3 text-left">Straws</th>
+                  <th className="px-3 py-3 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {recipes.map(recipe => (
-                  <tr key={recipe.id} className="border-t border-white/10 hover:bg-white/5">
-                    <td className="px-4 py-3 font-medium text-white">{recipe.menu_item_name}</td>
-                    <td className="px-4 py-3 text-gray-300">{recipe.ingredient_name}</td>
-                    <td className="px-4 py-3 text-right text-white">{recipe.quantity} {ingredients.find(i => i.id === recipe.ingredient_id)?.unit}</td>
-                    <td className="px-4 py-3 text-center"><button onClick={() => deleteRecipe(recipe.id)} className="text-red-400 hover:text-red-300 text-xs">Delete</button></td>
+                {pivotedRecipes.map((row) => (
+<tr key={`${row.menuItemId}-${row.size || 'no-size'}`} className="border-t border-white/10 hover:bg-white/5">
+                    <td className="px-3 py-3 font-medium text-white whitespace-nowrap">{row.menuItem}</td>
+                    <td className="px-3 py-3 text-center">
+                      {row.size ? (
+                        <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                          row.size === 'R'
+                            ? 'bg-blue-900/50 text-blue-300'
+                            : 'bg-purple-900/50 text-purple-300'
+                        }`}>{row.size}</span>
+                      ) : <span className="text-gray-600">—</span>}
+                    </td>
+                    <td className="px-3 py-3 text-right text-gray-300">{row.powder || '—'}</td>
+                    <td className="px-3 py-3 text-right text-gray-300">{row.creamer || '—'}</td>
+                    <td className="px-3 py-3 text-right text-gray-300">{row.fructose || '—'}</td>
+                    <td className="px-3 py-3 text-gray-300 text-xs">{row.syrup || '—'}</td>
+                    <td className="px-3 py-3 text-gray-300 text-xs">{row.sauce || '—'}</td>
+                    <td className="px-3 py-3 text-gray-300 text-xs whitespace-nowrap">{row.cups || '—'}</td>
+                    <td className="px-3 py-3 text-gray-300 text-xs whitespace-nowrap">{row.straws || '—'}</td>
+                    <td className="px-3 py-3 text-center">
+                      <button
+                        onClick={async () => {
+                          if (!confirm(`Delete all recipes for "${row.menuItem}"?`)) return;
+                          for (const id of row.allIds) await deleteRecipe(id);
+                        }}
+                        className="text-red-400 hover:text-red-300 text-xs"
+                      >
+                        Delete
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

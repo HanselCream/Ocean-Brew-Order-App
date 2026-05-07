@@ -142,10 +142,12 @@ try {
   
 const deductStock = async (orderItems: any[], orderId: string) => {
   for (const orderItem of orderItems) {
-    const { data: recipeData } = await supabase
-      .from('recipes')
-      .select(`*, ingredients:ingredient_id (*)`)
-      .eq('menu_item_id', orderItem.menuItemId);
+    const orderedSize = orderItem.customization?.size || 'R'; // 'R' or 'L'
+
+const { data: recipeData } = await supabase
+  .from('recipes')
+  .select(`*, ingredients:ingredient_id (*)`)
+  .eq('menu_item_id', orderItem.menuItemId);
 
     for (const recipe of recipeData || []) {
       const ingredient = recipe.ingredients;
