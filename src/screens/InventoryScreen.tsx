@@ -505,6 +505,18 @@ const adjustStock = async (ingredientId: string) => {
   }, []);
 
   // Get low stock ingredients
+// Compute used stock per ingredient from order deductions
+  const usedStock = useMemo(() => {
+    const map: Record<string, number> = {};
+    stockLogs.forEach(log => {
+      if (log.reason === 'order' && log.quantity_change < 0) {
+        map[log.ingredient_id] = (map[log.ingredient_id] || 0) + Math.abs(log.quantity_change);
+      }
+    });
+    return map;
+  }, [stockLogs]);
+
+  // Get low stock ingredients
   const lowStockIngredients = ingredients.filter(ing => ing.current_stock <= ing.min_stock_threshold);
   const filteredIngredients = ingredients.filter(ing => {
     const matchesSearch = ing.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -522,10 +534,10 @@ const adjustStock = async (ingredientId: string) => {
   // ============================================
 const pivotedRecipes = useMemo(() => {
   // ── exact ingredient name sets from your inventory ──────────────────
-  const POWDER_NAMES = new Set([
-    'okinawa', 'hokkaido', 'uji matcha', 'taro', 'dark choco',
-    'oreo', 'wintermelon', 'rock salt & cheese', 'cheesecake',
-  ]);
+const POWDER_NAMES = new Set([
+  'okinawa', 'hokkaido', 'uji matcha', 'taro', 'dark choco',
+  'oreo', 'wintermelon', 'rock salt & cheese', 'cheesecake', 'powder',
+]);
   const CREAMER_NAMES = new Set(['creamer']);
   const FRUCTOSE_NAMES = new Set(['fructose']);
   const CUP_NAMES = new Set([
@@ -824,46 +836,70 @@ const pivotedRecipes = useMemo(() => {
             </button>
           </div>
 
-          <div className="bg-black border border-white/20 rounded-xl overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-white/5 text-gray-300 border-b border-white/10">
+<div className="bg-black border border-white/20 rounded-xl overflow-x-auto">
+            <table className="w-full text-sm min-w-[1100px]">
+<thead className="bg-white/5 text-gray-300 border-b border-white/10">
                 <tr>
                   <th className="px-4 py-3 text-left">Category</th>
                   <th className="px-4 py-3 text-left">Item</th>
-                  <th className="px-4 py-3 text-right">Stocks</th>
-                  <th className="px-4 py-3 text-right">Wt.</th>
+                  <th className="px-4 py-3 text-right">Available Stocks</th>
+                  <th className="px-4 py-3 text-right">Unit Wt.</th>
+                  <th className="px-4 py-3 text-left">Unit</th>
+                  <th className="px-4 py-3 text-right">Total Measurement</th>
+                  <th className="px-4 py-3 text-right">Stocks Left</th>
+                  <th className="px-4 py-3 text-right">Used</th>
                   <th className="px-4 py-3 text-right">Threshold</th>
                   <th className="px-4 py-3 text-center">Status</th>
                   <th className="px-4 py-3 text-center">Actions</th>
                 </tr>
               </thead>
+
               <tbody>
                 {filteredIngredients.map(ing => {
                   const isLowStock = ing.current_stock <= ing.min_stock_threshold;
                   const packCount = ing.unit_size ? Math.floor(ing.current_stock / ing.unit_size) : null;
                   const thresholdPacks = ing.unit_size ? Math.ceil(ing.min_stock_threshold / ing.unit_size) : ing.min_stock_threshold;
-                  return (
+                 return (
                     <tr key={ing.id} className="border-t border-white/10 hover:bg-white/5">
+                      {/* Category */}
                       <td className="px-4 py-3 text-gray-400 text-sm">{ing.category}</td>
+                      {/* Item */}
                       <td className="px-4 py-3">
                         <div className="font-medium text-white">{ing.name}</div>
-                        <div className="text-xs text-gray-500">{ing.unit}</div>
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        {packCount !== null ? (
-                          <span className={`font-semibold ${isLowStock ? 'text-red-400' : 'text-white'}`}>
-                            {packCount} pcs
-                          </span>
-                        ) : (
-                          <span className="text-gray-600 text-xs">—</span>
-                        )}
-                      </td>
+                      {/* Available Stocks */}
                       <td className="px-4 py-3 text-right">
                         <span className={`font-semibold ${isLowStock ? 'text-red-400' : 'text-white'}`}>
-                          {ing.current_stock} {ing.unit}
+                          {packCount !== null ? `${packCount} pcs` : `${ing.current_stock.toLocaleString()} ${ing.unit}`}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right text-gray-400">{thresholdPacks}{ing.unit_size ? ' pcs' : ` ${ing.unit}`}</td>
+                      {/* Unit Wt. */}
+                      <td className="px-4 py-3 text-right text-gray-400">
+                        {ing.unit_size ?? '—'}
+                      </td>
+                      {/* Unit */}
+                      <td className="px-4 py-3 text-left text-gray-400">
+                        {ing.unit}
+                      </td>
+                      {/* Total Measurement */}
+                      <td className="px-4 py-3 text-right text-gray-300">
+                        {ing.current_stock.toLocaleString()} {ing.unit}
+                      </td>
+                      {/* Stocks Left */}
+                      <td className="px-4 py-3 text-right">
+                        <span className={`font-semibold ${isLowStock ? 'text-red-400' : 'text-white'}`}>
+                          {packCount !== null ? `${packCount} pcs` : `${ing.current_stock.toLocaleString()} ${ing.unit}`}
+                        </span>
+                      </td>
+                      {/* Used */}
+                      <td className="px-4 py-3 text-right text-gray-400">
+                        {usedStock[ing.id] ? `${usedStock[ing.id].toLocaleString()} ${ing.unit}` : '—'}
+                      </td>
+                      {/* Threshold */}
+                      <td className="px-4 py-3 text-right text-gray-400">
+                        {thresholdPacks}{ing.unit_size ? ' pcs' : ` ${ing.unit}`}
+                      </td>
+                      {/* Status */}
                       <td className="px-4 py-3 text-center">
                         {ing.current_stock === 0 ? (
                           <span className="px-2 py-1 rounded-full bg-red-900/60 text-red-300 text-xs font-semibold">NO STOCK</span>
@@ -873,6 +909,7 @@ const pivotedRecipes = useMemo(() => {
                           <span className="px-2 py-1 rounded-full bg-green-900/50 text-green-300 text-xs font-semibold">IN STOCK</span>
                         )}
                       </td>
+                      {/* Actions */}
                       <td className="px-4 py-3 text-center">
                         <div className="flex gap-2 justify-center">
                           <button onClick={() => setEditingIngredient(ing)} className="text-gray-300 hover:text-white text-xs">Edit</button>
@@ -1177,7 +1214,7 @@ const pivotedRecipes = useMemo(() => {
                 <label className="block text-sm font-semibold text-gray-300 mb-1">Low Stock Threshold</label>
                 <input
                   type="number"
-                  value={editingIngredient.min_stock_threshold}
+                  value={editingIngredient.min_stock_threshold ?? ''}
                   onChange={(e) =>
                     setEditingIngredient({
                       ...editingIngredient,
