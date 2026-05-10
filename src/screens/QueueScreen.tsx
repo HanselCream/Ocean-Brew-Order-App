@@ -146,23 +146,63 @@ const deductStock = async (orderItems: any[], orderId: string) => {
 
   for (const orderItem of orderItems) {
     const orderedSize = orderItem.customization?.size || 'R';
-
+    const temperature = orderItem.customization?.temperature; // 'Hot' or 'Cold'
+    const menuItemId = orderItem.menuItemId;
+    const orderItemName = orderItem.name;
+    
+    // Get menu item category to check if it's espresso
+    const { data: menuData } = await supabase
+      .from('menu_items')
+      .select('category')
+      .eq('id', menuItemId)
+      .single();
+    
+    const isEspresso = menuData?.category === 'Espresso';
+    
+    // For espresso drinks, cup type depends on temperature
+    let overrideCupIngredientId: string | null = null;
+    if (isEspresso && temperature) {
+      const cupName = temperature === 'Hot' ? 'Dabba Cups 16oz' : 'Regular U Cups 16oz';
+      const { data: cupData } = await supabase
+        .from('ingredients')
+        .select('id')
+        .eq('name', cupName)
+        .single();
+      if (cupData) overrideCupIngredientId = cupData.id;
+    }
+    
+    // Fetch recipes
     const { data: recipeData, error } = await supabase
       .from('recipes')
       .select(`*, ingredients:ingredient_id (*)`)
-      .eq('menu_item_id', orderItem.menuItemId)
+      .eq('menu_item_id', menuItemId)
       .eq('size', orderedSize);
 
     if (error) {
-      console.error('Recipe fetch error for', orderItem.name, error);
+      console.error('Recipe fetch error for', orderItemName, error);
       continue;
     }
 
     for (const recipe of recipeData || []) {
-      const ingredient = recipe.ingredients;
+      let ingredient = recipe.ingredients;
+      let quantityNeeded = recipe.quantity * (orderItem.quantity || 1);
+      
+      // Override cup for espresso based on temperature
+      if (isEspresso && overrideCupIngredientId && ingredient.name?.toLowerCase().includes('cup')) {
+        const { data: cupData } = await supabase
+          .from('ingredients')
+          .select('*')
+          .eq('id', overrideCupIngredientId)
+          .single();
+        
+        if (cupData) {
+          ingredient = cupData;
+          quantityNeeded = 1 * (orderItem.quantity || 1);
+        }
+      }
+      
       if (!ingredient || ingredient.current_stock == null) continue;
 
-      const quantityNeeded = recipe.quantity * (orderItem.quantity || 1);
       if (!deductionMap[ingredient.id]) {
         deductionMap[ingredient.id] = 0;
       }

@@ -5,13 +5,12 @@ import { supabase } from '@/lib/supabaseClient';
 import * as XLSX from 'xlsx';
 
 // Types
-// AFTER
 interface Ingredient {
   id: string;
   name: string;
   unit: string;
   unit_size: number | null;
-  container_unit: string | null;   // ← add
+  container_unit: string | null;
   current_stock: number;
   min_stock_threshold: number;
   category: string;
@@ -22,6 +21,7 @@ interface Recipe {
   menu_item_id: string;
   ingredient_id: string;
   quantity: number;
+  size: string;  // ← ADD THIS
   menu_item_name?: string;
   ingredient_name?: string;
 }
@@ -46,6 +46,24 @@ const INGREDIENT_CATEGORIES = [
   'Food Supplies',
 ];
 
+// Simplified unit options (removed shots, cups)
+const UNIT_OPTIONS = [
+  { value: 'pieces', label: 'Pieces (pc)', example: 'cups, straws, bags' },
+  { value: 'grams', label: 'Grams (g)', example: 'powder, creamer' },
+  { value: 'ml', label: 'Milliliters (ml)', example: 'syrup, fructose' },
+  { value: 'kg', label: 'Kilograms (kg)', example: 'bulk ingredients' },
+  { value: 'L', label: 'Liters (L)', example: 'milk, sauce' },
+];
+
+// Date filter options
+type DateRange = '7days' | '30days' | 'month' | 'all';
+const DATE_RANGE_OPTIONS: { value: DateRange; label: string }[] = [
+  { value: '7days', label: 'Last 7 days' },
+  { value: '30days', label: 'Last 30 days' },
+  { value: 'month', label: 'This month' },
+  { value: 'all', label: 'All time' },
+];
+
 export default function InventoryScreen() {
   const [activeTab, setActiveTab] = useState<'ingredients' | 'recipes' | 'logs'>('ingredients');
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
@@ -60,30 +78,36 @@ export default function InventoryScreen() {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [drinksLeft, setDrinksLeft] = useState<Record<string, number>>({});
+  const [usedDateRange, setUsedDateRange] = useState<DateRange>('30days');
   
   // New ingredient form
-const [newIngredient, setNewIngredient] = useState({
-  name: '',
-  unit: 'pieces',
-  unit_size: null as number | null,
-  container_unit: '',
-  current_stock: 0,
-  min_stock_threshold: 10,
-  category: 'General'
-});
+  const [newIngredient, setNewIngredient] = useState({
+    name: '',
+    unit: 'pieces',
+    unit_size: null as number | null,
+    container_unit: '',
+    current_stock: 0,
+    min_stock_threshold: 10,
+    category: 'General'
+  });
   
   // Stock adjustment
   const [adjustAmount, setAdjustAmount] = useState(0);
   const [adjustReason, setAdjustReason] = useState('manual_adjustment');
-  const [inlineEditId, setInlineEditId] = useState<string | null>(null);
-  const [inlineEditData, setInlineEditData] = useState<Partial<Ingredient>>({});
   
   // New recipe form
   const [newRecipe, setNewRecipe] = useState({
     menu_item_id: '',
     ingredient_id: '',
-    quantity: 0
+    quantity: 0,
+    size: 'R'
   });
+
+  // Recipe search and edit states
+  const [recipeSearchTerm, setRecipeSearchTerm] = useState('');
+  const [recipeCategoryFilter, setRecipeCategoryFilter] = useState('All');
+  const [showEditRecipe, setShowEditRecipe] = useState<Recipe | null>(null);
+  const [editRecipeData, setEditRecipeData] = useState({ quantity: 0, size: 'R' });
 
   // ============================================
   // LOAD FUNCTIONS
@@ -127,7 +151,7 @@ const [newIngredient, setNewIngredient] = useState({
         ingredients:ingredient_id (name)
       `)
       .order('created_at', { ascending: false })
-      .limit(100);
+      .limit(200);
     
     if (error) throw error;
     
@@ -191,7 +215,7 @@ const [newIngredient, setNewIngredient] = useState({
   };
 
   // ============================================
-  // AUTO-DEDUCT STOCK
+  // AUTO-DEDUCT STOCK (exposed for order screen)
   // ============================================
   const deductStockForOrder = async (orderItems: any[], orderId: string) => {
     console.log('🔍 Deducting stock for order:', orderId);
@@ -266,15 +290,15 @@ const [newIngredient, setNewIngredient] = useState({
     }
     
     setShowAddIngredient(false);
-setNewIngredient({
-  name: '',
-  unit: 'pieces',
-  unit_size: null,
-  container_unit: '',
-  current_stock: 0,
-  min_stock_threshold: 10,
-  category: 'General'
-});
+    setNewIngredient({
+      name: '',
+      unit: 'pieces',
+      unit_size: null,
+      container_unit: '',
+      current_stock: 0,
+      min_stock_threshold: 10,
+      category: 'General'
+    });
     await loadIngredients();
   };
 
@@ -283,15 +307,15 @@ setNewIngredient({
     
     const { error } = await supabase
       .from('ingredients')
-.update({
-  name: editingIngredient.name,
-  unit: editingIngredient.unit,
-  unit_size: editingIngredient.unit_size,
-  container_unit: editingIngredient.container_unit || null,  // ← add
-  min_stock_threshold: editingIngredient.min_stock_threshold,
-  category: editingIngredient.category,
-  updated_at: new Date().toISOString()
-})
+      .update({
+        name: editingIngredient.name,
+        unit: editingIngredient.unit,
+        unit_size: editingIngredient.unit_size,
+        container_unit: editingIngredient.container_unit || null,
+        min_stock_threshold: editingIngredient.min_stock_threshold,
+        category: editingIngredient.category,
+        updated_at: new Date().toISOString()
+      })
       .eq('id', editingIngredient.id);
     
     if (error) {
@@ -302,72 +326,50 @@ setNewIngredient({
     await loadIngredients();
   };
 
-  const saveInlineEdit = async () => {
-    if (!inlineEditId) return;
-    const { error } = await supabase
+  const adjustStock = async (ingredientId: string) => {
+    if (adjustAmount === 0 || isNaN(adjustAmount)) {
+      alert('Please enter a valid amount');
+      return;
+    }
+    
+    const ingredient = ingredients.find(i => i.id === ingredientId);
+    if (!ingredient) return;
+
+    const rawAdjust = ingredient.unit_size ? adjustAmount * ingredient.unit_size : adjustAmount;
+    const newStock = ingredient.current_stock + rawAdjust;
+
+    if (newStock < 0) {
+      alert('Stock cannot be negative!');
+      return;
+    }
+      
+    const { error: updateError } = await supabase
       .from('ingredients')
-.update({
-  name: inlineEditData.name,
-  unit: inlineEditData.unit,
-  unit_size: inlineEditData.unit_size ?? null,
-  container_unit: inlineEditData.container_unit ?? null,  // ← add
-  min_stock_threshold: inlineEditData.min_stock_threshold,
-  category: inlineEditData.category,
-  updated_at: new Date().toISOString()
-})
-      .eq('id', inlineEditId);
-    if (error) { alert('Error: ' + error.message); return; }
-    setInlineEditId(null);
-    setInlineEditData({});
+      .update({ 
+        current_stock: newStock,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', ingredientId);
+      
+    if (updateError) {
+      alert('Error updating stock: ' + updateError.message);
+      return;
+    }
+      
+    await supabase.from('stock_logs').insert([{
+      ingredient_id: ingredientId,
+      previous_stock: ingredient.current_stock,
+      new_stock: newStock,
+      quantity_change: rawAdjust,
+      reason: adjustReason,
+      reference_id: 'manual_' + Date.now()
+    }]);
+      
+    setShowAdjustStock(null);
+    setAdjustAmount(0);
     await loadIngredients();
+    await loadStockLogs();
   };
-
-const adjustStock = async (ingredientId: string) => {
-  // Check if adjustAmount is 0 or NaN
-  if (adjustAmount === 0 || isNaN(adjustAmount)) {
-    alert('Please enter a valid amount');
-    return;
-  }
-  
-  const ingredient = ingredients.find(i => i.id === ingredientId);
-  if (!ingredient) return;
-
-  // If unit_size is set, user inputs packs → convert to raw wt.
-  const rawAdjust = ingredient.unit_size ? adjustAmount * ingredient.unit_size : adjustAmount;
-  const newStock = ingredient.current_stock + rawAdjust;
-
-  if (newStock < 0) {
-    alert('Stock cannot be negative!');
-    return;
-  }
-    
-  const { error: updateError } = await supabase
-    .from('ingredients')
-    .update({ 
-      current_stock: newStock,
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', ingredientId);
-    
-  if (updateError) {
-    alert('Error updating stock: ' + updateError.message);
-    return;
-  }
-    
-  await supabase.from('stock_logs').insert([{
-    ingredient_id: ingredientId,
-    previous_stock: ingredient.current_stock,
-    new_stock: newStock,
-    quantity_change: rawAdjust,
-    reason: adjustReason,
-    reference_id: 'manual_' + Date.now()
-  }]);
-    
-  setShowAdjustStock(null);
-  setAdjustAmount(0);
-  await loadIngredients();
-  await loadStockLogs();
-};
 
   const addRecipe = async () => {
     if (!newRecipe.menu_item_id || !newRecipe.ingredient_id || newRecipe.quantity <= 0) {
@@ -377,7 +379,12 @@ const adjustStock = async (ingredientId: string) => {
     
     const { error } = await supabase
       .from('recipes')
-      .insert([newRecipe]);
+      .insert([{
+        menu_item_id: newRecipe.menu_item_id,
+        ingredient_id: newRecipe.ingredient_id,
+        quantity: newRecipe.quantity,
+        size: newRecipe.size
+      }]);
     
     if (error) {
       alert('Error adding recipe: ' + error.message);
@@ -388,7 +395,8 @@ const adjustStock = async (ingredientId: string) => {
     setNewRecipe({
       menu_item_id: '',
       ingredient_id: '',
-      quantity: 0
+      quantity: 0,
+      size: 'R'
     });
     loadAllData();
   };
@@ -432,6 +440,69 @@ const adjustStock = async (ingredientId: string) => {
   };
 
   // ============================================
+  // ADD THESE NEW FUNCTIONS HERE
+  // ============================================
+
+  // Duplicate recipe size variant (R to L or L to R)
+  const duplicateSizeVariant = async (menuItemId: string, sourceSize: string, targetSize: 'R' | 'L') => {
+    const sourceRecipes = recipes.filter(r => r.menu_item_id === menuItemId && r.size === sourceSize);
+    
+    if (sourceRecipes.length === 0) {
+      alert('No recipes found to duplicate');
+      return;
+    }
+    
+    for (const recipe of sourceRecipes) {
+      const { error } = await supabase
+        .from('recipes')
+        .insert([{
+          menu_item_id: recipe.menu_item_id,
+          ingredient_id: recipe.ingredient_id,
+          quantity: recipe.quantity,
+          size: targetSize
+        }]);
+      
+      if (error) {
+        alert('Error duplicating: ' + error.message);
+        return;
+      }
+    }
+    await loadAllData();
+  };
+
+  // Update existing recipe
+  const updateRecipe = async () => {
+    if (!showEditRecipe) return;
+    
+    const { error } = await supabase
+      .from('recipes')
+      .update({
+        quantity: editRecipeData.quantity,
+        size: editRecipeData.size
+      })
+      .eq('id', showEditRecipe.id);
+    
+    if (error) {
+      alert('Error updating recipe: ' + error.message);
+      return;
+    }
+    
+    setShowEditRecipe(null);
+    loadAllData();
+  };
+
+  // Delete all recipes for a specific menu item + size
+  const deleteRecipeByMenuItem = async (menuItemId: string, size: string) => {
+    const recipesToDelete = recipes.filter(r => r.menu_item_id === menuItemId && r.size === size);
+    if (recipesToDelete.length === 0) return;
+    
+    if (!confirm(`Delete all recipes for "${recipesToDelete[0]?.menu_item_name} (${size})"?`)) return;
+    
+    for (const recipe of recipesToDelete) {
+      await deleteRecipe(recipe.id);
+    }
+  };
+  // ============================================
   // EXPORT/IMPORT
   // ============================================
 
@@ -443,10 +514,10 @@ const adjustStock = async (ingredientId: string) => {
       'Min Threshold': ing.min_stock_threshold,
       'Category': ing.category,
       'Status': (() => {
-  const pc = ing.unit_size ? Math.floor(ing.current_stock / ing.unit_size) : null;
-  const low = pc !== null ? pc <= ing.min_stock_threshold : ing.current_stock <= ing.min_stock_threshold;
-  return ing.current_stock === 0 ? 'NO STOCK' : low ? 'LOW STOCK' : 'OK';
-})()
+        const pc = ing.unit_size ? Math.floor(ing.current_stock / ing.unit_size) : null;
+        const low = pc !== null ? pc <= ing.min_stock_threshold : ing.current_stock <= ing.min_stock_threshold;
+        return ing.current_stock === 0 ? 'NO STOCK' : low ? 'LOW STOCK' : 'OK';
+      })()
     }));
     
     const ws = XLSX.utils.json_to_sheet(exportData);
@@ -502,219 +573,239 @@ const adjustStock = async (ingredientId: string) => {
     reader.readAsArrayBuffer(file);
   };
 
-  // ============================================
-  // EXPOSE FUNCTION FOR QUEUE SCREEN
-  // ============================================
+  // Expose function for queue screen
   useEffect(() => {
     (window as any).deductStockForOrder = deductStockForOrder;
     return () => { delete (window as any).deductStockForOrder; };
   }, [ingredients]);
 
-  // ============================================
-  // INITIAL LOAD
-  // ============================================
   useEffect(() => {
     loadAllData();
   }, []);
 
-  // Get low stock ingredients
-// Compute used stock per ingredient from order deductions
-  const usedStock = useMemo(() => {
+  // ============================================
+  // USED STOCK CALCULATION WITH DATE FILTER
+  // ============================================
+  const getDateFilter = (range: DateRange): Date | null => {
+    const now = new Date();
+    switch (range) {
+      case '7days':
+        const d7 = new Date();
+        d7.setDate(now.getDate() - 7);
+        return d7;
+      case '30days':
+        const d30 = new Date();
+        d30.setDate(now.getDate() - 30);
+        return d30;
+      case 'month':
+        return new Date(now.getFullYear(), now.getMonth(), 1);
+      case 'all':
+        return null;
+      default:
+        return null;
+    }
+  };
+
+  const usedStockFiltered = useMemo(() => {
     const map: Record<string, number> = {};
+    const sinceDate = getDateFilter(usedDateRange);
+    
     stockLogs.forEach(log => {
       if (log.reason === 'order' && log.quantity_change < 0) {
+        const logDate = new Date(log.created_at);
+        if (sinceDate && logDate < sinceDate) return;
         map[log.ingredient_id] = (map[log.ingredient_id] || 0) + Math.abs(log.quantity_change);
       }
     });
     return map;
-  }, [stockLogs]);
+  }, [stockLogs, usedDateRange]);
 
-  // Get low stock ingredients
-const lowStockIngredients = ingredients.filter(ing => {
-  const pc = ing.unit_size ? Math.floor(ing.current_stock / ing.unit_size) : null;
-  return pc !== null ? pc <= ing.min_stock_threshold : ing.current_stock <= ing.min_stock_threshold;
-});
+  // Low stock ingredients
+  const lowStockIngredients = ingredients.filter(ing => {
+    const pc = ing.unit_size ? Math.floor(ing.current_stock / ing.unit_size) : null;
+    return pc !== null ? pc <= ing.min_stock_threshold : ing.current_stock <= ing.min_stock_threshold;
+  });
+  
   const filteredIngredients = ingredients.filter(ing => {
     const matchesSearch = ing.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = categoryFilter === 'All' || ing.category === categoryFilter;
     return matchesSearch && matchesCategory;
   });
+  
 
+  // Get unique menu categories from menuItems
+  const menuCategories = useMemo(() => {
+    const cats = new Set(menuItems.map(item => item.category).filter(Boolean));
+    return ['All', ...Array.from(cats).sort()];
+  }, [menuItems]);
+
+    // Get all unique categories for datalist (for Add/Edit Ingredient modals)
   const allCategories = Array.from(new Set([
     ...INGREDIENT_CATEGORIES,
     ...ingredients.map(i => i.category).filter(Boolean)
   ])).sort();
   
-// ============================================
-  // PIVOT RECIPES FOR DISPLAY
-  // ============================================
-const pivotedRecipes = useMemo(() => {
-  // ── exact ingredient name sets from your inventory ──────────────────
-const POWDER_NAMES = new Set([
-  'okinawa', 'hokkaido', 'uji matcha', 'taro', 'dark choco',
-  'oreo', 'wintermelon', 'rock salt & cheese', 'cheesecake', 'powder',
-]);
-  const CREAMER_NAMES = new Set(['creamer']);
-  const FRUCTOSE_NAMES = new Set(['fructose']);
-  const CUP_NAMES = new Set([
-    'hard cups 22oz', 'regular u cups 16oz', 'dabba cups 16oz',
-    'hot coffee cups 12oz',
-  ]);
-  const STRAW_NAMES = new Set([
-    'boba straw 21cm', 'boba straw 23cm',
-    'thin coffee straws', 'boba straws 21cm', 'boba straws 23cm',
-  ]);
-  const SAUCE_NAMES = new Set([
-    'condensed milk', 'caramel sauce monin',
-    'dark chocolate sauce monin',
-  ]);
-  // everything else that is NOT in any of the above sets = syrup
+  // Pivoted recipes (unchanged)
+  const pivotedRecipes = useMemo(() => {
+    const POWDER_NAMES = new Set([
+      'okinawa', 'hokkaido', 'uji matcha', 'taro', 'dark choco',
+      'oreo', 'wintermelon', 'rock salt & cheese', 'cheesecake', 'powder',
+    ]);
+    const CREAMER_NAMES = new Set(['creamer']);
+    const FRUCTOSE_NAMES = new Set(['fructose']);
+    const CUP_NAMES = new Set([
+      'hard cups 22oz', 'regular u cups 16oz', 'dabba cups 16oz',
+      'hot coffee cups 12oz',
+    ]);
+    const STRAW_NAMES = new Set([
+      'boba straw 21cm', 'boba straw 23cm',
+      'thin coffee straws', 'boba straws 21cm', 'boba straws 23cm',
+    ]);
+    const SAUCE_NAMES = new Set([
+      'condensed milk', 'caramel sauce monin',
+      'dark chocolate sauce monin',
+    ]);
 
-  const classify = (name: string): 'powder' | 'creamer' | 'fructose' | 'cup' | 'straw' | 'sauce' | 'syrup' => {
-    const n = name.toLowerCase().trim();
-    if (POWDER_NAMES.has(n))   return 'powder';
-    if (CREAMER_NAMES.has(n))  return 'creamer';
-    if (FRUCTOSE_NAMES.has(n)) return 'fructose';
-    if (CUP_NAMES.has(n))      return 'cup';
-    if (STRAW_NAMES.has(n))    return 'straw';
-    if (SAUCE_NAMES.has(n))    return 'sauce';
-    return 'syrup';
-  };
+    const classify = (name: string): 'powder' | 'creamer' | 'fructose' | 'cup' | 'straw' | 'sauce' | 'syrup' => {
+      const n = name.toLowerCase().trim();
+      if (POWDER_NAMES.has(n))   return 'powder';
+      if (CREAMER_NAMES.has(n))  return 'creamer';
+      if (FRUCTOSE_NAMES.has(n)) return 'fructose';
+      if (CUP_NAMES.has(n))      return 'cup';
+      if (STRAW_NAMES.has(n))    return 'straw';
+      if (SAUCE_NAMES.has(n))    return 'sauce';
+      return 'syrup';
+    };
 
-  const fmt = (r: Recipe) => {
-    const unit = ingredients.find(i => i.id === r.ingredient_id)?.unit || '';
-    return `${r.quantity} ${unit}`.trim();
-  };
+    const fmt = (r: Recipe) => {
+      const unit = ingredients.find(i => i.id === r.ingredient_id)?.unit || '';
+      return `${r.quantity} ${unit}`.trim();
+    };
 
-  // ── group by menuItemId + size (R/L) so R and L are separate rows ──
-  const grouped: Record<string, Recipe[]> = {};
-
-  recipes.forEach(r => {
-    // determine size from the cup ingredient in this recipe's sibling rows
-    // We'll resolve size after grouping — for now group by menuItemId only
-    // then split by size inside
-    if (!grouped[r.menu_item_id]) grouped[r.menu_item_id] = [];
-    grouped[r.menu_item_id].push(r);
-  });
-
-  const result: any[] = [];
-
-  Object.entries(grouped).forEach(([menuItemId, rows]) => {
-    const menuItem = rows[0]?.menu_item_name || '';
-
-    // Find all cup rows — each cup row defines a size variant
-    const cupRows = rows.filter(r => classify(r.ingredient_name || '') === 'cup');
-
-    if (cupRows.length === 0) {
-      // No cup info — single row, no size
-      const pivot = buildPivotRow(menuItemId, menuItem, '', rows);
-      result.push(pivot);
-      return;
-    }
-
-    // Group cup rows by their ingredient name to get distinct sizes
-    const sizeGroups: Record<string, string> = {};
-    cupRows.forEach(c => {
-      const cupName = (c.ingredient_name || '').toLowerCase();
-      if (cupName.includes('hard cups')) sizeGroups[c.ingredient_id] = 'L';
-      else if (cupName.includes('regular') || cupName.includes('dabba') || cupName.includes('hot coffee')) sizeGroups[c.ingredient_id] = 'R';
+    const grouped: Record<string, Recipe[]> = {};
+    recipes.forEach(r => {
+      if (!grouped[r.menu_item_id]) grouped[r.menu_item_id] = [];
+      grouped[r.menu_item_id].push(r);
     });
 
-    const uniqueSizes = Array.from(new Set(Object.values(sizeGroups)));
+    const result: any[] = [];
 
-    if (uniqueSizes.length <= 1) {
-      // Only one size variant
-      const size = uniqueSizes[0] || '';
-      const pivot = buildPivotRow(menuItemId, menuItem, size, rows);
-      result.push(pivot);
-    } else {
-      // Multiple size variants (R and L) — split rows by which cup they share
-      // Rows without a cup (fructose, powder etc) appear in both — assign by quantity
-      // Strategy: separate rows that belong to R-cup group vs L-cup group
-      // We identify R/L by finding the cup ingredient_id for each size
-      const rCupIds = new Set(Object.entries(sizeGroups).filter(([, s]) => s === 'R').map(([id]) => id));
-      const lCupIds = new Set(Object.entries(sizeGroups).filter(([, s]) => s === 'L').map(([id]) => id));
+    Object.entries(grouped).forEach(([menuItemId, rows]) => {
+      const menuItem = rows[0]?.menu_item_name || '';
+      const cupRows = rows.filter(r => classify(r.ingredient_name || '') === 'cup');
 
-      // Non-cup rows: assign to R or L based on their quantity
-      // (R recipes use smaller quantities than L)
-      // We'll use the cup row's recipe id to split: find all recipe ids
-      // belonging to each size group by cross-referencing quantity patterns
+      if (cupRows.length === 0) {
+        const pivot = buildPivotRow(menuItemId, menuItem, '', rows);
+        result.push(pivot);
+        return;
+      }
 
-      // Simpler: split all rows into R-group and L-group
-      // Cup rows: assign by their own ingredient_id
-      // Non-cup rows: if there are 2 rows of same ingredient → smaller qty = R, larger = L
-      //               if only 1 row → assign to both (shared)
-
-      const rRows: Recipe[] = [];
-      const lRows: Recipe[] = [];
-
-      // First pass: cups go to their size
-      rows.forEach(r => {
-        const type = classify(r.ingredient_name || '');
-        if (type === 'cup') {
-          if (rCupIds.has(r.ingredient_id)) rRows.push(r);
-          else if (lCupIds.has(r.ingredient_id)) lRows.push(r);
-        }
+      const sizeGroups: Record<string, string> = {};
+      cupRows.forEach(c => {
+        const cupName = (c.ingredient_name || '').toLowerCase();
+        if (cupName.includes('hard cups')) sizeGroups[c.ingredient_id] = 'L';
+        else if (cupName.includes('regular') || cupName.includes('dabba') || cupName.includes('hot coffee')) sizeGroups[c.ingredient_id] = 'R';
       });
 
-      // Second pass: non-cup rows — group by ingredient_id
-      const nonCupRows = rows.filter(r => classify(r.ingredient_name || '') !== 'cup');
-      const byIngredient: Record<string, Recipe[]> = {};
-      nonCupRows.forEach(r => {
-        if (!byIngredient[r.ingredient_id]) byIngredient[r.ingredient_id] = [];
-        byIngredient[r.ingredient_id].push(r);
-      });
+      const uniqueSizes = Array.from(new Set(Object.values(sizeGroups)));
 
-      Object.values(byIngredient).forEach(ingRows => {
-        if (ingRows.length === 1) {
-          // shared — add to both
-          rRows.push(ingRows[0]);
-          lRows.push(ingRows[0]);
-        } else {
-          // sort by quantity: smaller = R, larger = L
-          const sorted = [...ingRows].sort((a, b) => a.quantity - b.quantity);
-          rRows.push(sorted[0]);
-          lRows.push(sorted[sorted.length - 1]);
-        }
-      });
+      if (uniqueSizes.length <= 1) {
+        const size = uniqueSizes[0] || '';
+        const pivot = buildPivotRow(menuItemId, menuItem, size, rows);
+        result.push(pivot);
+      } else {
+        const rCupIds = new Set(Object.entries(sizeGroups).filter(([, s]) => s === 'R').map(([id]) => id));
+        const lCupIds = new Set(Object.entries(sizeGroups).filter(([, s]) => s === 'L').map(([id]) => id));
+        const rRows: Recipe[] = [];
+        const lRows: Recipe[] = [];
 
-      result.push(buildPivotRow(menuItemId, menuItem, 'R', rRows));
-      result.push(buildPivotRow(menuItemId, menuItem, 'L', lRows));
+        rows.forEach(r => {
+          const type = classify(r.ingredient_name || '');
+          if (type === 'cup') {
+            if (rCupIds.has(r.ingredient_id)) rRows.push(r);
+            else if (lCupIds.has(r.ingredient_id)) lRows.push(r);
+          }
+        });
+
+        const nonCupRows = rows.filter(r => classify(r.ingredient_name || '') !== 'cup');
+        const byIngredient: Record<string, Recipe[]> = {};
+        nonCupRows.forEach(r => {
+          if (!byIngredient[r.ingredient_id]) byIngredient[r.ingredient_id] = [];
+          byIngredient[r.ingredient_id].push(r);
+        });
+
+        Object.values(byIngredient).forEach(ingRows => {
+          if (ingRows.length === 1) {
+            rRows.push(ingRows[0]);
+            lRows.push(ingRows[0]);
+          } else {
+            const sorted = [...ingRows].sort((a, b) => a.quantity - b.quantity);
+            rRows.push(sorted[0]);
+            lRows.push(sorted[sorted.length - 1]);
+          }
+        });
+
+        result.push(buildPivotRow(menuItemId, menuItem, 'R', rRows));
+        result.push(buildPivotRow(menuItemId, menuItem, 'L', lRows));
+      }
+    });
+
+    return result.sort((a, b) => a.menuItem.localeCompare(b.menuItem));
+
+    function buildPivotRow(menuItemId: string, menuItem: string, size: string, rows: Recipe[]) {
+      const find = (type: ReturnType<typeof classify>) =>
+        rows.find(r => classify(r.ingredient_name || '') === type);
+      const findAll = (type: ReturnType<typeof classify>) =>
+        rows.filter(r => classify(r.ingredient_name || '') === type);
+
+      const powderRow   = find('powder');
+      const creamerRow  = find('creamer');
+      const fructoseRow = find('fructose');
+      const cupRow      = find('cup');
+      const strawRow    = find('straw');
+      const syrupRows   = findAll('syrup');
+      const sauceRows   = findAll('sauce');
+
+      return {
+        menuItemId,
+        menuItem,
+        size,
+        powder:   powderRow  ? fmt(powderRow)  : '',
+        creamer:  creamerRow ? fmt(creamerRow) : '',
+        fructose: fructoseRow ? fmt(fructoseRow) : '',
+        syrup:    syrupRows.map(r => `${fmt(r)} ${r.ingredient_name}`).join(', '),
+        sauce:    sauceRows.map(r => `${fmt(r)} ${r.ingredient_name}`).join(', '),
+        cups:     cupRow?.ingredient_name || '',
+        straws:   strawRow?.ingredient_name || '',
+        allIds:   rows.map(r => r.id),
+      };
     }
-  });
+  }, [recipes, ingredients]);
 
-  return result.sort((a, b) => a.menuItem.localeCompare(b.menuItem));
+  // Filtered recipes for search + category
+  const filteredPivotedRecipes = useMemo(() => {
+    let filtered = pivotedRecipes;
+    
+    // Filter by search term
+    if (recipeSearchTerm) {
+      filtered = filtered.filter(row => 
+        row.menuItem.toLowerCase().includes(recipeSearchTerm.toLowerCase())
+      );
+    }
+    
+    // Filter by category
+    if (recipeCategoryFilter !== 'All') {
+      const menuItemsInCategory = menuItems
+        .filter(item => item.category === recipeCategoryFilter)
+        .map(item => item.id);
+      filtered = filtered.filter(row => 
+        menuItemsInCategory.includes(row.menuItemId)
+      );
+    }
+    
+    return filtered;
+  }, [pivotedRecipes, recipeSearchTerm, recipeCategoryFilter, menuItems]);
 
-  // ── helper ────────────────────────────────────────────────────────────
-  function buildPivotRow(menuItemId: string, menuItem: string, size: string, rows: Recipe[]) {
-    const find = (type: ReturnType<typeof classify>) =>
-      rows.find(r => classify(r.ingredient_name || '') === type);
-    const findAll = (type: ReturnType<typeof classify>) =>
-      rows.filter(r => classify(r.ingredient_name || '') === type);
-
-    const powderRow   = find('powder');
-    const creamerRow  = find('creamer');
-    const fructoseRow = find('fructose');
-    const cupRow      = find('cup');
-    const strawRow    = find('straw');
-    const syrupRows   = findAll('syrup');
-    const sauceRows   = findAll('sauce');
-
-    return {
-      menuItemId,
-      menuItem,
-      size,
-      powder:   powderRow  ? fmt(powderRow)  : '',
-      creamer:  creamerRow ? fmt(creamerRow) : '',
-      fructose: fructoseRow ? fmt(fructoseRow) : '',
-      syrup:    syrupRows.map(r => `${fmt(r)} ${r.ingredient_name}`).join(', '),
-      sauce:    sauceRows.map(r => `${fmt(r)} ${r.ingredient_name}`).join(', '),
-      cups:     cupRow?.ingredient_name || '',
-      straws:   strawRow?.ingredient_name || '',
-      allIds:   rows.map(r => r.id),
-    };
-  }
-}, [recipes, ingredients]);
   if (loading) {
     return <div className="flex-1 p-8 bg-black text-white">Loading inventory...</div>;
   }
@@ -754,12 +845,11 @@ const POWDER_NAMES = new Set([
             {lowStockIngredients.slice(0, 5).map(ing => (
               <span key={ing.id} className="px-3 py-1 bg-red-900/50 rounded-lg text-sm text-red-300">
                 {ing.name}: {(() => {
-  const pc = ing.unit_size ? Math.floor(ing.current_stock / ing.unit_size) : null;
-  return pc !== null
-    ? `${pc}${ing.container_unit ? ' ' + ing.container_unit : ''}`
-    : `${ing.current_stock} ${ing.unit}`;
-})()} left
-
+                  const pc = ing.unit_size ? Math.floor(ing.current_stock / ing.unit_size) : null;
+                  return pc !== null
+                    ? `${pc}${ing.container_unit ? ' ' + ing.container_unit : ''}`
+                    : `${ing.current_stock} ${ing.unit}`;
+                })()} left
               </span>
             ))}
             {lowStockIngredients.length > 5 && (
@@ -829,10 +919,10 @@ const POWDER_NAMES = new Set([
         </button>
       </div>
 
-      {/* INGREDIENTS TAB */}
+      {/* INGREDIENTS TAB - Simplified, with date filter for Used */}
       {activeTab === 'ingredients' && (
         <>
-          <div className="flex items-center gap-3 mb-4">
+          <div className="flex items-center gap-3 mb-4 flex-wrap">
             <input
               type="text"
               placeholder="Search ingredients..."
@@ -850,89 +940,79 @@ const POWDER_NAMES = new Set([
                 <option key={cat} value={cat} className="bg-black">{cat}</option>
               ))}
             </select>
+            <div className="flex items-center gap-2 ml-auto">
+              <span className="text-sm text-gray-400">Used period:</span>
+              <select
+                value={usedDateRange}
+                onChange={(e) => setUsedDateRange(e.target.value as DateRange)}
+                className="px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white text-sm focus:outline-none"
+              >
+                {DATE_RANGE_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
             <button
               onClick={() => setShowAddIngredient(true)}
-              className="ml-auto px-5 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200"
+              className="px-5 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200"
             >
               + Add Ingredient
             </button>
           </div>
 
-<div className="bg-black border border-white/20 rounded-xl overflow-x-auto">
-            <table className="w-full text-sm min-w-[1100px]">
-<thead className="bg-white/5 text-gray-300 border-b border-white/10">
+          <div className="bg-black border border-white/20 rounded-xl overflow-x-auto">
+            <table className="w-full text-sm min-w-[900px]">
+              <thead className="bg-white/5 text-gray-300 border-b border-white/10">
                 <tr>
                   <th className="px-4 py-3 text-left">Category</th>
                   <th className="px-4 py-3 text-left">Item</th>
-                  <th className="px-4 py-3 text-right">Available Stocks</th>
-                  <th className="px-4 py-3 text-right">Unit Wt.</th>
-                  <th className="px-4 py-3 text-left">Unit</th>
+                  <th className="px-4 py-3 text-right">In Stock</th>
                   <th className="px-4 py-3 text-right">Total Measurement</th>
-                  <th className="px-4 py-3 text-right">Stocks Left</th>
-                  <th className="px-4 py-3 text-right">Used</th>
-                  <th className="px-4 py-3 text-right">Threshold</th>
+                  <th className="px-4 py-3 text-right">Used ({DATE_RANGE_OPTIONS.find(o => o.value === usedDateRange)?.label})</th>
+                  <th className="px-4 py-3 text-right">Reorder at</th>
                   <th className="px-4 py-3 text-center">Status</th>
                   <th className="px-4 py-3 text-center">Actions</th>
                 </tr>
               </thead>
-
               <tbody>
                 {filteredIngredients.map(ing => {
-const packCount = ing.unit_size ? Math.floor(ing.current_stock / ing.unit_size) : null;
-const isLowStock = packCount !== null
-  ? packCount <= ing.min_stock_threshold
-  : ing.current_stock <= ing.min_stock_threshold;
+                  const packCount = ing.unit_size ? Math.floor(ing.current_stock / ing.unit_size) : null;
+                  const displayStock = packCount !== null
+                    ? `${packCount}${ing.container_unit ? ' ' + ing.container_unit : ''}`
+                    : `${ing.current_stock.toLocaleString()} ${ing.unit}`;
+                  const isLowStock = packCount !== null
+                    ? packCount <= ing.min_stock_threshold
+                    : ing.current_stock <= ing.min_stock_threshold;
+                  const usedAmount = usedStockFiltered[ing.id];
+                  const usedDisplay = usedAmount
+                    ? packCount !== null
+                      ? `${Math.floor(usedAmount / ing.unit_size!)} ${ing.container_unit || 'containers'}`
+                      : `${usedAmount.toLocaleString()} ${ing.unit}`
+                    : '—';
+                  const thresholdDisplay = packCount !== null
+                    ? `${ing.min_stock_threshold} ${ing.container_unit || 'containers'}`
+                    : `${ing.min_stock_threshold} ${ing.unit}`;
 
-                 return (
+                  return (
                     <tr key={ing.id} className="border-t border-white/10 hover:bg-white/5">
-                      {/* Category */}
                       <td className="px-4 py-3 text-gray-400 text-sm">{ing.category}</td>
-                      {/* Item */}
                       <td className="px-4 py-3">
                         <div className="font-medium text-white">{ing.name}</div>
                       </td>
-                      {/* Available Stocks */}
                       <td className="px-4 py-3 text-right">
                         <span className={`font-semibold ${isLowStock ? 'text-red-400' : 'text-white'}`}>
-{packCount !== null
-  ? `${packCount}${ing.container_unit ? ' ' + ing.container_unit : ''}`
-  : `${ing.current_stock.toLocaleString()} ${ing.unit}`}
+                          {displayStock}
                         </span>
                       </td>
-                      {/* Unit Wt. */}
-                      <td className="px-4 py-3 text-right text-gray-400">
-                        {ing.unit_size ?? '—'}
-                      </td>
-                      {/* Unit */}
-                      <td className="px-4 py-3 text-left text-gray-400">
-                        {ing.unit}
-                      </td>
-                      {/* Total Measurement */}
                       <td className="px-4 py-3 text-right text-gray-300">
                         {ing.current_stock.toLocaleString()} {ing.unit}
                       </td>
-                      {/* Stocks Left */}
-                      <td className="px-4 py-3 text-right">
-{/* Stocks Left */}
-<span className={`font-semibold ${isLowStock ? 'text-red-400' : 'text-white'}`}>
-  {packCount !== null
-    ? `${packCount}${ing.container_unit ? ' ' + ing.container_unit : ''}`
-    : `${ing.current_stock.toLocaleString()} ${ing.unit}`}
-</span>
-                      </td>
-                      {/* Used */}
                       <td className="px-4 py-3 text-right text-gray-400">
-                        {usedStock[ing.id] ? `${usedStock[ing.id].toLocaleString()} ${ing.unit}` : '—'}
+                        {usedDisplay}
                       </td>
-                      {/* Threshold */}
                       <td className="px-4 py-3 text-right text-gray-400">
-                        {ing.min_stock_threshold}
-{ing.unit_size
-  ? (ing.container_unit ? ' ' + ing.container_unit : '')
-  : ` ${ing.unit}`}
-
+                        {thresholdDisplay}
                       </td>
-                      {/* Status */}
                       <td className="px-4 py-3 text-center">
                         {ing.current_stock === 0 ? (
                           <span className="px-2 py-1 rounded-full bg-red-900/60 text-red-300 text-xs font-semibold">NO STOCK</span>
@@ -942,7 +1022,6 @@ const isLowStock = packCount !== null
                           <span className="px-2 py-1 rounded-full bg-green-900/50 text-green-300 text-xs font-semibold">IN STOCK</span>
                         )}
                       </td>
-                      {/* Actions */}
                       <td className="px-4 py-3 text-center">
                         <div className="flex gap-2 justify-center">
                           <button onClick={() => setEditingIngredient(ing)} className="text-gray-300 hover:text-white text-xs">Edit</button>
@@ -959,17 +1038,60 @@ const isLowStock = packCount !== null
         </>
       )}
 
-     {/* RECIPES TAB */}
+      {/* RECIPES TAB - IMPROVED with Search + Category Filter + Edit Modal */}
       {activeTab === 'recipes' && (
         <>
-          <div className="flex items-center justify-between mb-4">
-            <button onClick={exportRecipes} className="px-4 py-2 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20">📥 Export Recipes</button>
-            <button onClick={() => setShowAddRecipe(true)} className="px-5 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200">+ Add Recipe</button>
+          <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+            <div className="flex gap-2">
+              <button onClick={exportRecipes} className="px-4 py-2 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20">
+                📥 Export Recipes
+              </button>
+              <button onClick={() => setShowAddRecipe(true)} className="px-5 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200">
+                + Add Recipe
+              </button>
+            </div>
+            
+            {/* Category Filter Dropdown */}
+            <select
+              value={recipeCategoryFilter}
+              onChange={(e) => setRecipeCategoryFilter(e.target.value)}
+              className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white focus:outline-none"
+            >
+              {menuCategories.map(cat => (
+                <option key={cat} value={cat} className="bg-black">
+                  {cat === 'All' ? '📋 All Categories' : `📁 ${cat}`}
+                </option>
+              ))}
+            </select>
+            
+            {/* Search input for recipes */}
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="🔍 Search by name..."
+                value={recipeSearchTerm}
+                onChange={(e) => setRecipeSearchTerm(e.target.value)}
+                className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:border-white/50 w-64"
+              />
+              {recipeSearchTerm && (
+                <button
+                  onClick={() => setRecipeSearchTerm('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            
+            <div className="text-xs text-gray-500">
+              {filteredPivotedRecipes.length} of {pivotedRecipes.length} recipes
+              {recipeCategoryFilter !== 'All' && ` in ${recipeCategoryFilter}`}
+            </div>
           </div>
 
           <div className="bg-black border border-white/20 rounded-xl overflow-x-auto">
-            <table className="w-full text-sm min-w-[900px]">
-              <thead className="bg-white/5 text-gray-300 border-b border-white/10">
+            <table className="w-full text-sm min-w-[1000px]">
+              <thead className="bg-white/5 text-gray-300 border-b border-white/10 sticky top-0">
                 <tr>
                   <th className="px-3 py-3 text-left">Menu Item</th>
                   <th className="px-3 py-3 text-center">Size</th>
@@ -984,16 +1106,31 @@ const isLowStock = packCount !== null
                 </tr>
               </thead>
               <tbody>
-                {pivotedRecipes.map((row) => (
-<tr key={`${row.menuItemId}-${row.size || 'no-size'}`} className="border-t border-white/10 hover:bg-white/5">
+                {filteredPivotedRecipes.map((row) => (
+                  <tr key={`${row.menuItemId}-${row.size || 'no-size'}`} className="border-t border-white/10 hover:bg-white/5">
                     <td className="px-3 py-3 font-medium text-white whitespace-nowrap">{row.menuItem}</td>
                     <td className="px-3 py-3 text-center">
                       {row.size ? (
-                        <span className={`px-2 py-0.5 rounded text-xs font-bold ${
-                          row.size === 'R'
-                            ? 'bg-blue-900/50 text-blue-300'
-                            : 'bg-purple-900/50 text-purple-300'
-                        }`}>{row.size}</span>
+                        <div className="flex items-center justify-center gap-1">
+                          <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                            row.size === 'R'
+                              ? 'bg-blue-900/50 text-blue-300'
+                              : 'bg-purple-900/50 text-purple-300'
+                          }`}>{row.size}</span>
+                          {/* Quick duplicate button for size variants */}
+                          <button
+                            onClick={() => {
+                              const newSize = row.size === 'R' ? 'L' : 'R';
+                              if (confirm(`Duplicate ${row.menuItem} (${row.size}) to (${newSize})? This will copy all ingredients.`)) {
+                                duplicateSizeVariant(row.menuItemId, row.size, newSize);
+                              }
+                            }}
+                            className="text-xs text-gray-500 hover:text-green-400"
+                            title={`Duplicate as ${row.size === 'R' ? 'Large' : 'Regular'}`}
+                          >
+                            📋
+                          </button>
+                        </div>
                       ) : <span className="text-gray-600">—</span>}
                     </td>
                     <td className="px-3 py-3 text-right text-gray-300">{row.powder || '—'}</td>
@@ -1004,25 +1141,48 @@ const isLowStock = packCount !== null
                     <td className="px-3 py-3 text-gray-300 text-xs whitespace-nowrap">{row.cups || '—'}</td>
                     <td className="px-3 py-3 text-gray-300 text-xs whitespace-nowrap">{row.straws || '—'}</td>
                     <td className="px-3 py-3 text-center">
-                      <button
-                        onClick={async () => {
-                          if (!confirm(`Delete all recipes for "${row.menuItem}"?`)) return;
-                          for (const id of row.allIds) await deleteRecipe(id);
-                        }}
-                        className="text-red-400 hover:text-red-300 text-xs"
-                      >
-                        Delete
-                      </button>
+                      <div className="flex gap-2 justify-center">
+                        <button
+                          onClick={() => {
+                            const recipeToEdit = recipes.find(r => 
+                              r.menu_item_id === row.menuItemId && 
+                              r.size === row.size
+                            );
+                            if (recipeToEdit) {
+                              setEditRecipeData({ quantity: recipeToEdit.quantity, size: recipeToEdit.size });
+                              setShowEditRecipe(recipeToEdit);
+                            }
+                          }}
+                          className="text-green-400 hover:text-green-300 text-xs"
+                          title="Edit recipe quantities"
+                        >
+                          ✏️ Edit
+                        </button>
+                        <button
+                          onClick={() => deleteRecipeByMenuItem(row.menuItemId, row.size)}
+                          className="text-red-400 hover:text-red-300 text-xs"
+                          title="Delete all recipes for this size"
+                        >
+                          🗑️ Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            
+            {/* Empty state */}
+            {filteredPivotedRecipes.length === 0 && (
+              <div className="text-center py-12 text-gray-500">
+                No recipes found matching "{recipeSearchTerm}"
+              </div>
+            )}
           </div>
         </>
       )}
 
-      {/* STOCK LOGS TAB */}
+      {/* STOCK LOGS TAB (unchanged) */}
       {activeTab === 'logs' && (
         <div className="bg-black border border-white/20 rounded-xl overflow-hidden">
           <table className="w-full text-sm">
@@ -1050,147 +1210,236 @@ const isLowStock = packCount !== null
         </div>
       )}
 
-      {/* MODALS */}
-      
+      {/* MODALS - same as before (simplified, no shots/cups) */}
       {/* Add Ingredient Modal */}
       {showAddIngredient && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setShowAddIngredient(false)}>
           <div className="bg-black border border-white/20 rounded-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
-            <div className="p-5 border-b border-white/20"><h2 className="text-lg font-bold text-white">Add New Ingredient</h2></div>
-            <div className="p-5 space-y-4">
-              <div><label className="block text-sm font-semibold text-gray-300 mb-1">Name</label><input value={newIngredient.name} onChange={(e) => setNewIngredient({ ...newIngredient, name: e.target.value })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" /></div>
-              <div><label className="block text-sm font-semibold text-gray-300 mb-1">Unit</label><select value={newIngredient.unit} onChange={(e) => setNewIngredient({ ...newIngredient, unit: e.target.value })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"><option value="pieces">pieces</option><option value="ml">ml</option><option value="grams">grams</option><option value="shots">shots</option><option value="cups">cups</option></select></div>
-              <div><label className="block text-sm font-semibold text-gray-300 mb-1">Initial Stock</label><input type="number" value={newIngredient.current_stock} onChange={(e) => setNewIngredient({ ...newIngredient, current_stock: parseFloat(e.target.value) })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" /></div>
-              <div><label className="block text-sm font-semibold text-gray-300 mb-1">Low Stock Threshold</label><input type="number" value={newIngredient.min_stock_threshold} onChange={(e) => setNewIngredient({ ...newIngredient, min_stock_threshold: parseFloat(e.target.value) })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" /></div>
-              <div><label className="block text-sm font-semibold text-gray-300 mb-1">Category <span className="text-gray-500 font-normal">(pick or type new)</span></label>
-              <input list="cat-list-add" value={newIngredient.category} onChange={(e) => setNewIngredient({ ...newIngredient, category: e.target.value })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" placeholder="Select or type category" />
-              <datalist id="cat-list-add">{allCategories.map(cat => <option key={cat} value={cat} />)}</datalist></div>
+            <div className="p-5 border-b border-white/20">
+              <h2 className="text-lg font-bold text-white">Add New Ingredient</h2>
+              <p className="text-sm text-gray-400 mt-1">Fill in the details below</p>
             </div>
-            <div className="p-5 border-t border-white/20 flex justify-end gap-3"><button onClick={() => setShowAddIngredient(false)} className="px-5 py-2 rounded-xl bg-white/10 text-white font-semibold">Cancel</button><button onClick={addIngredient} className="px-5 py-2 rounded-xl bg-white text-black font-semibold">Save</button></div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-300 mb-1">Ingredient Name *</label>
+                <input 
+                  value={newIngredient.name} 
+                  onChange={(e) => setNewIngredient({ ...newIngredient, name: e.target.value })} 
+                  className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white placeholder-gray-500"
+                  placeholder="e.g., Okinawa, Creamer, Boba Straw"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-300 mb-1">Unit of Measurement *</label>
+                <select 
+                  value={newIngredient.unit} 
+                  onChange={(e) => setNewIngredient({ ...newIngredient, unit: e.target.value })} 
+                  className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
+                >
+                  {UNIT_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Example: {UNIT_OPTIONS.find(o => o.value === newIngredient.unit)?.example}
+                </p>
+              </div>
+              <div className="bg-white/5 rounded-xl p-3">
+                <p className="text-xs text-gray-400 mb-2">📦 Optional: If this item comes in packs/bottles</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-400 mb-1">Size per pack</label>
+                    <input 
+                      type="number" 
+                      value={newIngredient.unit_size || ''} 
+                      onChange={(e) => setNewIngredient({ ...newIngredient, unit_size: e.target.value ? parseFloat(e.target.value) : null })} 
+                      className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
+                      placeholder="e.g., 500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-400 mb-1">Pack name</label>
+                    <input 
+                      value={newIngredient.container_unit || ''} 
+                      onChange={(e) => setNewIngredient({ ...newIngredient, container_unit: e.target.value })} 
+                      className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
+                      placeholder="bottle, pack, sachet"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-300 mb-1">Initial Stock</label>
+                <input 
+                  type="number" 
+                  value={newIngredient.current_stock} 
+                  onChange={(e) => setNewIngredient({ ...newIngredient, current_stock: parseFloat(e.target.value) })} 
+                  className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-300 mb-1">Low Stock Alert Threshold</label>
+                <input 
+                  type="number" 
+                  value={newIngredient.min_stock_threshold} 
+                  onChange={(e) => setNewIngredient({ ...newIngredient, min_stock_threshold: parseFloat(e.target.value) })} 
+                  className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
+                  placeholder="10"
+                />
+                <p className="text-xs text-gray-500 mt-1">Alert when stock falls below this number</p>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-300 mb-1">Category</label>
+                <input 
+                  list="cat-list-add" 
+                  value={newIngredient.category} 
+                  onChange={(e) => setNewIngredient({ ...newIngredient, category: e.target.value })} 
+                  className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" 
+                  placeholder="Select or type category"
+                />
+                <datalist id="cat-list-add">
+                  {allCategories.map(cat => <option key={cat} value={cat} />)}
+                </datalist>
+              </div>
+            </div>
+            <div className="p-5 border-t border-white/20 flex justify-end gap-3">
+              <button onClick={() => setShowAddIngredient(false)} className="px-5 py-2 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20">Cancel</button>
+              <button onClick={addIngredient} className="px-5 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200">Save</button>
+            </div>
           </div>
         </div>
       )}
 
-  {/* Adjust Stock Modal - COMPLETELY FIXED */}
-{showAdjustStock && (
-  <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setShowAdjustStock(null)}>
-    <div className="bg-black border border-white/20 rounded-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
-      <div className="p-5 border-b border-white/20">
-        <h2 className="text-lg font-bold text-white">Adjust Stock</h2>
-        <p className="text-sm text-gray-400">{ingredients.find(i => i.id === showAdjustStock)?.name}</p>
-      </div>
-      <div className="p-5 space-y-4">
-        <div>
-          <label className="block text-sm font-semibold text-gray-300 mb-1">
-{(() => {
-  const ing = ingredients.find(i => i.id === showAdjustStock);
-  if (ing?.unit_size) {
-    return `Number of ${ing.container_unit ? ing.container_unit + 's' : 'containers'} to Add/Remove`;
-  }
-  return `Amount (+/-) in ${ing?.unit || 'units'}`;
-})()}
-          </label>
-          <input
-            type="number"
-            value={adjustAmount === 0 ? '' : adjustAmount}
-            onChange={(e) => {
-              const value = e.target.value;
-              setAdjustAmount(value === '' ? 0 : parseFloat(value));
-            }}
-            className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
- placeholder="Positive to add, negative to remove"
-/>
-{/* FIXED: Preview now shows even when amount is 0, and handles invalid numbers */}
-{(() => {
-  const ing = ingredients.find(i => i.id === showAdjustStock);
-  if (!ing) return null;
-  
-  // Handle pack-based items (with unit_size)
-  if (ing.unit_size && adjustAmount !== 0 && !isNaN(adjustAmount)) {
-    const raw = adjustAmount * ing.unit_size;
-    const currentStock = ing.current_stock ?? 0;  // FIXED: default to 0 if undefined
-    const currentPacks = Math.floor(currentStock / ing.unit_size);
-    const newPacks = currentPacks + adjustAmount;
-    const newStockAmount = newPacks * ing.unit_size;
-    
-    return (
-      <div className="text-xs text-gray-400 mt-2 p-2 bg-white/5 rounded">
-        <div>📦 Current: {currentPacks} packs ({currentStock} {ing.unit})</div>
-        <div>➕ Adding: {adjustAmount} packs ({raw} {ing.unit})</div>
-        <div>✨ New total: <span className="text-white font-semibold">{newPacks} packs ({newStockAmount} {ing.unit})</span></div>
-      </div>
-    );
-  }
-  
-if (ing.unit_size && adjustAmount !== 0 && !isNaN(adjustAmount)) {
-    const raw = adjustAmount * ing.unit_size;
-    const currentStock = ing.current_stock ?? 0;
-    const currentPacks = Math.floor(currentStock / ing.unit_size);
-    const newPacks = currentPacks + adjustAmount;
-    const newStockAmount = newPacks * ing.unit_size;
-    const containerLabel = ing.container_unit || 'containers';
-    return (
-      <div className="text-xs text-gray-400 mt-2 p-2 bg-white/5 rounded">
-        <div>📦 Current: {currentPacks} {containerLabel} ({currentStock} {ing.unit})</div>
-        <div>➕ Adding: {adjustAmount} {containerLabel} ({raw} {ing.unit})</div>
-        <div>✨ New total: <span className="text-white font-semibold">{newPacks} {containerLabel} ({newStockAmount} {ing.unit})</span></div>
-      </div>
-    );
-  }
-  return null;
-})()}
-</div>
-<div>
-  <label className="block text-sm font-semibold text-gray-300 mb-1">Reason</label>
-  <select
-            value={adjustReason} 
-            onChange={(e) => setAdjustReason(e.target.value)} 
-            className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
-          >
-            <option value="manual_adjustment">Manual Adjustment</option>
-            <option value="restock">Restock</option>
-            <option value="wastage">Wastage</option>
-            <option value="damage">Damaged Goods</option>
-          </select>
+      {/* Adjust Stock Modal (unchanged) */}
+      {showAdjustStock && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setShowAdjustStock(null)}>
+          <div className="bg-black border border-white/20 rounded-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="p-5 border-b border-white/20">
+              <h2 className="text-lg font-bold text-white">Adjust Stock</h2>
+              <p className="text-sm text-gray-400">{ingredients.find(i => i.id === showAdjustStock)?.name}</p>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-300 mb-1">
+                  {(() => {
+                    const ing = ingredients.find(i => i.id === showAdjustStock);
+                    if (ing?.unit_size) {
+                      return `Number of ${ing.container_unit ? ing.container_unit + 's' : 'containers'} to Add/Remove`;
+                    }
+                    return `Amount (+/-) in ${ing?.unit || 'units'}`;
+                  })()}
+                </label>
+                <input
+                  type="number"
+                  value={adjustAmount === 0 ? '' : adjustAmount}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setAdjustAmount(value === '' ? 0 : parseFloat(value));
+                  }}
+                  className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
+                  placeholder="Positive to add, negative to remove"
+                />
+                {(() => {
+                  const ing = ingredients.find(i => i.id === showAdjustStock);
+                  if (!ing) return null;
+                  if (ing.unit_size && adjustAmount !== 0 && !isNaN(adjustAmount)) {
+                    const raw = adjustAmount * ing.unit_size;
+                    const currentStock = ing.current_stock ?? 0;
+                    const currentPacks = Math.floor(currentStock / ing.unit_size);
+                    const newPacks = currentPacks + adjustAmount;
+                    const newStockAmount = newPacks * ing.unit_size;
+                    return (
+                      <div className="text-xs text-gray-400 mt-2 p-2 bg-white/5 rounded">
+                        <div>📦 Current: {currentPacks} packs ({currentStock} {ing.unit})</div>
+                        <div>➕ Adding: {adjustAmount} packs ({raw} {ing.unit})</div>
+                        <div>✨ New total: <span className="text-white font-semibold">{newPacks} packs ({newStockAmount} {ing.unit})</span></div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-300 mb-1">Reason</label>
+                <select
+                  value={adjustReason} 
+                  onChange={(e) => setAdjustReason(e.target.value)} 
+                  className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
+                >
+                  <option value="manual_adjustment">Manual Adjustment</option>
+                  <option value="restock">Restock</option>
+                  <option value="wastage">Wastage</option>
+                  <option value="damage">Damaged Goods</option>
+                </select>
+              </div>
+            </div>
+            <div className="p-5 border-t border-white/20 flex justify-end gap-3">
+              <button onClick={() => { setShowAdjustStock(null); setAdjustAmount(0); }} className="px-5 py-2 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20">Cancel</button>
+              <button onClick={() => adjustStock(showAdjustStock)} className="px-5 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200">Apply</button>
+            </div>
+          </div>
         </div>
-      </div>
-      <div className="p-5 border-t border-white/20 flex justify-end gap-3">
-        <button 
-          onClick={() => {
-            setShowAdjustStock(null);
-            setAdjustAmount(0);
-          }} 
-          className="px-5 py-2 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20"
-        >
-          Cancel
-        </button>
-        <button 
-          onClick={() => adjustStock(showAdjustStock)} 
-          className="px-5 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200"
-        >
-          Apply
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+      )}
 
-      {/* Add Recipe Modal */}
+      {/* Add Recipe Modal (unchanged) */}
       {showAddRecipe && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setShowAddRecipe(false)}>
           <div className="bg-black border border-white/20 rounded-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
             <div className="p-5 border-b border-white/20"><h2 className="text-lg font-bold text-white">Add Recipe</h2><p className="text-sm text-gray-400">Define ingredients for a menu item</p></div>
             <div className="p-5 space-y-4">
               <div><label className="block text-sm font-semibold text-gray-300 mb-1">Menu Item</label><select value={newRecipe.menu_item_id} onChange={(e) => setNewRecipe({ ...newRecipe, menu_item_id: e.target.value })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"><option value="">Select menu item...</option>{menuItems.map(item => (<option key={item.id} value={item.id}>{item.name} ({item.category})</option>))}</select></div>
+              <div><label className="block text-sm font-semibold text-gray-300 mb-1">Size</label><select value={(newRecipe as any).size || 'R'} onChange={(e) => setNewRecipe({ ...newRecipe, size: e.target.value })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"><option value="R">Regular (R)</option><option value="L">Large (L)</option></select></div>
               <div><label className="block text-sm font-semibold text-gray-300 mb-1">Ingredient</label><select value={newRecipe.ingredient_id} onChange={(e) => setNewRecipe({ ...newRecipe, ingredient_id: e.target.value })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"><option value="">Select ingredient...</option>{ingredients.map(ing => (<option key={ing.id} value={ing.id}>{ing.name} ({ing.unit})</option>))}</select></div>
-              <div><label className="block text-sm font-semibold text-gray-300 mb-1">Quantity Needed</label><input type="number" value={newRecipe.quantity} onChange={(e) => setNewRecipe({ ...newRecipe, quantity: parseFloat(e.target.value) })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" placeholder="e.g., 2, 150, 30" /></div>
+              <div><label className="block text-sm font-semibold text-gray-300 mb-1">Quantity Needed</label><input type="number" value={newRecipe.quantity} onChange={(e) => setNewRecipe({ ...newRecipe, quantity: parseFloat(e.target.value) })} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" placeholder="e.g., 20, 30, 40" /></div>
             </div>
             <div className="p-5 border-t border-white/20 flex justify-end gap-3"><button onClick={() => setShowAddRecipe(false)} className="px-5 py-2 rounded-xl bg-white/10 text-white font-semibold">Cancel</button><button onClick={addRecipe} className="px-5 py-2 rounded-xl bg-white text-black font-semibold">Save</button></div>
           </div>
         </div>
       )}
 
-      {/* EDIT INGREDIENT MODAL - FIXED: Now properly inside the return statement */}
+            {/* Edit Recipe Modal */}
+      {showEditRecipe && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setShowEditRecipe(null)}>
+          <div className="bg-black border border-white/20 rounded-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="p-5 border-b border-white/20">
+              <h2 className="text-lg font-bold text-white">Edit Recipe</h2>
+              <p className="text-sm text-gray-400">
+                {showEditRecipe.menu_item_name} - {showEditRecipe.ingredient_name}
+              </p>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-300 mb-1">Size</label>
+                <select 
+                  value={editRecipeData.size} 
+                  onChange={(e) => setEditRecipeData({ ...editRecipeData, size: e.target.value })} 
+                  className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
+                >
+                  <option value="R">Regular (R)</option>
+                  <option value="L">Large (L)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-300 mb-1">Quantity Needed</label>
+                <input 
+                  type="number" 
+                  value={editRecipeData.quantity} 
+                  onChange={(e) => setEditRecipeData({ ...editRecipeData, quantity: parseFloat(e.target.value) })} 
+                  className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" 
+                  placeholder="e.g., 20, 30, 40"
+                />
+              </div>
+            </div>
+            <div className="p-5 border-t border-white/20 flex justify-end gap-3">
+              <button onClick={() => setShowEditRecipe(null)} className="px-5 py-2 rounded-xl bg-white/10 text-white font-semibold">Cancel</button>
+              <button onClick={updateRecipe} className="px-5 py-2 rounded-xl bg-white text-black font-semibold">Save Changes</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Ingredient Modal - Simplified */}
       {editingIngredient && (
         <div
           className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
@@ -1202,76 +1451,79 @@ if (ing.unit_size && adjustAmount !== 0 && !isNaN(adjustAmount)) {
           >
             <div className="p-5 border-b border-white/20">
               <h2 className="text-lg font-bold text-white">Edit Ingredient</h2>
+              <p className="text-sm text-gray-400 mt-1">Update the ingredient details below</p>
             </div>
 
             <div className="p-5 space-y-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-300 mb-1">Name</label>
+                <label className="block text-sm font-semibold text-gray-300 mb-1">Ingredient Name</label>
                 <input
                   value={editingIngredient.name}
-                  onChange={(e) =>
-                    setEditingIngredient({ ...editingIngredient, name: e.target.value })
-                  }
+                  onChange={(e) => setEditingIngredient({ ...editingIngredient, name: e.target.value })}
                   className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-300 mb-1">Unit</label>
+                <label className="block text-sm font-semibold text-gray-300 mb-1">Unit of Measurement</label>
                 <select
                   value={editingIngredient.unit}
-                  onChange={(e) =>
-                    setEditingIngredient({ ...editingIngredient, unit: e.target.value })
-                  }
+                  onChange={(e) => setEditingIngredient({ ...editingIngredient, unit: e.target.value })}
                   className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
                 >
-                  <option value="pieces">pieces</option>
-                  <option value="ml">ml</option>
-                  <option value="grams">grams</option>
-                  <option value="shots">shots</option>
-                  <option value="cups">cups</option>
+                  {UNIT_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
                 </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Example: {UNIT_OPTIONS.find(o => o.value === editingIngredient.unit)?.example}
+                </p>
               </div>
-<div>
-  <label className="block text-sm font-semibold text-gray-300 mb-1">Unit Size <span className="text-gray-500 font-normal">(optional)</span></label>
-  <input
-    type="number"
-    value={(newIngredient as any).unit_size || ''}
-    onChange={(e) => setNewIngredient({ ...newIngredient, unit_size: e.target.value ? parseFloat(e.target.value) : null } as any)}
-    className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
-    placeholder="e.g. 500 for a 500ml bottle"
-  />
-</div>
-<div>
-  <label className="block text-sm font-semibold text-gray-300 mb-1">Container Unit <span className="text-gray-500 font-normal">(optional)</span></label>
-  <input
-    value={newIngredient.container_unit}
-    onChange={(e) => setNewIngredient({ ...newIngredient, container_unit: e.target.value })}
-    className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
-    placeholder="bottle, sachet, pack, bag..."
-  />
-</div>
+
+              <div className="bg-white/5 rounded-xl p-3">
+                <p className="text-xs text-gray-400 mb-2">📦 If this item comes in packs/bottles (optional)</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-400 mb-1">Size per pack</label>
+                    <input
+                      type="number"
+                      value={editingIngredient.unit_size ?? ''}
+                      onChange={(e) => setEditingIngredient({ ...editingIngredient, unit_size: e.target.value ? parseFloat(e.target.value) : null })}
+                      className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
+                      placeholder="e.g., 500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-400 mb-1">Pack name</label>
+                    <input
+                      value={editingIngredient.container_unit ?? ''}
+                      onChange={(e) => setEditingIngredient({ ...editingIngredient, container_unit: e.target.value })}
+                      className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
+                      placeholder="bottle, pack, sachet"
+                    />
+                  </div>
+                </div>
+              </div>
 
               <div>
-<label className="block text-sm font-semibold text-gray-300 mb-1">
-  Low Stock Threshold
-  <span className="text-gray-500 font-normal ml-1">
-    {editingIngredient.unit_size
-      ? `(in ${editingIngredient.container_unit || 'containers'})`
-      : `(in ${editingIngredient.unit})`}
-  </span>
-</label>
+                <label className="block text-sm font-semibold text-gray-300 mb-1">
+                  Low Stock Alert Threshold
+                  <span className="text-gray-500 font-normal ml-1">
+                    {editingIngredient.unit_size
+                      ? `(in ${editingIngredient.container_unit || 'containers'})`
+                      : `(in ${editingIngredient.unit})`}
+                  </span>
+                </label>
                 <input
                   type="number"
                   value={editingIngredient.min_stock_threshold ?? ''}
-                  onChange={(e) =>
-                    setEditingIngredient({
-                      ...editingIngredient,
-                      min_stock_threshold: parseFloat(e.target.value),
-                    })
-                  }
+                  onChange={(e) => setEditingIngredient({
+                    ...editingIngredient,
+                    min_stock_threshold: parseFloat(e.target.value),
+                  })}
                   className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
                 />
+                <p className="text-xs text-gray-500 mt-1">Alert when stock falls below this number</p>
               </div>
 
               <div>
@@ -1279,9 +1531,7 @@ if (ing.unit_size && adjustAmount !== 0 && !isNaN(adjustAmount)) {
                 <input
                   list="cat-list-edit"
                   value={editingIngredient.category}
-                  onChange={(e) =>
-                    setEditingIngredient({ ...editingIngredient, category: e.target.value })
-                  }
+                  onChange={(e) => setEditingIngredient({ ...editingIngredient, category: e.target.value })}
                   className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
                   placeholder="Select or type category"
                 />
@@ -1292,18 +1542,8 @@ if (ing.unit_size && adjustAmount !== 0 && !isNaN(adjustAmount)) {
             </div>
 
             <div className="p-5 border-t border-white/20 flex justify-end gap-3">
-              <button 
-                onClick={() => setEditingIngredient(null)} 
-                className="px-5 py-2 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20"
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={updateIngredient} 
-                className="px-5 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200"
-              >
-                Save Changes
-              </button>
+              <button onClick={() => setEditingIngredient(null)} className="px-5 py-2 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20">Cancel</button>
+              <button onClick={updateIngredient} className="px-5 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200">Save Changes</button>
             </div>
           </div>
         </div>
