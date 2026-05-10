@@ -5,15 +5,18 @@ import { supabase } from '@/lib/supabaseClient';
 import * as XLSX from 'xlsx';
 
 // Types
+// AFTER
 interface Ingredient {
   id: string;
   name: string;
   unit: string;
   unit_size: number | null;
+  container_unit: string | null;   // ← add
   current_stock: number;
   min_stock_threshold: number;
   category: string;
 }
+
 interface Recipe {
   id: string;
   menu_item_id: string;
@@ -59,13 +62,15 @@ export default function InventoryScreen() {
   const [drinksLeft, setDrinksLeft] = useState<Record<string, number>>({});
   
   // New ingredient form
-  const [newIngredient, setNewIngredient] = useState({
-    name: '',
-    unit: 'pieces',
-    current_stock: 0,
-    min_stock_threshold: 10,
-    category: 'General'
-  });
+const [newIngredient, setNewIngredient] = useState({
+  name: '',
+  unit: 'pieces',
+  unit_size: null as number | null,
+  container_unit: '',
+  current_stock: 0,
+  min_stock_threshold: 10,
+  category: 'General'
+});
   
   // Stock adjustment
   const [adjustAmount, setAdjustAmount] = useState(0);
@@ -261,13 +266,15 @@ export default function InventoryScreen() {
     }
     
     setShowAddIngredient(false);
-    setNewIngredient({
-      name: '',
-      unit: 'pieces',
-      current_stock: 0,
-      min_stock_threshold: 10,
-      category: 'General'
-    });
+setNewIngredient({
+  name: '',
+  unit: 'pieces',
+  unit_size: null,
+  container_unit: '',
+  current_stock: 0,
+  min_stock_threshold: 10,
+  category: 'General'
+});
     await loadIngredients();
   };
 
@@ -276,14 +283,15 @@ export default function InventoryScreen() {
     
     const { error } = await supabase
       .from('ingredients')
-      .update({
-        name: editingIngredient.name,
-        unit: editingIngredient.unit,
-        unit_size: editingIngredient.unit_size,
-        min_stock_threshold: editingIngredient.min_stock_threshold,
-        category: editingIngredient.category,
-        updated_at: new Date().toISOString()
-      })
+.update({
+  name: editingIngredient.name,
+  unit: editingIngredient.unit,
+  unit_size: editingIngredient.unit_size,
+  container_unit: editingIngredient.container_unit || null,  // ← add
+  min_stock_threshold: editingIngredient.min_stock_threshold,
+  category: editingIngredient.category,
+  updated_at: new Date().toISOString()
+})
       .eq('id', editingIngredient.id);
     
     if (error) {
@@ -298,14 +306,15 @@ export default function InventoryScreen() {
     if (!inlineEditId) return;
     const { error } = await supabase
       .from('ingredients')
-      .update({
-        name: inlineEditData.name,
-        unit: inlineEditData.unit,
-        unit_size: inlineEditData.unit_size ?? null,
-        min_stock_threshold: inlineEditData.min_stock_threshold,
-        category: inlineEditData.category,
-        updated_at: new Date().toISOString()
-      })
+.update({
+  name: inlineEditData.name,
+  unit: inlineEditData.unit,
+  unit_size: inlineEditData.unit_size ?? null,
+  container_unit: inlineEditData.container_unit ?? null,  // ← add
+  min_stock_threshold: inlineEditData.min_stock_threshold,
+  category: inlineEditData.category,
+  updated_at: new Date().toISOString()
+})
       .eq('id', inlineEditId);
     if (error) { alert('Error: ' + error.message); return; }
     setInlineEditId(null);
@@ -433,7 +442,11 @@ const adjustStock = async (ingredientId: string) => {
       'Current Stock': ing.current_stock,
       'Min Threshold': ing.min_stock_threshold,
       'Category': ing.category,
-      'Status': ing.current_stock <= ing.min_stock_threshold ? 'LOW STOCK' : 'OK'
+      'Status': (() => {
+  const pc = ing.unit_size ? Math.floor(ing.current_stock / ing.unit_size) : null;
+  const low = pc !== null ? pc <= ing.min_stock_threshold : ing.current_stock <= ing.min_stock_threshold;
+  return ing.current_stock === 0 ? 'NO STOCK' : low ? 'LOW STOCK' : 'OK';
+})()
     }));
     
     const ws = XLSX.utils.json_to_sheet(exportData);
@@ -517,7 +530,10 @@ const adjustStock = async (ingredientId: string) => {
   }, [stockLogs]);
 
   // Get low stock ingredients
-  const lowStockIngredients = ingredients.filter(ing => ing.current_stock <= ing.min_stock_threshold);
+const lowStockIngredients = ingredients.filter(ing => {
+  const pc = ing.unit_size ? Math.floor(ing.current_stock / ing.unit_size) : null;
+  return pc !== null ? pc <= ing.min_stock_threshold : ing.current_stock <= ing.min_stock_threshold;
+});
   const filteredIngredients = ingredients.filter(ing => {
     const matchesSearch = ing.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = categoryFilter === 'All' || ing.category === categoryFilter;
@@ -737,7 +753,13 @@ const POWDER_NAMES = new Set([
           <div className="flex flex-wrap gap-2">
             {lowStockIngredients.slice(0, 5).map(ing => (
               <span key={ing.id} className="px-3 py-1 bg-red-900/50 rounded-lg text-sm text-red-300">
-                {ing.name}: {ing.current_stock} {ing.unit} left
+                {ing.name}: {(() => {
+  const pc = ing.unit_size ? Math.floor(ing.current_stock / ing.unit_size) : null;
+  return pc !== null
+    ? `${pc}${ing.container_unit ? ' ' + ing.container_unit : ''}`
+    : `${ing.current_stock} ${ing.unit}`;
+})()} left
+
               </span>
             ))}
             {lowStockIngredients.length > 5 && (
@@ -856,9 +878,11 @@ const POWDER_NAMES = new Set([
 
               <tbody>
                 {filteredIngredients.map(ing => {
-                  const isLowStock = ing.current_stock <= ing.min_stock_threshold;
-                  const packCount = ing.unit_size ? Math.floor(ing.current_stock / ing.unit_size) : null;
-                  const thresholdPacks = ing.unit_size ? Math.ceil(ing.min_stock_threshold / ing.unit_size) : ing.min_stock_threshold;
+const packCount = ing.unit_size ? Math.floor(ing.current_stock / ing.unit_size) : null;
+const isLowStock = packCount !== null
+  ? packCount <= ing.min_stock_threshold
+  : ing.current_stock <= ing.min_stock_threshold;
+
                  return (
                     <tr key={ing.id} className="border-t border-white/10 hover:bg-white/5">
                       {/* Category */}
@@ -870,7 +894,9 @@ const POWDER_NAMES = new Set([
                       {/* Available Stocks */}
                       <td className="px-4 py-3 text-right">
                         <span className={`font-semibold ${isLowStock ? 'text-red-400' : 'text-white'}`}>
-                          {packCount !== null ? `${packCount} pcs` : `${ing.current_stock.toLocaleString()} ${ing.unit}`}
+{packCount !== null
+  ? `${packCount}${ing.container_unit ? ' ' + ing.container_unit : ''}`
+  : `${ing.current_stock.toLocaleString()} ${ing.unit}`}
                         </span>
                       </td>
                       {/* Unit Wt. */}
@@ -887,9 +913,12 @@ const POWDER_NAMES = new Set([
                       </td>
                       {/* Stocks Left */}
                       <td className="px-4 py-3 text-right">
-                        <span className={`font-semibold ${isLowStock ? 'text-red-400' : 'text-white'}`}>
-                          {packCount !== null ? `${packCount} pcs` : `${ing.current_stock.toLocaleString()} ${ing.unit}`}
-                        </span>
+{/* Stocks Left */}
+<span className={`font-semibold ${isLowStock ? 'text-red-400' : 'text-white'}`}>
+  {packCount !== null
+    ? `${packCount}${ing.container_unit ? ' ' + ing.container_unit : ''}`
+    : `${ing.current_stock.toLocaleString()} ${ing.unit}`}
+</span>
                       </td>
                       {/* Used */}
                       <td className="px-4 py-3 text-right text-gray-400">
@@ -897,7 +926,11 @@ const POWDER_NAMES = new Set([
                       </td>
                       {/* Threshold */}
                       <td className="px-4 py-3 text-right text-gray-400">
-                        {thresholdPacks}{ing.unit_size ? ' pcs' : ` ${ing.unit}`}
+                        {ing.min_stock_threshold}
+{ing.unit_size
+  ? (ing.container_unit ? ' ' + ing.container_unit : '')
+  : ` ${ing.unit}`}
+
                       </td>
                       {/* Status */}
                       <td className="px-4 py-3 text-center">
@@ -1049,9 +1082,13 @@ const POWDER_NAMES = new Set([
       <div className="p-5 space-y-4">
         <div>
           <label className="block text-sm font-semibold text-gray-300 mb-1">
-            {ingredients.find(i => i.id === showAdjustStock)?.unit_size
-              ? 'Number of Packs to Add/Remove'
-              : 'Amount (+/-)'}
+{(() => {
+  const ing = ingredients.find(i => i.id === showAdjustStock);
+  if (ing?.unit_size) {
+    return `Number of ${ing.container_unit ? ing.container_unit + 's' : 'containers'} to Add/Remove`;
+  }
+  return `Amount (+/-) in ${ing?.unit || 'units'}`;
+})()}
           </label>
           <input
             type="number"
@@ -1085,15 +1122,18 @@ const POWDER_NAMES = new Set([
     );
   }
   
-  // Handle regular items (no unit_size)
-  if (!ing.unit_size && adjustAmount !== 0 && !isNaN(adjustAmount)) {
-    const currentStock = ing.current_stock ?? 0;  // FIXED: default to 0 if undefined
-    const newStock = currentStock + adjustAmount;
+if (ing.unit_size && adjustAmount !== 0 && !isNaN(adjustAmount)) {
+    const raw = adjustAmount * ing.unit_size;
+    const currentStock = ing.current_stock ?? 0;
+    const currentPacks = Math.floor(currentStock / ing.unit_size);
+    const newPacks = currentPacks + adjustAmount;
+    const newStockAmount = newPacks * ing.unit_size;
+    const containerLabel = ing.container_unit || 'containers';
     return (
       <div className="text-xs text-gray-400 mt-2 p-2 bg-white/5 rounded">
-        <div>📦 Current: {currentStock} {ing.unit}</div>
-        <div>{adjustAmount > 0 ? '➕ Adding' : '➖ Removing'}: {Math.abs(adjustAmount)} {ing.unit}</div>
-        <div>✨ New total: <span className="text-white font-semibold">{newStock} {ing.unit}</span></div>
+        <div>📦 Current: {currentPacks} {containerLabel} ({currentStock} {ing.unit})</div>
+        <div>➕ Adding: {adjustAmount} {containerLabel} ({raw} {ing.unit})</div>
+        <div>✨ New total: <span className="text-white font-semibold">{newPacks} {containerLabel} ({newStockAmount} {ing.unit})</span></div>
       </div>
     );
   }
@@ -1192,26 +1232,35 @@ const POWDER_NAMES = new Set([
                   <option value="cups">cups</option>
                 </select>
               </div>
+<div>
+  <label className="block text-sm font-semibold text-gray-300 mb-1">Unit Size <span className="text-gray-500 font-normal">(optional)</span></label>
+  <input
+    type="number"
+    value={(newIngredient as any).unit_size || ''}
+    onChange={(e) => setNewIngredient({ ...newIngredient, unit_size: e.target.value ? parseFloat(e.target.value) : null } as any)}
+    className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
+    placeholder="e.g. 500 for a 500ml bottle"
+  />
+</div>
+<div>
+  <label className="block text-sm font-semibold text-gray-300 mb-1">Container Unit <span className="text-gray-500 font-normal">(optional)</span></label>
+  <input
+    value={newIngredient.container_unit}
+    onChange={(e) => setNewIngredient({ ...newIngredient, container_unit: e.target.value })}
+    className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
+    placeholder="bottle, sachet, pack, bag..."
+  />
+</div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-300 mb-1">Unit Size (packs)</label>
-                <input
-                  type="number"
-                  value={editingIngredient.unit_size || ''}
-                  onChange={(e) =>
-                    setEditingIngredient({ 
-                      ...editingIngredient, 
-                      unit_size: e.target.value ? parseFloat(e.target.value) : null 
-                    })
-                  }
-                  className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
-                  placeholder="Optional: e.g., 1000 for 1kg pack"
-                />
-                <p className="text-xs text-gray-500 mt-1">If set, stock will be measured in packs</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-300 mb-1">Low Stock Threshold</label>
+<label className="block text-sm font-semibold text-gray-300 mb-1">
+  Low Stock Threshold
+  <span className="text-gray-500 font-normal ml-1">
+    {editingIngredient.unit_size
+      ? `(in ${editingIngredient.container_unit || 'containers'})`
+      : `(in ${editingIngredient.unit})`}
+  </span>
+</label>
                 <input
                   type="number"
                   value={editingIngredient.min_stock_threshold ?? ''}

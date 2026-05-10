@@ -141,35 +141,69 @@ try {
   };
   
 const deductStock = async (orderItems: any[], orderId: string) => {
-  for (const orderItem of orderItems) {
-    const orderedSize = orderItem.customization?.size || 'R'; // 'R' or 'L'
+  // Step 1: Collect total deduction per ingredient across all order items
+  const deductionMap: Record<string, number> = {};
 
-const { data: recipeData } = await supabase
-  .from('recipes')
-  .select(`*, ingredients:ingredient_id (*)`)
-  .eq('menu_item_id', orderItem.menuItemId);
+  for (const orderItem of orderItems) {
+    const orderedSize = orderItem.customization?.size || 'R';
+
+    const { data: recipeData, error } = await supabase
+      .from('recipes')
+      .select(`*, ingredients:ingredient_id (*)`)
+      .eq('menu_item_id', orderItem.menuItemId)
+      .eq('size', orderedSize);
+
+    if (error) {
+      console.error('Recipe fetch error for', orderItem.name, error);
+      continue;
+    }
 
     for (const recipe of recipeData || []) {
       const ingredient = recipe.ingredients;
       if (!ingredient || ingredient.current_stock == null) continue;
 
       const quantityNeeded = recipe.quantity * (orderItem.quantity || 1);
-      const newStock = Math.max(0, ingredient.current_stock - quantityNeeded);
-
-      await supabase
-        .from('ingredients')
-        .update({ current_stock: newStock, updated_at: new Date().toISOString() })
-        .eq('id', ingredient.id);
-
-      await supabase.from('stock_logs').insert([{
-        ingredient_id: ingredient.id,
-        previous_stock: ingredient.current_stock,
-        new_stock: newStock,
-        quantity_change: -quantityNeeded,
-        reason: 'order',
-        reference_id: orderId
-      }]);
+      if (!deductionMap[ingredient.id]) {
+        deductionMap[ingredient.id] = 0;
+      }
+      deductionMap[ingredient.id] += quantityNeeded;
     }
+  }
+
+  // Step 2: Fetch fresh stock for all affected ingredients, then deduct once each
+  for (const [ingredientId, totalDeduction] of Object.entries(deductionMap)) {
+    const { data: freshData, error: fetchError } = await supabase
+      .from('ingredients')
+      .select('*')
+      .eq('id', ingredientId)
+      .single();
+
+    if (fetchError || !freshData) {
+      console.error('Failed to fetch fresh stock for', ingredientId);
+      continue;
+    }
+
+    const previousStock = freshData.current_stock;
+    const newStock = Math.max(0, previousStock - totalDeduction);
+
+    const { error: updateError } = await supabase
+      .from('ingredients')
+      .update({ current_stock: newStock, updated_at: new Date().toISOString() })
+      .eq('id', ingredientId);
+
+    if (updateError) {
+      console.error('Stock update error:', updateError);
+      continue;
+    }
+
+    await supabase.from('stock_logs').insert([{
+      ingredient_id: ingredientId,
+      previous_stock: previousStock,
+      new_stock: newStock,
+      quantity_change: -totalDeduction,
+      reason: 'order',
+      reference_id: orderId
+    }]);
   }
 };
 
