@@ -141,104 +141,63 @@ try {
   };
   
 const deductStock = async (orderItems: any[], orderId: string) => {
-  // Step 1: Collect total deduction per ingredient across all order items
   const deductionMap: Record<string, number> = {};
 
   for (const orderItem of orderItems) {
-    const orderedSize = orderItem.customization?.size || 'R';
-    const temperature = orderItem.customization?.temperature; // 'Hot' or 'Cold'
+    const temperature = orderItem.customization?.temperature;
     const menuItemId = orderItem.menuItemId;
-    const orderItemName = orderItem.name;
-    
-    // Get menu item category to check if it's espresso
+    const qty = orderItem.quantity || 1;
+
     const { data: menuData } = await supabase
-      .from('menu_items')
-      .select('category')
-      .eq('id', menuItemId)
-      .single();
-    
+      .from('menu_items').select('category').eq('id', menuItemId).single();
+
     const isEspresso = menuData?.category === 'Espresso';
-    
-    // For espresso drinks, cup type depends on temperature
-    let overrideCupIngredientId: string | null = null;
-    if (isEspresso && temperature) {
-      const cupName = temperature === 'Hot' ? 'Dabba Cups 16oz' : 'Regular U Cups 16oz';
-      const { data: cupData } = await supabase
-        .from('ingredients')
-        .select('id')
-        .eq('name', cupName)
-        .single();
-      if (cupData) overrideCupIngredientId = cupData.id;
-    }
-    
-    // Fetch recipes
+    const sizeToQuery = isEspresso ? 'R' : (orderItem.customization?.size || 'R');
+
     const { data: recipeData, error } = await supabase
       .from('recipes')
       .select(`*, ingredients:ingredient_id (*)`)
       .eq('menu_item_id', menuItemId)
-      .eq('size', orderedSize);
+      .eq('size', sizeToQuery);
 
-    if (error) {
-      console.error('Recipe fetch error for', orderItemName, error);
-      continue;
-    }
+    if (error) { console.error('Recipe fetch error:', error); continue; }
 
     for (const recipe of recipeData || []) {
-      let ingredient = recipe.ingredients;
-      let quantityNeeded = recipe.quantity * (orderItem.quantity || 1);
-      
-      // Override cup for espresso based on temperature
-      if (isEspresso && overrideCupIngredientId && ingredient.name?.toLowerCase().includes('cup')) {
-        const { data: cupData } = await supabase
-          .from('ingredients')
-          .select('*')
-          .eq('id', overrideCupIngredientId)
-          .single();
-        
-        if (cupData) {
-          ingredient = cupData;
-          quantityNeeded = 1 * (orderItem.quantity || 1);
-        }
-      }
-      
+      const ingredient = recipe.ingredients;
       if (!ingredient || ingredient.current_stock == null) continue;
 
-      if (!deductionMap[ingredient.id]) {
-        deductionMap[ingredient.id] = 0;
+      const isCup = ingredient.name?.toLowerCase().includes('cup');
+
+      // Espresso: skip recipe cup, add temperature-correct cup instead
+      if (isEspresso && isCup) {
+        const cupName = temperature === 'Hot' ? 'Hot Coffee Cups 12oz' : 'Dabba Cups 16oz';
+        const { data: cupIng } = await supabase
+          .from('ingredients').select('*').eq('name', cupName).single();
+        if (cupIng) {
+          deductionMap[cupIng.id] = (deductionMap[cupIng.id] || 0) + qty;
+        }
+        continue;
       }
-      deductionMap[ingredient.id] += quantityNeeded;
+
+      const quantityNeeded = recipe.quantity * qty;
+      deductionMap[ingredient.id] = (deductionMap[ingredient.id] || 0) + quantityNeeded;
     }
   }
 
-  // Step 2: Fetch fresh stock for all affected ingredients, then deduct once each
   for (const [ingredientId, totalDeduction] of Object.entries(deductionMap)) {
-    const { data: freshData, error: fetchError } = await supabase
-      .from('ingredients')
-      .select('*')
-      .eq('id', ingredientId)
-      .single();
+    const { data: fresh } = await supabase
+      .from('ingredients').select('*').eq('id', ingredientId).single();
+    if (!fresh) continue;
 
-    if (fetchError || !freshData) {
-      console.error('Failed to fetch fresh stock for', ingredientId);
-      continue;
-    }
+    const newStock = Math.max(0, fresh.current_stock - totalDeduction);
 
-    const previousStock = freshData.current_stock;
-    const newStock = Math.max(0, previousStock - totalDeduction);
-
-    const { error: updateError } = await supabase
-      .from('ingredients')
+    await supabase.from('ingredients')
       .update({ current_stock: newStock, updated_at: new Date().toISOString() })
       .eq('id', ingredientId);
 
-    if (updateError) {
-      console.error('Stock update error:', updateError);
-      continue;
-    }
-
     await supabase.from('stock_logs').insert([{
       ingredient_id: ingredientId,
-      previous_stock: previousStock,
+      previous_stock: fresh.current_stock,
       new_stock: newStock,
       quantity_change: -totalDeduction,
       reason: 'order',
