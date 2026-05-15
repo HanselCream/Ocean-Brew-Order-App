@@ -736,22 +736,41 @@ export default function InventoryScreen() {
       {/* ── RECIPES TAB ── */}
       {activeTab === 'recipes' && (
         <>
-          <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-            <div className="flex gap-2">
-              <button onClick={exportRecipes} className="px-4 py-2 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20">📥 Export Recipes</button>
-              <button onClick={() => setShowAddRecipe(true)} className="px-5 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200">+ Add Recipe</button>
-            </div>
-            <select value={recipeCategoryFilter} onChange={e => setRecipeCategoryFilter(e.target.value)}
-              className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white focus:outline-none">
-              {menuCategories.map(cat => <option key={cat} value={cat} className="bg-black">{cat === 'All' ? '📋 All Categories' : `📁 ${cat}`}</option>)}
-            </select>
-            <div className="relative">
-              <input type="text" placeholder="🔍 Search by name..." value={recipeSearchTerm} onChange={e => setRecipeSearchTerm(e.target.value)}
-                className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:border-white/50 w-64" />
-              {recipeSearchTerm && <button onClick={() => setRecipeSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">✕</button>}
-            </div>
-            <div className="text-xs text-gray-500">{filteredPivotedRecipes.length} of {pivotedRecipes.length} recipes</div>
-          </div>
+<div className="flex items-center gap-3 mb-4 flex-wrap">
+  <input
+    type="text"
+    placeholder="Search recipes..."
+    value={recipeSearchTerm}
+    onChange={e => setRecipeSearchTerm(e.target.value)}
+    className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:border-white/50 w-56"
+  />
+  <select
+    value={recipeCategoryFilter}
+    onChange={e => setRecipeCategoryFilter(e.target.value)}
+    className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white focus:outline-none"
+  >
+    {menuCategories.map(cat => (
+      <option key={cat} value={cat} className="bg-black">{cat === 'All' ? 'All Categories' : cat}</option>
+    ))}
+  </select>
+  <span className="text-xs text-gray-500">
+    {filteredPivotedRecipes.length} recipes
+    {recipeCategoryFilter !== 'All' && ` in ${recipeCategoryFilter}`}
+  </span>
+  <div className="flex gap-3 ml-auto">
+    <button
+      onClick={exportRecipes}
+      className="px-4 py-2 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20 transition-colors flex items-center gap-2"
+    >
+      📥 Export Recipes
+    </button>
+<button onClick={() => { setShowAddRecipe(true); setEditableRows([{ id: null, ingredient_id: ingredients[0]?.id || '', quantity: 1, size: 'R', _isNew: true, _deleted: false }]); }}
+      className="px-5 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200"
+    >
+      + Add Recipe
+    </button>
+  </div>
+</div>
 
           <div className="bg-black border border-white/20 rounded-xl overflow-x-auto">
             <table className="w-full text-sm min-w-[1000px]">
@@ -1047,44 +1066,102 @@ export default function InventoryScreen() {
       )}
 
       {/* ── Add Recipe Modal ── */}
-      {showAddRecipe && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setShowAddRecipe(false)}>
-          <div className="bg-black border border-white/20 rounded-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
-            <div className="p-5 border-b border-white/20"><h2 className="text-lg font-bold text-white">Add Recipe</h2></div>
-            <div className="p-5 space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-300 mb-1">Menu Item</label>
-                <select value={newRecipe.menu_item_id} onChange={e => setNewRecipe({...newRecipe, menu_item_id: e.target.value})} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white">
-                  <option value="">Select menu item...</option>
-                  {menuItems.map(item => <option key={item.id} value={item.id}>{item.name} ({item.category})</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-300 mb-1">Size</label>
-                <select value={newRecipe.size} onChange={e => setNewRecipe({...newRecipe, size: e.target.value})} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white">
-                  <option value="R">Regular (R)</option>
-                  <option value="L">Large (L)</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-300 mb-1">Ingredient</label>
-                <select value={newRecipe.ingredient_id} onChange={e => setNewRecipe({...newRecipe, ingredient_id: e.target.value})} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white">
-                  <option value="">Select ingredient...</option>
-                  {ingredients.map(ing => <option key={ing.id} value={ing.id}>{ing.name} ({ing.unit})</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-300 mb-1">Quantity Needed</label>
-                <input type="number" value={newRecipe.quantity} onChange={e => setNewRecipe({...newRecipe, quantity: parseFloat(e.target.value)})} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" />
-              </div>
-            </div>
-            <div className="p-5 border-t border-white/20 flex justify-end gap-3">
-              <button onClick={() => setShowAddRecipe(false)} className="px-5 py-2 rounded-xl bg-white/10 text-white font-semibold">Cancel</button>
-              <button onClick={addRecipe} className="px-5 py-2 rounded-xl bg-white text-black font-semibold">Save</button>
-            </div>
+{showAddRecipe && (
+  <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setShowAddRecipe(false)}>
+    <div className="bg-black border border-white/20 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+      <div className="p-5 border-b border-white/20">
+        <h2 className="text-lg font-bold text-white">Add Recipe</h2>
+        <p className="text-xs text-gray-400 mt-1">Select a menu item then add all ingredients at once</p>
+      </div>
+      <div className="p-5 space-y-4 overflow-y-auto flex-1">
+        {/* Menu Item + Size */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-semibold text-gray-300 mb-1">Menu Item</label>
+            <select value={newRecipe.menu_item_id} onChange={e => setNewRecipe({...newRecipe, menu_item_id: e.target.value})}
+              className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white">
+              <option value="">Select menu item...</option>
+              {menuItems
+                .filter(item => !['Supplies','Merchandise','Appetizers','Add Ons','Food'].includes(item.category))
+                .map(item => <option key={item.id} value={item.id}>{item.name} ({item.category})</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-300 mb-1">Size</label>
+            <select value={newRecipe.size} onChange={e => setNewRecipe({...newRecipe, size: e.target.value})}
+              className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white">
+              <option value="R">Regular (R)</option>
+              <option value="L">Large (L)</option>
+            </select>
           </div>
         </div>
-      )}
+
+        {/* Ingredient rows */}
+        <div>
+          <div className="grid grid-cols-[1fr_100px_60px_32px] gap-2 px-1 mb-1">
+            <span className="text-xs font-semibold text-gray-500 uppercase">Ingredient</span>
+            <span className="text-xs font-semibold text-gray-500 uppercase text-right">Quantity</span>
+            <span className="text-xs font-semibold text-gray-500 uppercase text-center">Unit</span>
+            <span></span>
+          </div>
+          {editableRows.map((row, idx) => (
+            !row._deleted && (
+              <div key={idx} className="grid grid-cols-[1fr_100px_60px_32px] gap-2 items-center bg-white/5 rounded-xl px-3 py-2 border border-white/10 mb-2">
+                <select value={row.ingredient_id} onChange={e => updateEditableRow(idx, 'ingredient_id', e.target.value)}
+                  className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none">
+                  {ingredients.map(ing => <option key={ing.id} value={ing.id}>{ing.name} ({ing.unit})</option>)}
+                </select>
+                <input type="number" min="0" step="any" value={row.quantity}
+                  onChange={e => updateEditableRow(idx, 'quantity', parseFloat(e.target.value) || 0)}
+                  className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white text-right focus:outline-none" />
+                <span className="text-xs text-gray-400 text-center font-mono">
+                  {ingredients.find(i => i.id === row.ingredient_id)?.unit || '—'}
+                </span>
+                <button onClick={() => markRowDeleted(idx)}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-900/30">×</button>
+              </div>
+            )
+          ))}
+          <button onClick={addEditableRow}
+            className="w-full py-2.5 rounded-xl border border-dashed border-white/20 text-gray-400 hover:text-white hover:border-white/40 text-sm font-semibold transition-colors">
+            + Add Ingredient Row
+          </button>
+        </div>
+      </div>
+
+      <div className="p-5 border-t border-white/20 flex justify-between items-center">
+        <span className="text-xs text-gray-500">{editableRows.filter(r => !r._deleted).length} ingredient(s)</span>
+        <div className="flex gap-3">
+          <button onClick={() => { setShowAddRecipe(false); setEditableRows([]); }}
+            className="px-5 py-2 rounded-xl bg-white/10 text-white font-semibold">Cancel</button>
+          <button
+            disabled={!newRecipe.menu_item_id || editableRows.filter(r => !r._deleted).length === 0}
+            onClick={async () => {
+              if (!newRecipe.menu_item_id) { alert('Select a menu item'); return; }
+              const rows = editableRows.filter(r => !r._deleted && r.ingredient_id && r.quantity > 0);
+              if (rows.length === 0) { alert('Add at least one ingredient'); return; }
+              for (const row of rows) {
+                const { error } = await supabase.from('recipes').insert([{
+                  menu_item_id: newRecipe.menu_item_id,
+                  ingredient_id: row.ingredient_id,
+                  quantity: row.quantity,
+                  size: newRecipe.size,
+                }]);
+                if (error) { alert('Error: ' + error.message); return; }
+              }
+              setShowAddRecipe(false);
+              setEditableRows([]);
+              setNewRecipe({ menu_item_id: '', ingredient_id: '', quantity: 0, size: 'R' });
+              loadAllData();
+            }}
+            className="px-5 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed">
+            Save All
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
 
       {/* ── Edit Ingredient Modal ── */}
       {editingIngredient && (
