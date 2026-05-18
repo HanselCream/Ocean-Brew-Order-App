@@ -50,7 +50,7 @@ export default function QueueScreen({ refreshKey }: { refreshKey: number }) {
   const printReceipt = async (order: Order) => {
     console.log('🧾 Printing order:', order.orderNumber);
     const settings = await getStoreSettings();
-    const date = new Date(order.createdAt).toLocaleString();
+    const date = new Date(order.createdAt).toLocaleString('en-PH', { timeZone: 'Asia/Manila' });
     let receiptText = '';
     const LINE_WIDTH = 32;
     const SEPARATOR = '-'.repeat(LINE_WIDTH);
@@ -179,6 +179,10 @@ const deductStock = async (orderItems: any[], orderId: string) => {
         continue;
       }
 
+      // Espresso Hot: skip straw deduction
+      const isStraw = ingredient.name?.toLowerCase().includes('straw');
+      if (isEspresso && isStraw && temperature === 'Hot') continue;
+
       const quantityNeeded = recipe.quantity * qty;
       deductionMap[ingredient.id] = (deductionMap[ingredient.id] || 0) + quantityNeeded;
     }
@@ -259,8 +263,8 @@ const markDone = async (id: string, orderItems?: any[]) => {
                 >×</button>
               </div>
               <div className="flex items-center gap-2 mt-1">
-                <span className="text-xs text-gray-500">{new Date(order.createdAt).toLocaleDateString()}</span>
-                <span className="text-xs text-gray-600">{new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+             <span className="text-xs text-gray-500">{new Date(order.createdAt).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' })}</span>
+<span className="text-xs text-gray-600">{new Date(order.createdAt).toLocaleTimeString('en-PH', { timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit' })}</span>
               </div>
             </div>
             <div className="space-y-2 mb-4">

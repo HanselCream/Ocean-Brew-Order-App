@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import * as XLSX from 'xlsx';
 
@@ -154,9 +154,10 @@ export default function InventoryScreen() {
   const calculateDrinksLeft = async () => {
     const drinks: Record<string, number> = {};
     for (const menuItem of menuItems) {
-      const { data: recipeData, error } = await supabase.from('recipes')
-        .select(`quantity, ingredient_id, ingredients (current_stock)`)
-        .eq('menu_item_id', menuItem.id);
+const { data: recipeData, error } = await supabase.from('recipes')
+  .select(`quantity, ingredient_id, ingredients (current_stock)`)
+  .eq('menu_item_id', menuItem.id)
+  .eq('size', 'R');  // use Regular as default for drinks-left estimate
       if (error) continue;
       if (!recipeData || recipeData.length === 0) { drinks[menuItem.id] = 999; continue; }
       let maxDrinks = Infinity;
@@ -172,8 +173,11 @@ export default function InventoryScreen() {
 
   const deductStockForOrder = async (orderItems: any[], orderId: string) => {
     for (const orderItem of orderItems) {
-      const { data: recipeData } = await supabase.from('recipes')
-        .select(`*, ingredients:ingredient_id (*)`).eq('menu_item_id', orderItem.menuItemId);
+const size = orderItem.customization?.size || 'R';
+const { data: recipeData } = await supabase.from('recipes')
+  .select(`*, ingredients:ingredient_id (*)`)
+  .eq('menu_item_id', orderItem.menuItemId)
+  .eq('size', size);
       for (const recipe of recipeData || []) {
         const ingredient = recipe.ingredients;
         const quantityNeeded = recipe.quantity * orderItem.quantity;
@@ -291,42 +295,40 @@ export default function InventoryScreen() {
     await loadAllData();
   };
 
-  const deleteRecipeByMenuItem = async (menuItemId: string, size: string) => {
-    const recipesToDelete = recipes.filter(r => r.menu_item_id === menuItemId && r.size === size);
-    if (recipesToDelete.length === 0) return;
-    if (!confirm(`Delete all recipes for "${recipesToDelete[0]?.menu_item_name} (${size})"?`)) return;
-    for (const recipe of recipesToDelete) {
-      await supabase.from('recipes').delete().eq('id', recipe.id);
-    }
-    loadAllData();
-  };
+const deleteRecipeByMenuItem = async (menuItemId: string, size: string) => {
+  const recipesToDelete = size
+    ? recipes.filter(r => r.menu_item_id === menuItemId && r.size === size)
+    : recipes.filter(r => r.menu_item_id === menuItemId);
+  if (recipesToDelete.length === 0) return;
+  for (const recipe of recipesToDelete) {
+    await supabase.from('recipes').delete().eq('id', recipe.id);
+  }
+  loadAllData();
+};
 
   // ============================================
   // EDIT RECIPE GROUP — open modal with all rows
   // ============================================
-  const openEditRecipeGroup = (menuItemId: string, menuItemName: string, size: string) => {
-    const groupRows = recipes.filter(r => r.menu_item_id === menuItemId && r.size === size);
-    setEditableRows(groupRows.map(r => ({
-      id: r.id,
-      ingredient_id: r.ingredient_id,
-      quantity: r.quantity,
-      size: r.size,
-      _deleted: false,
-      _isNew: false,
-    })));
-    setEditingRecipeGroup({ menuItemId, menuItemName, size });
-  };
+const openEditRecipeGroup = (menuItemId: string, menuItemName: string, size: string) => {
+  const groupRows = recipes.filter(r => r.menu_item_id === menuItemId);
+  setEditableRows(groupRows.map(r => ({
+    id: r.id, ingredient_id: r.ingredient_id,
+    quantity: r.quantity, size: r.size,
+    _deleted: false, _isNew: false,
+  })));
+  setEditingRecipeGroup({ menuItemId, menuItemName, size: 'edit' });
+};
 
-  const addEditableRow = () => {
-    setEditableRows(prev => [...prev, {
-      id: null,
-      ingredient_id: ingredients[0]?.id || '',
-      quantity: 1,
-      size: editingRecipeGroup?.size || 'R',
-      _isNew: true,
-      _deleted: false,
-    }]);
-  };
+const addEditableRow = () => {
+  setEditableRows(prev => [...prev, {
+    id: null,
+    ingredient_id: ingredients[0]?.id || '',
+    quantity: 1,
+    size: 'R',
+    _isNew: true,
+    _deleted: false,
+  }]);
+};
 
   const updateEditableRow = (idx: number, field: keyof EditableRecipeRow, value: any) => {
     setEditableRows(prev => prev.map((row, i) => i === idx ? { ...row, [field]: value } : row));
@@ -368,9 +370,9 @@ export default function InventoryScreen() {
           if (error) throw error;
         }
       }
-      setEditingRecipeGroup(null);
+setEditingRecipeGroup(null);
       setEditableRows([]);
-      await loadAllData();
+      await Promise.all([loadRecipes(), loadIngredients()]);
     } catch (err: any) {
       alert('Error saving recipes: ' + err.message);
     } finally {
@@ -482,106 +484,69 @@ export default function InventoryScreen() {
     ...INGREDIENT_CATEGORIES, ...ingredients.map(i => i.category).filter(Boolean),
   ])).sort();
 
-  const pivotedRecipes = useMemo(() => {
-    const POWDER_NAMES = new Set(['okinawa','hokkaido','uji matcha','taro','dark choco','oreo','wintermelon','rock salt & cheese','cheesecake','powder']);
-    const CREAMER_NAMES = new Set(['creamer']);
-    const FRUCTOSE_NAMES = new Set(['fructose']);
-    const CUP_NAMES = new Set(['hard cups 22oz','regular u cups 16oz','dabba cups 16oz','hot coffee cups 12oz']);
-    const STRAW_NAMES = new Set(['boba straw 21cm','boba straw 23cm','thin coffee straws','boba straws 21cm','boba straws 23cm']);
-    const SAUCE_NAMES = new Set(['condensed milk','caramel sauce monin','dark chocolate sauce monin']);
+const pivotedRecipes = useMemo(() => {
+const getIngName = (r: Recipe) => ingredients.find(i => i.id === r.ingredient_id)?.name || r.ingredient_name || '';
+  const IS_CUP = (n: string) => /cup/i.test(n);
+  const IS_STRAW = (n: string) => /straw/i.test(n);
+  const IS_PACKING_ROW = (r: Recipe) => {
+    const ing = ingredients.find(i => i.id === r.ingredient_id);
+    if (ing?.category === 'Packaging Supplies') return true;
+    const n = getIngName(r);
+    return IS_CUP(n) || IS_STRAW(n);
+  };
 
-    const classify = (name: string): 'powder'|'creamer'|'fructose'|'cup'|'straw'|'sauce'|'syrup' => {
-      const n = name.toLowerCase().trim();
-      if (POWDER_NAMES.has(n)) return 'powder';
-      if (CREAMER_NAMES.has(n)) return 'creamer';
-      if (FRUCTOSE_NAMES.has(n)) return 'fructose';
-      if (CUP_NAMES.has(n)) return 'cup';
-      if (STRAW_NAMES.has(n)) return 'straw';
-      if (SAUCE_NAMES.has(n)) return 'sauce';
-      return 'syrup';
-    };
+  // group all recipe rows by menu_item_id
+  const grouped: Record<string, Recipe[]> = {};
+  recipes.forEach(r => {
+    if (!grouped[r.menu_item_id]) grouped[r.menu_item_id] = [];
+    grouped[r.menu_item_id].push(r);
+  });
 
-    const fmt = (r: Recipe) => {
-      const unit = ingredients.find(i => i.id === r.ingredient_id)?.unit || '';
-      return `${r.quantity} ${unit}`.trim();
-    };
+  const result: any[] = [];
 
-    const grouped: Record<string, Recipe[]> = {};
-    recipes.forEach(r => { if (!grouped[r.menu_item_id]) grouped[r.menu_item_id] = []; grouped[r.menu_item_id].push(r); });
+  Object.entries(grouped).forEach(([menuItemId, rows]) => {
+    const menuItemName = rows[0]?.menu_item_name || '';
+    const menuItemObj = menuItems.find(m => m.id === menuItemId);
+    const category = menuItemObj?.category || '';
 
-    const result: any[] = [];
+    // separate packing vs non-packing
+const packingRows = rows.filter(r => IS_PACKING_ROW(r));
+  const ingRows = rows.filter(r => !IS_PACKING_ROW(r));
 
-    Object.entries(grouped).forEach(([menuItemId, rows]) => {
-      const menuItem = rows[0]?.menu_item_name || '';
-      const cupRows = rows.filter(r => classify(r.ingredient_name || '') === 'cup');
-
-      if (cupRows.length === 0) { result.push(buildPivotRow(menuItemId, menuItem, '', rows)); return; }
-
-      const sizeGroups: Record<string, string> = {};
-      cupRows.forEach(c => {
-        const n = (c.ingredient_name || '').toLowerCase();
-        if (n.includes('hard cups')) sizeGroups[c.ingredient_id] = 'L';
-        else if (n.includes('regular') || n.includes('dabba') || n.includes('hot coffee')) sizeGroups[c.ingredient_id] = 'R';
-      });
-
-      const uniqueSizes = Array.from(new Set(Object.values(sizeGroups)));
-
-      if (uniqueSizes.length <= 1) {
-        result.push(buildPivotRow(menuItemId, menuItem, uniqueSizes[0] || '', rows));
-      } else {
-        const rCupIds = new Set(Object.entries(sizeGroups).filter(([,s]) => s === 'R').map(([id]) => id));
-        const lCupIds = new Set(Object.entries(sizeGroups).filter(([,s]) => s === 'L').map(([id]) => id));
-        const rRows: Recipe[] = []; const lRows: Recipe[] = [];
-        rows.forEach(r => {
-          const type = classify(r.ingredient_name || '');
-          if (type === 'cup') {
-            if (rCupIds.has(r.ingredient_id)) rRows.push(r);
-            else if (lCupIds.has(r.ingredient_id)) lRows.push(r);
-          }
-        });
-        const nonCupRows = rows.filter(r => classify(r.ingredient_name || '') !== 'cup');
-        const byIngredient: Record<string, Recipe[]> = {};
-        nonCupRows.forEach(r => { if (!byIngredient[r.ingredient_id]) byIngredient[r.ingredient_id] = []; byIngredient[r.ingredient_id].push(r); });
-        Object.values(byIngredient).forEach(ingRows => {
-          if (ingRows.length === 1) { rRows.push(ingRows[0]); lRows.push(ingRows[0]); }
-          else { const sorted = [...ingRows].sort((a,b) => a.quantity - b.quantity); rRows.push(sorted[0]); lRows.push(sorted[sorted.length-1]); }
-        });
-        result.push(buildPivotRow(menuItemId, menuItem, 'R', rRows));
-        result.push(buildPivotRow(menuItemId, menuItem, 'L', lRows));
-      }
+    // build ingredient slots — merge R and L by ingredient_id
+    const ingMap: Record<string, { name: string; qty_r: number | null; qty_l: number | null; unit: string }> = {};
+    ingRows.forEach(r => {
+      const ing = ingredients.find(i => i.id === r.ingredient_id);
+      if (!ingMap[r.ingredient_id]) ingMap[r.ingredient_id] = { name: r.ingredient_name || '', qty_r: null, qty_l: null, unit: ing?.unit || '' };
+      if (r.size === 'R') ingMap[r.ingredient_id].qty_r = r.quantity;
+      if (r.size === 'L') ingMap[r.ingredient_id].qty_l = r.quantity;
     });
+    const ingSlots = Object.entries(ingMap).map(([id, v]) => ({ ingredient_id: id, ...v }));
 
-    return result.sort((a, b) => a.menuItem.localeCompare(b.menuItem));
+    // packing
+const cup_r = packingRows.filter(r => r.size === 'R' && IS_CUP(getIngName(r))).map(r => getIngName(r)).join(' / ');
+  const cup_l = packingRows.filter(r => r.size === 'L' && IS_CUP(getIngName(r))).map(r => getIngName(r)).join(' / ');
+  const straw_r = packingRows.filter(r => r.size === 'R' && IS_STRAW(getIngName(r))).map(r => getIngName(r)).join(' / ');
+  const straw_l = packingRows.filter(r => r.size === 'L' && IS_STRAW(getIngName(r))).map(r => getIngName(r)).join(' / ');
+    result.push({ menuItemId, menuItemName, category, ingSlots, cup_r, cup_l, straw_r, straw_l });
+  });
 
-    function buildPivotRow(menuItemId: string, menuItem: string, size: string, rows: Recipe[]) {
-      const find = (type: ReturnType<typeof classify>) => rows.find(r => classify(r.ingredient_name || '') === type);
-      const findAll = (type: ReturnType<typeof classify>) => rows.filter(r => classify(r.ingredient_name || '') === type);
-      const powderRow = find('powder'); const creamerRow = find('creamer');
-      const fructoseRow = find('fructose'); const cupRow = find('cup');
-      const strawRow = find('straw'); const syrupRows = findAll('syrup'); const sauceRows = findAll('sauce');
-      return {
-        menuItemId, menuItem, size,
-        powder: powderRow ? fmt(powderRow) : '',
-        creamer: creamerRow ? fmt(creamerRow) : '',
-        fructose: fructoseRow ? fmt(fructoseRow) : '',
-        syrup: syrupRows.map(r => `${fmt(r)} ${r.ingredient_name}`).join(', '),
-        sauce: sauceRows.map(r => `${fmt(r)} ${r.ingredient_name}`).join(', '),
-        cups: cupRow?.ingredient_name || '',
-        straws: strawRow?.ingredient_name || '',
-        allIds: rows.map(r => r.id),
-      };
-    }
-  }, [recipes, ingredients]);
+  return result.sort((a, b) => {
+    if (a.category !== b.category) return a.category.localeCompare(b.category);
+    return a.menuItemName.localeCompare(b.menuItemName);
+  });
+}, [recipes, ingredients, menuItems]);
 
-  const filteredPivotedRecipes = useMemo(() => {
-    let filtered = pivotedRecipes;
-    if (recipeSearchTerm) filtered = filtered.filter(row => row.menuItem.toLowerCase().includes(recipeSearchTerm.toLowerCase()));
-    if (recipeCategoryFilter !== 'All') {
-      const ids = menuItems.filter(item => item.category === recipeCategoryFilter).map(item => item.id);
-      filtered = filtered.filter(row => ids.includes(row.menuItemId));
-    }
-    return filtered;
-  }, [pivotedRecipes, recipeSearchTerm, recipeCategoryFilter, menuItems]);
+const filteredPivotedRecipes = useMemo(() => {
+  let filtered = pivotedRecipes;
+  if (recipeSearchTerm) filtered = filtered.filter(row => row.menuItemName.toLowerCase().includes(recipeSearchTerm.toLowerCase()));
+  if (recipeCategoryFilter !== 'All') filtered = filtered.filter(row => row.category === recipeCategoryFilter);
+  return filtered;
+}, [pivotedRecipes, recipeSearchTerm, recipeCategoryFilter]);
+
+const maxIngSlots = useMemo(() => {
+  return Math.max(1, ...filteredPivotedRecipes.map(r => r.ingSlots.length));
+}, [filteredPivotedRecipes]);
 
   if (loading) return <div className="flex-1 p-8 bg-black text-white">Loading inventory...</div>;
 
@@ -689,7 +654,6 @@ export default function InventoryScreen() {
                   <th className="px-4 py-3 text-right">In Stock</th>
                   <th className="px-4 py-3 text-right">Total Measurement</th>
                   <th className="px-4 py-3 text-right">Used ({DATE_RANGE_OPTIONS.find(o => o.value === usedDateRange)?.label})</th>
-                  <th className="px-4 py-3 text-right">Reorder at</th>
                   <th className="px-4 py-3 text-center">Status</th>
                   <th className="px-4 py-3 text-center">Actions</th>
                 </tr>
@@ -699,10 +663,15 @@ export default function InventoryScreen() {
                   const packCount = ing.unit_size ? Math.floor(ing.current_stock / ing.unit_size) : null;
                   const displayStock = packCount !== null ? `${packCount}${ing.container_unit ? ' ' + ing.container_unit : ''}` : `${ing.current_stock.toLocaleString()} ${ing.unit}`;
                   const isLowStock = packCount !== null ? packCount <= ing.min_stock_threshold : ing.current_stock <= ing.min_stock_threshold;
-                  const usedAmount = usedStockFiltered[ing.id];
-                  const usedDisplay = usedAmount ? (packCount !== null ? `${Math.floor(usedAmount / ing.unit_size!)} ${ing.container_unit || 'containers'}` : `${usedAmount.toLocaleString()} ${ing.unit}`) : '—';
-                  const thresholdDisplay = packCount !== null ? `${ing.min_stock_threshold} ${ing.container_unit || 'containers'}` : `${ing.min_stock_threshold} ${ing.unit}`;
-                  return (
+                  const usedAmount = usedStockFiltered[ing.id] || 0;
+const usedDisplay = usedAmount > 0
+  ? (packCount !== null 
+    ? `${Math.floor(usedAmount / ing.unit_size!)} ${ing.container_unit ? ing.container_unit + 's' : ing.unit}` 
+    : `${usedAmount.toLocaleString()} ${ing.unit}`) 
+  : '—';
+const thresholdDisplay = packCount !== null 
+  ? `${ing.min_stock_threshold} ${ing.container_unit ? ing.container_unit + 's' : ing.unit}` 
+  : `${ing.min_stock_threshold} ${ing.unit}`;                  return (
                     <tr key={ing.id} className="border-t border-white/10 hover:bg-white/5">
                       <td className="px-4 py-3 text-gray-400 text-sm">{ing.category}</td>
                       <td className="px-4 py-3 font-medium text-white">{ing.name}</td>
@@ -711,7 +680,6 @@ export default function InventoryScreen() {
                       </td>
                       <td className="px-4 py-3 text-right text-gray-300">{ing.current_stock.toLocaleString()} {ing.unit}</td>
                       <td className="px-4 py-3 text-right text-gray-400">{usedDisplay}</td>
-                      <td className="px-4 py-3 text-right text-gray-400">{thresholdDisplay}</td>
                       <td className="px-4 py-3 text-center">
                         {ing.current_stock === 0 ? <span className="px-2 py-1 rounded-full bg-red-900/60 text-red-300 text-xs font-semibold">NO STOCK</span>
                           : isLowStock ? <span className="px-2 py-1 rounded-full bg-yellow-900/60 text-yellow-300 text-xs font-semibold">LOW STOCK</span>
@@ -774,52 +742,60 @@ export default function InventoryScreen() {
 
           <div className="bg-black border border-white/20 rounded-xl overflow-x-auto">
             <table className="w-full text-sm min-w-[1000px]">
-              <thead className="bg-white/5 text-gray-300 border-b border-white/10 sticky top-0">
-                <tr>
-                  <th className="px-3 py-3 text-left">Menu Item</th>
-                  <th className="px-3 py-3 text-center">Size</th>
-                  <th className="px-3 py-3 text-right">Powder</th>
-                  <th className="px-3 py-3 text-right">Creamer</th>
-                  <th className="px-3 py-3 text-right">Fructose</th>
-                  <th className="px-3 py-3 text-left">Syrup</th>
-                  <th className="px-3 py-3 text-left">Sauce</th>
-                  <th className="px-3 py-3 text-left">Cups</th>
-                  <th className="px-3 py-3 text-left">Straws</th>
-                  <th className="px-3 py-3 text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPivotedRecipes.map(row => (
-                  <tr key={`${row.menuItemId}-${row.size || 'no-size'}`} className="border-t border-white/10 hover:bg-white/5">
-                    <td className="px-3 py-3 font-medium text-white whitespace-nowrap">{row.menuItem}</td>
-                    <td className="px-3 py-3 text-center">
-                      {row.size ? (
-                        <div className="flex items-center justify-center gap-1">
-                          <span className={`px-2 py-0.5 rounded text-xs font-bold ${row.size === 'R' ? 'bg-blue-900/50 text-blue-300' : 'bg-purple-900/50 text-purple-300'}`}>{row.size}</span>
-                          <button onClick={() => { const ns = row.size === 'R' ? 'L' : 'R'; if (confirm(`Duplicate ${row.menuItem} (${row.size}) to (${ns})?`)) duplicateSizeVariant(row.menuItemId, row.size, ns as 'R'|'L'); }}
-                            className="text-xs text-gray-500 hover:text-green-400" title="Duplicate size">📋</button>
-                        </div>
-                      ) : <span className="text-gray-600">—</span>}
-                    </td>
-                    <td className="px-3 py-3 text-right text-gray-300">{row.powder || '—'}</td>
-                    <td className="px-3 py-3 text-right text-gray-300">{row.creamer || '—'}</td>
-                    <td className="px-3 py-3 text-right text-gray-300">{row.fructose || '—'}</td>
-                    <td className="px-3 py-3 text-gray-300 text-xs">{row.syrup || '—'}</td>
-                    <td className="px-3 py-3 text-gray-300 text-xs">{row.sauce || '—'}</td>
-                    <td className="px-3 py-3 text-gray-300 text-xs whitespace-nowrap">{row.cups || '—'}</td>
-                    <td className="px-3 py-3 text-gray-300 text-xs whitespace-nowrap">{row.straws || '—'}</td>
-                    <td className="px-3 py-3 text-center">
-                      <div className="flex gap-2 justify-center">
-                        {/* ── NEW: opens full-row edit modal ── */}
-                        <button onClick={() => openEditRecipeGroup(row.menuItemId, row.menuItem, row.size)}
-                          className="text-green-400 hover:text-green-300 text-xs font-semibold">✏️ Edit</button>
-                        <button onClick={() => deleteRecipeByMenuItem(row.menuItemId, row.size)}
-                          className="text-red-400 hover:text-red-300 text-xs">🗑️ Delete</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+<thead className="bg-white/5 text-gray-300 border-b border-white/10 sticky top-0">
+  <tr>
+    <th className="px-3 py-3 text-left whitespace-nowrap">Category</th>
+    <th className="px-3 py-3 text-left whitespace-nowrap">Menu Item</th>
+    {Array.from({ length: maxIngSlots }, (_, i) => (
+      <React.Fragment key={`th-ing-${i}`}>
+        <th className="px-3 py-3 text-left whitespace-nowrap">Ingredient {i + 1}</th>
+        <th className="px-3 py-3 text-center whitespace-nowrap">R</th>
+        <th className="px-3 py-3 text-center whitespace-nowrap">L</th>
+      </React.Fragment>
+    ))}
+    <th className="px-3 py-3 text-left whitespace-nowrap">Cup R</th>
+    <th className="px-3 py-3 text-left whitespace-nowrap">Cup L</th>
+    <th className="px-3 py-3 text-left whitespace-nowrap">Straw R</th>
+    <th className="px-3 py-3 text-left whitespace-nowrap">Straw L</th>
+    <th className="px-3 py-3 text-center whitespace-nowrap">Actions</th>
+  </tr>
+</thead>
+<tbody>
+  {filteredPivotedRecipes.map(row => (
+    <tr key={row.menuItemId} className="border-t border-white/10 hover:bg-white/5">
+      <td className="px-3 py-3 text-gray-400 text-xs whitespace-nowrap">{row.category}</td>
+      <td className="px-3 py-3 font-medium text-white whitespace-nowrap">{row.menuItemName}</td>
+{Array.from({ length: maxIngSlots }, (_, i) => i).map(i => {
+  const slot = row.ingSlots[i];
+  return slot ? (
+    <React.Fragment key={`slot-${i}`}>
+      <td className="px-3 py-3 text-gray-300 text-xs whitespace-nowrap">{slot.name}</td>
+      <td className="px-3 py-3 text-center text-xs text-white">{slot.qty_r != null ? `${slot.qty_r}${slot.unit}` : '—'}</td>
+      <td className="px-3 py-3 text-center text-xs text-white">{slot.qty_l != null ? `${slot.qty_l}${slot.unit}` : '—'}</td>
+    </React.Fragment>
+  ) : (
+    <React.Fragment key={`slot-${i}`}>
+      <td className="px-3 py-3 text-gray-600">—</td>
+      <td className="px-3 py-3 text-gray-600 text-center">—</td>
+      <td className="px-3 py-3 text-gray-600 text-center">—</td>
+    </React.Fragment>
+  );
+})}
+      <td className="px-3 py-3 text-gray-300 text-xs whitespace-nowrap">{row.cup_r || '—'}</td>
+      <td className="px-3 py-3 text-gray-300 text-xs whitespace-nowrap">{row.cup_l || '—'}</td>
+      <td className="px-3 py-3 text-gray-300 text-xs whitespace-nowrap">{row.straw_r || '—'}</td>
+      <td className="px-3 py-3 text-gray-300 text-xs whitespace-nowrap">{row.straw_l || '—'}</td>
+      <td className="px-3 py-3 text-center">
+        <div className="flex gap-2 justify-center">
+          <button onClick={() => openEditRecipeGroup(row.menuItemId, row.menuItemName, '')}
+            className="text-green-400 hover:text-green-300 text-xs font-semibold">✏️ Edit</button>
+          <button onClick={() => { if (confirm(`Delete all recipes for "${row.menuItemName}"?`)) deleteRecipeByMenuItem(row.menuItemId, '') }}
+            className="text-red-400 hover:text-red-300 text-xs">🗑️ Delete</button>
+        </div>
+      </td>
+    </tr>
+  ))}
+</tbody>
             </table>
             {filteredPivotedRecipes.length === 0 && (
               <div className="text-center py-12 text-gray-500">No recipes found matching "{recipeSearchTerm}"</div>
@@ -843,9 +819,9 @@ export default function InventoryScreen() {
             </thead>
             <tbody>
               {stockLogs.map(log => (
-                <tr key={log.id} className="border-t border-white/10 hover:bg-white/5">
-                  <td className="px-4 py-3 text-gray-400">{new Date(log.created_at).toLocaleString()}</td>
-                  <td className="px-4 py-3 font-medium text-white">{log.ingredient_name}</td>
+              <tr key={log.id} className="border-t border-white/10 hover:bg-white/5">
+  <td className="px-4 py-3 text-gray-400">{new Date(log.created_at + 'Z').toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}</td>
+  <td className="px-4 py-3 font-medium text-white">{log.ingredient_name}</td>
                   <td className="px-4 py-3 text-right"><span className={log.quantity_change < 0 ? 'text-red-400' : 'text-green-400'}>{log.quantity_change > 0 ? '+' : ''}{log.quantity_change}</span></td>
                   <td className="px-4 py-3 text-right text-gray-400">{log.previous_stock} → {log.new_stock}</td>
                   <td className="px-4 py-3 text-gray-300">{log.reason}</td>
@@ -869,9 +845,9 @@ export default function InventoryScreen() {
                 <p className="text-sm text-gray-400 mt-0.5">
                   <span className="text-white font-semibold">{editingRecipeGroup.menuItemName}</span>
                   {editingRecipeGroup.size && (
-                    <span className={`ml-2 px-2 py-0.5 rounded text-xs font-bold ${editingRecipeGroup.size === 'R' ? 'bg-blue-900/60 text-blue-300' : 'bg-purple-900/60 text-purple-300'}`}>
-                      {editingRecipeGroup.size === 'R' ? 'Regular' : 'Large'}
-                    </span>
+<span className="ml-2 px-2 py-0.5 rounded text-xs font-bold bg-white/10 text-gray-300">
+  All Sizes
+</span>
                   )}
                 </p>
               </div>
@@ -881,58 +857,39 @@ export default function InventoryScreen() {
             {/* Body — scrollable */}
             <div className="flex-1 overflow-y-auto p-5 space-y-3">
               {/* Column headers */}
-              <div className="grid grid-cols-[1fr_100px_60px_32px] gap-2 px-1">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Ingredient</span>
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide text-right">Quantity</span>
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide text-center">Unit</span>
-                <span></span>
-              </div>
-
-              {editableRows.filter(row => !row._deleted).map((row, idx) => {
-                const actualIdx = editableRows.indexOf(row);
-                const selectedIngredient = ingredients.find(i => i.id === row.ingredient_id);
-                return (
-                  <div key={actualIdx} className="grid grid-cols-[1fr_100px_60px_32px] gap-2 items-center bg-white/5 rounded-xl px-3 py-2 border border-white/10">
-                    {/* Ingredient dropdown */}
-                    <select
-                      value={row.ingredient_id}
-                      onChange={e => updateEditableRow(actualIdx, 'ingredient_id', e.target.value)}
-                      className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-white/50"
-                    >
-                      {ingredients.map(ing => (
-                        <option key={ing.id} value={ing.id} className="bg-black">
-                          {ing.name} ({ing.unit})
-                        </option>
-                      ))}
-                    </select>
-
-                    {/* Quantity input */}
-                    <input
-                      type="number"
-                      min="0"
-                      step="any"
-                      value={row.quantity}
-                      onChange={e => updateEditableRow(actualIdx, 'quantity', parseFloat(e.target.value) || 0)}
-                      className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white text-right focus:outline-none focus:border-white/50"
-                    />
-
-                    {/* Unit display */}
-                    <span className="text-xs text-gray-400 text-center font-mono">
-                      {selectedIngredient?.unit || '—'}
-                    </span>
-
-                    {/* Delete row */}
-                    <button
-                      onClick={() => markRowDeleted(actualIdx)}
-                      className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-900/30 hover:text-red-400 transition-colors"
-                      title="Remove this ingredient"
-                    >
-                      ×
-                    </button>
-                  </div>
-                );
-              })}
-
+<div className="grid grid-cols-[1fr_60px_100px_60px_32px] gap-2 px-1">
+  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Ingredient</span>
+  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide text-center">Size</span>
+  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide text-center">Quantity</span>
+  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide text-center">Unit</span>
+  <span></span>
+</div>
+{editableRows.filter(row => !row._deleted).map((row, idx) => {
+  const actualIdx = editableRows.indexOf(row);
+  const selectedIngredient = ingredients.find(i => i.id === row.ingredient_id);
+  return (
+<div key={actualIdx} className="grid grid-cols-[1fr_60px_100px_60px_32px] gap-2 items-center bg-white/5 rounded-xl px-3 py-2 border border-white/10">
+  <select value={row.ingredient_id} onChange={e => updateEditableRow(actualIdx, 'ingredient_id', e.target.value)}
+    className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-white/50">
+    {ingredients.map(ing => (
+      <option key={ing.id} value={ing.id} className="bg-black">{ing.name} ({ing.unit})</option>
+    ))}
+  </select>
+  <select value={row.size} onChange={e => updateEditableRow(actualIdx, 'size', e.target.value)}
+    className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white text-center focus:outline-none focus:border-white/50">
+    <option value="R" className="bg-black">R</option>
+    <option value="L" className="bg-black">L</option>
+  </select>
+  <input type="number" min="0" step="any"
+    value={row.quantity}
+    onChange={e => updateEditableRow(actualIdx, 'quantity', parseFloat(e.target.value) || 0)}
+    className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white text-center focus:outline-none focus:border-white/50" />
+  <span className="text-xs text-gray-400 text-center font-mono">{selectedIngredient?.unit || '—'}</span>
+  <button onClick={() => markRowDeleted(actualIdx)}
+    className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-900/30 hover:text-red-400 transition-colors">×</button>
+</div>
+  );
+})}
               {editableRows.filter(r => !r._deleted).length === 0 && (
                 <p className="text-center text-gray-600 text-sm py-4">No ingredients. Add one below.</p>
               )}
@@ -1075,45 +1032,41 @@ export default function InventoryScreen() {
       </div>
       <div className="p-5 space-y-4 overflow-y-auto flex-1">
         {/* Menu Item + Size */}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-sm font-semibold text-gray-300 mb-1">Menu Item</label>
-            <select value={newRecipe.menu_item_id} onChange={e => setNewRecipe({...newRecipe, menu_item_id: e.target.value})}
-              className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white">
-              <option value="">Select menu item...</option>
-              {menuItems
-                .filter(item => !['Supplies','Merchandise','Appetizers','Add Ons','Food'].includes(item.category))
-                .map(item => <option key={item.id} value={item.id}>{item.name} ({item.category})</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-300 mb-1">Size</label>
-            <select value={newRecipe.size} onChange={e => setNewRecipe({...newRecipe, size: e.target.value})}
-              className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white">
-              <option value="R">Regular (R)</option>
-              <option value="L">Large (L)</option>
-            </select>
-          </div>
+<div>
+          <label className="block text-sm font-semibold text-gray-300 mb-1">Menu Item</label>
+          <select value={newRecipe.menu_item_id} onChange={e => setNewRecipe({...newRecipe, menu_item_id: e.target.value})}
+            className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white">
+            <option value="">Select menu item...</option>
+            {menuItems
+              .filter(item => !['Supplies','Merchandise','Appetizers','Add Ons','Food'].includes(item.category))
+              .map(item => <option key={item.id} value={item.id}>{item.name} ({item.category})</option>)}
+          </select>
         </div>
 
         {/* Ingredient rows */}
         <div>
-          <div className="grid grid-cols-[1fr_100px_60px_32px] gap-2 px-1 mb-1">
+          <div className="grid grid-cols-[1fr_60px_100px_60px_32px] gap-2 px-1 mb-1">
             <span className="text-xs font-semibold text-gray-500 uppercase">Ingredient</span>
-            <span className="text-xs font-semibold text-gray-500 uppercase text-right">Quantity</span>
+            <span className="text-xs font-semibold text-gray-500 uppercase text-center">Size</span>
+            <span className="text-xs font-semibold text-gray-500 uppercase text-center">Quantity</span>
             <span className="text-xs font-semibold text-gray-500 uppercase text-center">Unit</span>
             <span></span>
           </div>
           {editableRows.map((row, idx) => (
             !row._deleted && (
-              <div key={idx} className="grid grid-cols-[1fr_100px_60px_32px] gap-2 items-center bg-white/5 rounded-xl px-3 py-2 border border-white/10 mb-2">
+              <div key={idx} className="grid grid-cols-[1fr_60px_100px_60px_32px] gap-2 items-center bg-white/5 rounded-xl px-3 py-2 border border-white/10 mb-2">
                 <select value={row.ingredient_id} onChange={e => updateEditableRow(idx, 'ingredient_id', e.target.value)}
                   className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none">
                   {ingredients.map(ing => <option key={ing.id} value={ing.id}>{ing.name} ({ing.unit})</option>)}
                 </select>
+                <select value={row.size} onChange={e => updateEditableRow(idx, 'size', e.target.value)}
+                  className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white text-center focus:outline-none">
+                  <option value="R" className="bg-black">R</option>
+                  <option value="L" className="bg-black">L</option>
+                </select>
                 <input type="number" min="0" step="any" value={row.quantity}
                   onChange={e => updateEditableRow(idx, 'quantity', parseFloat(e.target.value) || 0)}
-                  className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white text-right focus:outline-none" />
+                  className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white text-center focus:outline-none" />
                 <span className="text-xs text-gray-400 text-center font-mono">
                   {ingredients.find(i => i.id === row.ingredient_id)?.unit || '—'}
                 </span>
@@ -1140,19 +1093,19 @@ export default function InventoryScreen() {
               if (!newRecipe.menu_item_id) { alert('Select a menu item'); return; }
               const rows = editableRows.filter(r => !r._deleted && r.ingredient_id && r.quantity > 0);
               if (rows.length === 0) { alert('Add at least one ingredient'); return; }
-              for (const row of rows) {
-                const { error } = await supabase.from('recipes').insert([{
-                  menu_item_id: newRecipe.menu_item_id,
-                  ingredient_id: row.ingredient_id,
-                  quantity: row.quantity,
-                  size: newRecipe.size,
-                }]);
+for (const row of rows) {
+  const { error } = await supabase.from('recipes').insert([{
+    menu_item_id: newRecipe.menu_item_id,
+    ingredient_id: row.ingredient_id,
+    quantity: row.quantity,
+    size: row.size,  // ← use each row's own size
+  }]);
                 if (error) { alert('Error: ' + error.message); return; }
               }
-              setShowAddRecipe(false);
+setShowAddRecipe(false);
               setEditableRows([]);
               setNewRecipe({ menu_item_id: '', ingredient_id: '', quantity: 0, size: 'R' });
-              loadAllData();
+              await Promise.all([loadRecipes(), loadIngredients()]);
             }}
             className="px-5 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed">
             Save All
