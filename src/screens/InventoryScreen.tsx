@@ -40,12 +40,13 @@ interface StockLog {
 
 // Editable row in the Edit Recipe modal
 interface EditableRecipeRow {
-  id: string | null;        // null = new row not yet saved
+  id: string | null;
   ingredient_id: string;
   quantity: number;
   size: string;
-  _deleted?: boolean;       // marked for deletion
-  _isNew?: boolean;         // not yet in DB
+  slot?: number; // 1, 2, 3 for ingredients; 4=Cup R, 5=Cup L, 6=Straw R, 7=Straw L
+  _deleted?: boolean;
+  _isNew?: boolean;
 }
 
 const INGREDIENT_CATEGORIES = [
@@ -311,11 +312,28 @@ const deleteRecipeByMenuItem = async (menuItemId: string, size: string) => {
   // ============================================
 const openEditRecipeGroup = (menuItemId: string, menuItemName: string, size: string) => {
   const groupRows = recipes.filter(r => r.menu_item_id === menuItemId);
-  setEditableRows(groupRows.map(r => ({
-    id: r.id, ingredient_id: r.ingredient_id,
-    quantity: r.quantity, size: r.size,
-    _deleted: false, _isNew: false,
-  })));
+  setEditableRows(groupRows.map(r => {
+    const ing = ingredients.find(i => i.id === r.ingredient_id);
+    const isPacking = ing?.category === 'Packaging Supplies';
+    let slot = 1;
+    if (isPacking) {
+      const n = (ing?.name || '').toLowerCase();
+      if (/hard cups/i.test(n)) slot = 5;
+      else if (/cup/i.test(n)) slot = 4;
+      else if (/straw 23/i.test(n)) slot = 7;
+      else slot = 6;
+    } else {
+      const n = (ing?.name || r.ingredient_name || '').toLowerCase();
+      if (n === 'fructose') slot = 3;
+      else if (n === 'creamer') slot = 2;
+      else slot = 1;
+    }
+    return {
+      id: r.id, ingredient_id: r.ingredient_id,
+      quantity: r.quantity, size: r.size,
+      slot, _deleted: false, _isNew: false,
+    };
+  }));
   setEditingRecipeGroup({ menuItemId, menuItemName, size: 'edit' });
 };
 
@@ -521,7 +539,19 @@ const packingRows = rows.filter(r => IS_PACKING_ROW(r));
       if (r.size === 'R') ingMap[r.ingredient_id].qty_r = r.quantity;
       if (r.size === 'L') ingMap[r.ingredient_id].qty_l = r.quantity;
     });
-    const ingSlots = Object.entries(ingMap).map(([id, v]) => ({ ingredient_id: id, ...v }));
+    const SLOT_ORDER = ['milktea ingredients', 'syrups & fruit bases', 'coffee ingredients'];
+const ingSlots = Object.entries(ingMap)
+  .map(([id, v]) => ({ ingredient_id: id, ...v }))
+  .sort((a, b) => {
+    // PDF order: main(1) → creamer(2) → fructose(3)
+    const getOrder = (name: string) => {
+      const n = name.toLowerCase();
+      if (n === 'fructose') return 3;
+      if (n === 'creamer') return 2;
+      return 1;
+    };
+    return getOrder(a.name) - getOrder(b.name);
+  });
 
     // packing
 const cup_r = packingRows.filter(r => r.size === 'R' && IS_CUP(getIngName(r))).map(r => getIngName(r)).join(' / ');
@@ -753,10 +783,10 @@ const thresholdDisplay = packCount !== null
         <th className="px-3 py-3 text-center whitespace-nowrap">L</th>
       </React.Fragment>
     ))}
-    <th className="px-3 py-3 text-left whitespace-nowrap">Cup R</th>
-    <th className="px-3 py-3 text-left whitespace-nowrap">Cup L</th>
-    <th className="px-3 py-3 text-left whitespace-nowrap">Straw R</th>
-    <th className="px-3 py-3 text-left whitespace-nowrap">Straw L</th>
+<th className="px-3 py-3 text-left whitespace-nowrap text-yellow-300">Packing Cup R</th>
+<th className="px-3 py-3 text-left whitespace-nowrap text-yellow-300">Packing Cup L</th>
+<th className="px-3 py-3 text-left whitespace-nowrap text-yellow-300">Packing Straw R</th>
+<th className="px-3 py-3 text-left whitespace-nowrap text-yellow-300">Packing Straw L</th>
     <th className="px-3 py-3 text-center whitespace-nowrap">Actions</th>
   </tr>
 </thead>
@@ -857,50 +887,112 @@ const thresholdDisplay = packCount !== null
             {/* Body — scrollable */}
             <div className="flex-1 overflow-y-auto p-5 space-y-3">
               {/* Column headers */}
-<div className="grid grid-cols-[1fr_60px_100px_60px_32px] gap-2 px-1">
-  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Ingredient</span>
-  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide text-center">Size</span>
-  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide text-center">Quantity</span>
-  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide text-center">Unit</span>
+{/* ── INGREDIENTS SECTION ── */}
+<div className="mb-2">
+  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Ingredients</p>
+<div className="grid grid-cols-[90px_1fr_60px_80px_60px_32px] gap-2 px-1 mb-1">
+  <span className="text-xs text-yellow-400 uppercase">Column</span>
+  <span className="text-xs text-gray-600 uppercase">Name</span>
+  <span className="text-xs text-gray-600 uppercase text-center">Size</span>
+  <span className="text-xs text-gray-600 uppercase text-center">Qty</span>
+  <span className="text-xs text-gray-600 uppercase text-center">Unit</span>
   <span></span>
 </div>
-{editableRows.filter(row => !row._deleted).map((row, idx) => {
+{editableRows.filter(row => !row._deleted && ingredients.find(i => i.id === row.ingredient_id)?.category !== 'Packaging Supplies').map((row) => {
   const actualIdx = editableRows.indexOf(row);
   const selectedIngredient = ingredients.find(i => i.id === row.ingredient_id);
   return (
-<div key={actualIdx} className="grid grid-cols-[1fr_60px_100px_60px_32px] gap-2 items-center bg-white/5 rounded-xl px-3 py-2 border border-white/10">
-  <select value={row.ingredient_id} onChange={e => updateEditableRow(actualIdx, 'ingredient_id', e.target.value)}
-    className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-white/50">
-    {ingredients.map(ing => (
-      <option key={ing.id} value={ing.id} className="bg-black">{ing.name} ({ing.unit})</option>
-    ))}
-  </select>
-  <select value={row.size} onChange={e => updateEditableRow(actualIdx, 'size', e.target.value)}
-    className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white text-center focus:outline-none focus:border-white/50">
-    <option value="R" className="bg-black">R</option>
-    <option value="L" className="bg-black">L</option>
-  </select>
-  <input type="number" min="0" step="any"
-    value={row.quantity}
-    onChange={e => updateEditableRow(actualIdx, 'quantity', parseFloat(e.target.value) || 0)}
-    className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white text-center focus:outline-none focus:border-white/50" />
-  <span className="text-xs text-gray-400 text-center font-mono">{selectedIngredient?.unit || '—'}</span>
-  <button onClick={() => markRowDeleted(actualIdx)}
-    className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-900/30 hover:text-red-400 transition-colors">×</button>
-</div>
+    <div key={actualIdx} className="grid grid-cols-[80px_1fr_60px_80px_60px_32px] gap-2 items-center bg-white/5 rounded-xl px-3 py-2 border border-white/10 mb-2">
+      {/* Column picker */}
+      <select value={row.slot || 1} onChange={e => updateEditableRow(actualIdx, 'slot', parseInt(e.target.value))}
+        className="w-full bg-black border border-blue-900/50 rounded-lg px-2 py-1.5 text-xs text-blue-300 focus:outline-none">
+        <option value={1} className="bg-black">Ing 1</option>
+        <option value={2} className="bg-black">Ing 2</option>
+        <option value={3} className="bg-black">Ing 3</option>
+      </select>
+      <select value={row.ingredient_id} onChange={e => updateEditableRow(actualIdx, 'ingredient_id', e.target.value)}
+        className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-white/50">
+        {ingredients.filter(i => i.category !== 'Packaging Supplies').map(ing => (
+          <option key={ing.id} value={ing.id} className="bg-black">{ing.name} ({ing.unit})</option>
+        ))}
+      </select>
+      <select value={row.size} onChange={e => updateEditableRow(actualIdx, 'size', e.target.value)}
+        className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white text-center focus:outline-none focus:border-white/50">
+        <option value="R" className="bg-black">R</option>
+        <option value="L" className="bg-black">L</option>
+      </select>
+      <input type="number" min="0" step="any" value={row.quantity}
+        onChange={e => updateEditableRow(actualIdx, 'quantity', parseFloat(e.target.value) || 0)}
+        className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white text-center focus:outline-none focus:border-white/50" />
+      <span className="text-xs text-gray-400 text-center font-mono">{selectedIngredient?.unit || '—'}</span>
+      <button onClick={() => markRowDeleted(actualIdx)}
+        className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-900/30 hover:text-red-400 transition-colors">×</button>
+    </div>
   );
 })}
-              {editableRows.filter(r => !r._deleted).length === 0 && (
-                <p className="text-center text-gray-600 text-sm py-4">No ingredients. Add one below.</p>
-              )}
+  {editableRows.filter(r => !r._deleted && ingredients.find(i => i.id === r.ingredient_id)?.category !== 'Packaging Supplies').length === 0 && (
+    <p className="text-center text-gray-600 text-sm py-2">No ingredients.</p>
+  )}
+  <button onClick={() => setEditableRows(prev => [...prev, {
+    id: null, ingredient_id: ingredients.find(i => i.category !== 'Packaging Supplies')?.id || '', quantity: 1, size: 'R', _isNew: true, _deleted: false,
+  }])} className="w-full py-2 rounded-xl border border-dashed border-white/20 text-gray-400 hover:text-white text-sm font-semibold transition-colors">
+    + Add Ingredient
+  </button>
+</div>
 
-              {/* Add row button */}
-              <button
-                onClick={addEditableRow}
-                className="w-full py-2.5 rounded-xl border border-dashed border-white/20 text-gray-400 hover:text-white hover:border-white/40 text-sm font-semibold transition-colors flex items-center justify-center gap-2"
-              >
-                + Add Ingredient Row
-              </button>
+{/* ── PACKAGING SUPPLIES SECTION ── */}
+<div className="mt-4 pt-4 border-t border-white/10">
+  <p className="text-xs font-semibold text-yellow-400 uppercase tracking-wide mb-2">📦 Packaging Supplies</p>
+<div className="grid grid-cols-[80px_1fr_60px_80px_60px_32px] gap-2 px-1 mb-1">
+  <span className="text-xs text-blue-400 uppercase">Column</span>
+  <span className="text-xs text-gray-600 uppercase">Name</span>
+  <span className="text-xs text-gray-600 uppercase text-center">Size</span>
+  <span className="text-xs text-gray-600 uppercase text-center">Qty</span>
+  <span className="text-xs text-gray-600 uppercase text-center">Unit</span>
+  <span></span>
+</div>
+{editableRows.filter(row => !row._deleted && ingredients.find(i => i.id === row.ingredient_id)?.category === 'Packaging Supplies').map((row) => {
+  const actualIdx = editableRows.indexOf(row);
+  const selectedIngredient = ingredients.find(i => i.id === row.ingredient_id);
+  return (
+    <div key={actualIdx} className="grid grid-cols-[90px_1fr_60px_80px_60px_32px] gap-2 items-center bg-yellow-900/10 rounded-xl px-3 py-2 border border-yellow-900/30 mb-2">
+      {/* Packing column picker */}
+      <select value={row.slot || 4} onChange={e => updateEditableRow(actualIdx, 'slot', parseInt(e.target.value))}
+        className="w-full bg-black border border-yellow-900/50 rounded-lg px-2 py-1.5 text-xs text-yellow-300 focus:outline-none">
+        <option value={4} className="bg-black">Cup R</option>
+        <option value={5} className="bg-black">Cup L</option>
+        <option value={6} className="bg-black">Straw R</option>
+        <option value={7} className="bg-black">Straw L</option>
+      </select>
+      <select value={row.ingredient_id} onChange={e => updateEditableRow(actualIdx, 'ingredient_id', e.target.value)}
+        className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-white/50">
+        {ingredients.filter(i => i.category === 'Packaging Supplies').map(ing => (
+          <option key={ing.id} value={ing.id} className="bg-black">{ing.name} ({ing.unit})</option>
+        ))}
+      </select>
+        <select value={row.size} onChange={e => updateEditableRow(actualIdx, 'size', e.target.value)}
+          className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white text-center focus:outline-none focus:border-white/50">
+          <option value="R" className="bg-black">R</option>
+          <option value="L" className="bg-black">L</option>
+        </select>
+        <input type="number" min="0" step="any" value={row.quantity}
+          onChange={e => updateEditableRow(actualIdx, 'quantity', parseFloat(e.target.value) || 0)}
+          className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white text-center focus:outline-none focus:border-white/50" />
+        <span className="text-xs text-gray-400 text-center font-mono">{selectedIngredient?.unit || '—'}</span>
+        <button onClick={() => markRowDeleted(actualIdx)}
+          className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-900/30 hover:text-red-400 transition-colors">×</button>
+      </div>
+    );
+  })}
+  {editableRows.filter(r => !r._deleted && ingredients.find(i => i.id === r.ingredient_id)?.category === 'Packaging Supplies').length === 0 && (
+    <p className="text-center text-gray-600 text-sm py-2">No packaging supplies.</p>
+  )}
+  <button onClick={() => setEditableRows(prev => [...prev, {
+    id: null, ingredient_id: ingredients.find(i => i.category === 'Packaging Supplies')?.id || '', quantity: 1, size: 'R', _isNew: true, _deleted: false,
+  }])} className="w-full py-2 rounded-xl border border-dashed border-yellow-900/40 text-yellow-600 hover:text-yellow-400 text-sm font-semibold transition-colors">
+    + Add Packaging Supply
+  </button>
+</div>
             </div>
 
             {/* Footer */}
@@ -1045,20 +1137,39 @@ const thresholdDisplay = packCount !== null
 
         {/* Ingredient rows */}
         <div>
-          <div className="grid grid-cols-[1fr_60px_100px_60px_32px] gap-2 px-1 mb-1">
-            <span className="text-xs font-semibold text-gray-500 uppercase">Ingredient</span>
-            <span className="text-xs font-semibold text-gray-500 uppercase text-center">Size</span>
-            <span className="text-xs font-semibold text-gray-500 uppercase text-center">Quantity</span>
-            <span className="text-xs font-semibold text-gray-500 uppercase text-center">Unit</span>
-            <span></span>
-          </div>
-          {editableRows.map((row, idx) => (
-            !row._deleted && (
-              <div key={idx} className="grid grid-cols-[1fr_60px_100px_60px_32px] gap-2 items-center bg-white/5 rounded-xl px-3 py-2 border border-white/10 mb-2">
-                <select value={row.ingredient_id} onChange={e => updateEditableRow(idx, 'ingredient_id', e.target.value)}
-                  className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none">
-                  {ingredients.map(ing => <option key={ing.id} value={ing.id}>{ing.name} ({ing.unit})</option>)}
-                </select>
+<div className="grid grid-cols-[80px_1fr_60px_80px_60px_32px] gap-2 px-1 mb-1">
+  <span className="text-xs font-semibold text-blue-400 uppercase">Column</span>
+  <span className="text-xs font-semibold text-gray-500 uppercase">Ingredient</span>
+  <span className="text-xs font-semibold text-gray-500 uppercase text-center">Size</span>
+  <span className="text-xs font-semibold text-gray-500 uppercase text-center">Qty</span>
+  <span className="text-xs font-semibold text-gray-500 uppercase text-center">Unit</span>
+  <span></span>
+</div>
+{editableRows.map((row, idx) => {
+  const isPacking = ingredients.find(i => i.id === row.ingredient_id)?.category === 'Packaging Supplies';
+  return !row._deleted && (
+    <div key={idx} className={`grid grid-cols-[80px_1fr_60px_80px_60px_32px] gap-2 items-center rounded-xl px-3 py-2 border mb-2 ${isPacking ? 'bg-yellow-900/10 border-yellow-900/30' : 'bg-white/5 border-white/10'}`}>
+      <select value={row.slot || (isPacking ? 4 : 1)} onChange={e => updateEditableRow(idx, 'slot', parseInt(e.target.value))}
+        className={`w-full bg-black border rounded-lg px-2 py-1.5 text-xs focus:outline-none ${isPacking ? 'border-yellow-900/50 text-yellow-300' : 'border-blue-900/50 text-blue-300'}`}>
+        {isPacking ? (
+          <>
+            <option value={4} className="bg-black">Cup R</option>
+            <option value={5} className="bg-black">Cup L</option>
+            <option value={6} className="bg-black">Straw R</option>
+            <option value={7} className="bg-black">Straw L</option>
+          </>
+        ) : (
+          <>
+            <option value={1} className="bg-black">Ing 1</option>
+            <option value={2} className="bg-black">Ing 2</option>
+            <option value={3} className="bg-black">Ing 3</option>
+          </>
+        )}
+      </select>
+      <select value={row.ingredient_id} onChange={e => updateEditableRow(idx, 'ingredient_id', e.target.value)}
+        className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none">
+        {ingredients.map(ing => <option key={ing.id} value={ing.id}>{ing.name} ({ing.unit})</option>)}
+      </select>
                 <select value={row.size} onChange={e => updateEditableRow(idx, 'size', e.target.value)}
                   className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white text-center focus:outline-none">
                   <option value="R" className="bg-black">R</option>
@@ -1070,15 +1181,23 @@ const thresholdDisplay = packCount !== null
                 <span className="text-xs text-gray-400 text-center font-mono">
                   {ingredients.find(i => i.id === row.ingredient_id)?.unit || '—'}
                 </span>
-                <button onClick={() => markRowDeleted(idx)}
+<button onClick={() => markRowDeleted(idx)}
                   className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-900/30">×</button>
               </div>
             )
-          ))}
-          <button onClick={addEditableRow}
-            className="w-full py-2.5 rounded-xl border border-dashed border-white/20 text-gray-400 hover:text-white hover:border-white/40 text-sm font-semibold transition-colors">
-            + Add Ingredient Row
-          </button>
+          })}
+<div className="flex gap-2">
+  <button onClick={() => setEditableRows(prev => [...prev, {
+    id: null, ingredient_id: ingredients.find(i => i.category !== 'Packaging Supplies')?.id || '', quantity: 1, size: 'R', _isNew: true, _deleted: false,
+  }])} className="flex-1 py-2 rounded-xl border border-dashed border-white/20 text-gray-400 hover:text-white text-sm font-semibold transition-colors">
+    + Add Ingredient
+  </button>
+  <button onClick={() => setEditableRows(prev => [...prev, {
+    id: null, ingredient_id: ingredients.find(i => i.category === 'Packaging Supplies')?.id || '', quantity: 1, size: 'R', _isNew: true, _deleted: false,
+  }])} className="flex-1 py-2 rounded-xl border border-dashed border-yellow-900/40 text-yellow-600 hover:text-yellow-400 text-sm font-semibold transition-colors">
+    + Add Packaging
+  </button>
+</div>
         </div>
       </div>
 
