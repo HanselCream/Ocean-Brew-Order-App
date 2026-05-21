@@ -304,7 +304,7 @@ const deleteRecipeByMenuItem = async (menuItemId: string, size: string) => {
   for (const recipe of recipesToDelete) {
     await supabase.from('recipes').delete().eq('id', recipe.id);
   }
-  loadAllData();
+  await loadRecipes();
 };
 
   // ============================================
@@ -540,18 +540,20 @@ const packingRows = rows.filter(r => IS_PACKING_ROW(r));
       if (r.size === 'L') ingMap[r.ingredient_id].qty_l = r.quantity;
     });
     const SLOT_ORDER = ['milktea ingredients', 'syrups & fruit bases', 'coffee ingredients'];
+const getIngOrder = (ingredient_id: string, name: string) => {
+  const ing = ingredients.find(i => i.id === ingredient_id);
+  const cat = ing?.category?.toLowerCase() || '';
+  const n = name.toLowerCase();
+  if (cat === 'milktea ingredients' || cat === 'coffee ingredients') return 1;
+  if (n.includes('creamer') || n.includes('milk') || n.includes('condensed')) return 2;
+  if (n.includes('fructose') || n.includes('sugar')) return 3;
+  if (cat === 'syrups & fruit bases') return 4;
+  return 5;
+};
+
 const ingSlots = Object.entries(ingMap)
   .map(([id, v]) => ({ ingredient_id: id, ...v }))
-  .sort((a, b) => {
-    // PDF order: main(1) → creamer(2) → fructose(3)
-    const getOrder = (name: string) => {
-      const n = name.toLowerCase();
-      if (n === 'fructose') return 3;
-      if (n === 'creamer') return 2;
-      return 1;
-    };
-    return getOrder(a.name) - getOrder(b.name);
-  });
+  .sort((a, b) => getIngOrder(a.ingredient_id, a.name) - getIngOrder(b.ingredient_id, b.name));
 
     // packing
 const cup_r = packingRows.filter(r => r.size === 'R' && IS_CUP(getIngName(r))).map(r => getIngName(r)).join(' / ');
@@ -783,10 +785,10 @@ const thresholdDisplay = packCount !== null
         <th className="px-3 py-3 text-center whitespace-nowrap">L</th>
       </React.Fragment>
     ))}
-<th className="px-3 py-3 text-left whitespace-nowrap text-yellow-300">Packing Cup R</th>
-<th className="px-3 py-3 text-left whitespace-nowrap text-yellow-300">Packing Cup L</th>
-<th className="px-3 py-3 text-left whitespace-nowrap text-yellow-300">Packing Straw R</th>
-<th className="px-3 py-3 text-left whitespace-nowrap text-yellow-300">Packing Straw L</th>
+<th className="px-3 py-3 text-left whitespace-nowrap text-yellow-300">Cup R</th>
+<th className="px-3 py-3 text-left whitespace-nowrap text-yellow-300">Cup L</th>
+<th className="px-3 py-3 text-left whitespace-nowrap text-yellow-300">Straw R</th>
+<th className="px-3 py-3 text-left whitespace-nowrap text-yellow-300">Straw L</th>
     <th className="px-3 py-3 text-center whitespace-nowrap">Actions</th>
   </tr>
 </thead>
@@ -890,8 +892,7 @@ const thresholdDisplay = packCount !== null
 {/* ── INGREDIENTS SECTION ── */}
 <div className="mb-2">
   <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Ingredients</p>
-<div className="grid grid-cols-[90px_1fr_60px_80px_60px_32px] gap-2 px-1 mb-1">
-  <span className="text-xs text-yellow-400 uppercase">Column</span>
+<div className="grid grid-cols-[1fr_60px_80px_60px_32px] gap-2 px-1 mb-1">
   <span className="text-xs text-gray-600 uppercase">Name</span>
   <span className="text-xs text-gray-600 uppercase text-center">Size</span>
   <span className="text-xs text-gray-600 uppercase text-center">Qty</span>
@@ -902,8 +903,8 @@ const thresholdDisplay = packCount !== null
   const actualIdx = editableRows.indexOf(row);
   const selectedIngredient = ingredients.find(i => i.id === row.ingredient_id);
   return (
-    <div key={actualIdx} className="grid grid-cols-[80px_1fr_60px_80px_60px_32px] gap-2 items-center bg-white/5 rounded-xl px-3 py-2 border border-white/10 mb-2">
-      {/* Column picker */}
+<div key={actualIdx} className="grid grid-cols-[70px_1fr_55px_75px_45px_32px] gap-2 items-center bg-white/5 rounded-xl px-3 py-2 border border-white/10 mb-2">
+
       <select value={row.slot || 1} onChange={e => updateEditableRow(actualIdx, 'slot', parseInt(e.target.value))}
         className="w-full bg-black border border-blue-900/50 rounded-lg px-2 py-1.5 text-xs text-blue-300 focus:outline-none">
         <option value={1} className="bg-black">Ing 1</option>
@@ -943,8 +944,8 @@ const thresholdDisplay = packCount !== null
 {/* ── PACKAGING SUPPLIES SECTION ── */}
 <div className="mt-4 pt-4 border-t border-white/10">
   <p className="text-xs font-semibold text-yellow-400 uppercase tracking-wide mb-2">📦 Packaging Supplies</p>
-<div className="grid grid-cols-[80px_1fr_60px_80px_60px_32px] gap-2 px-1 mb-1">
-  <span className="text-xs text-blue-400 uppercase">Column</span>
+<div className="grid grid-cols-[70px_1fr_55px_75px_45px_32px] gap-2 px-1 mb-1">
+  <span className="text-xs text-blue-400 uppercase">Slot</span>
   <span className="text-xs text-gray-600 uppercase">Name</span>
   <span className="text-xs text-gray-600 uppercase text-center">Size</span>
   <span className="text-xs text-gray-600 uppercase text-center">Qty</span>
@@ -955,7 +956,8 @@ const thresholdDisplay = packCount !== null
   const actualIdx = editableRows.indexOf(row);
   const selectedIngredient = ingredients.find(i => i.id === row.ingredient_id);
   return (
-    <div key={actualIdx} className="grid grid-cols-[90px_1fr_60px_80px_60px_32px] gap-2 items-center bg-yellow-900/10 rounded-xl px-3 py-2 border border-yellow-900/30 mb-2">
+<div key={actualIdx} className="grid grid-cols-[70px_1fr_55px_75px_45px_32px] gap-2 items-center bg-yellow-900/10 rounded-xl px-3 py-2 border border-yellow-900/30 mb-2">
+
       {/* Packing column picker */}
       <select value={row.slot || 4} onChange={e => updateEditableRow(actualIdx, 'slot', parseInt(e.target.value))}
         className="w-full bg-black border border-yellow-900/50 rounded-lg px-2 py-1.5 text-xs text-yellow-300 focus:outline-none">
@@ -1137,9 +1139,9 @@ const thresholdDisplay = packCount !== null
 
         {/* Ingredient rows */}
         <div>
-<div className="grid grid-cols-[80px_1fr_60px_80px_60px_32px] gap-2 px-1 mb-1">
-  <span className="text-xs font-semibold text-blue-400 uppercase">Column</span>
-  <span className="text-xs font-semibold text-gray-500 uppercase">Ingredient</span>
+<div className="grid grid-cols-[70px_1fr_55px_75px_45px_32px] gap-2 px-1 mb-1">
+  <span className="text-xs text-yellow-400 uppercase">Slot</span>
+  <span className="text-xs text-gray-600 uppercase">Name</span>
   <span className="text-xs font-semibold text-gray-500 uppercase text-center">Size</span>
   <span className="text-xs font-semibold text-gray-500 uppercase text-center">Qty</span>
   <span className="text-xs font-semibold text-gray-500 uppercase text-center">Unit</span>
@@ -1148,9 +1150,10 @@ const thresholdDisplay = packCount !== null
 {editableRows.map((row, idx) => {
   const isPacking = ingredients.find(i => i.id === row.ingredient_id)?.category === 'Packaging Supplies';
   return !row._deleted && (
-    <div key={idx} className={`grid grid-cols-[80px_1fr_60px_80px_60px_32px] gap-2 items-center rounded-xl px-3 py-2 border mb-2 ${isPacking ? 'bg-yellow-900/10 border-yellow-900/30' : 'bg-white/5 border-white/10'}`}>
-      <select value={row.slot || (isPacking ? 4 : 1)} onChange={e => updateEditableRow(idx, 'slot', parseInt(e.target.value))}
-        className={`w-full bg-black border rounded-lg px-2 py-1.5 text-xs focus:outline-none ${isPacking ? 'border-yellow-900/50 text-yellow-300' : 'border-blue-900/50 text-blue-300'}`}>
+  <div key={idx} className={`flex gap-2 items-center rounded-xl px-3 py-2 border mb-2 ${isPacking ? 'bg-yellow-900/10 border-yellow-900/30' : 'bg-white/5 border-white/10'}`}>
+
+     <select value={row.slot || (isPacking ? 4 : 1)} onChange={e => updateEditableRow(idx, 'slot', parseInt(e.target.value))}
+  className={`w-20 shrink-0 bg-black border rounded-lg px-2 py-1.5 text-xs focus:outline-none ${isPacking ? 'border-yellow-900/50 text-yellow-300' : 'border-blue-900/50 text-blue-300'}`}>
         {isPacking ? (
           <>
             <option value={4} className="bg-black">Cup R</option>
@@ -1166,21 +1169,21 @@ const thresholdDisplay = packCount !== null
           </>
         )}
       </select>
-      <select value={row.ingredient_id} onChange={e => updateEditableRow(idx, 'ingredient_id', e.target.value)}
-        className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none">
+<select value={row.ingredient_id} onChange={e => updateEditableRow(idx, 'ingredient_id', e.target.value)}
+  className="flex-1 min-w-[160px] bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none">
         {ingredients.map(ing => <option key={ing.id} value={ing.id}>{ing.name} ({ing.unit})</option>)}
       </select>
                 <select value={row.size} onChange={e => updateEditableRow(idx, 'size', e.target.value)}
-                  className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white text-center focus:outline-none">
+  className="w-16 shrink-0 bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white text-center focus:outline-none">
                   <option value="R" className="bg-black">R</option>
                   <option value="L" className="bg-black">L</option>
                 </select>
                 <input type="number" min="0" step="any" value={row.quantity}
-                  onChange={e => updateEditableRow(idx, 'quantity', parseFloat(e.target.value) || 0)}
-                  className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white text-center focus:outline-none" />
-                <span className="text-xs text-gray-400 text-center font-mono">
-                  {ingredients.find(i => i.id === row.ingredient_id)?.unit || '—'}
-                </span>
+  onChange={e => updateEditableRow(idx, 'quantity', parseFloat(e.target.value) || 0)}
+  className="w-20 shrink-0 bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white text-center focus:outline-none" />
+<span className="text-xs text-gray-400 text-center font-mono w-12 shrink-0">
+  {ingredients.find(i => i.id === row.ingredient_id)?.unit || '—'}
+</span>
 <button onClick={() => markRowDeleted(idx)}
                   className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-900/30">×</button>
               </div>
