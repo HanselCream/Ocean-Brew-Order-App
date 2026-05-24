@@ -4,31 +4,21 @@ import { useState, useEffect } from 'react';
 import DateRangePicker from '@/components/DateRangePicker';
 import ExcelExport from '@/lib/excelExport';
 import { Order } from '@/lib/types';
-import { useAuth } from '@/context/AuthContext';
 import {
   getOrders, getDatabaseStats, getOrdersByDateRange, getDailySales,
 } from '@/lib/supabaseStore';
 
-interface ReportsScreenProps {
-  onSwitchToAdmin?: () => void;  // ← ADD THIS
-}
-
-export default function ReportsScreen({ onSwitchToAdmin }: ReportsScreenProps) { 
-  const { isAuthenticated } = useAuth();
+export default function ReportsScreen() {
   const [dailySales, setDailySales] = useState<{ date: string; total: number; orderCount: number }[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [exportSuccess, setExportSuccess] = useState('');
   const [loading, setLoading] = useState(true);
-  const [activeReport, setActiveReport] = useState<'overview' | 'items' | 'category' | 'staff'>('overview');
-  
 
   useEffect(() => {
-    if (isAuthenticated) {
-      loadOrders();
-      getDailySales().then(setDailySales);
-    }
-  }, [isAuthenticated]);
+    loadOrders();
+    getDailySales().then(setDailySales);
+  }, []);
 
   const loadOrders = async () => {
     setLoading(true);
@@ -56,21 +46,21 @@ export default function ReportsScreen({ onSwitchToAdmin }: ReportsScreenProps) {
     setShowDatePicker(false);
   };
 
-  const doneOrders = orders.filter(o => o.status === 'done');
+const doneOrders = orders.filter(o => o.status === 'done');
 
-  const staffPunched: Record<string, number> = {};
-  const staffMade: Record<string, number> = {};
-  doneOrders.forEach(o => {
-    const p = o.punchedBy;
-    const m = o.madeBy;
-    const drinkCount = o.items.reduce((s, i) => s + i.quantity, 0);
-    if (p) staffPunched[p] = (staffPunched[p] || 0) + 1;
-    if (m) staffMade[m] = (staffMade[m] || 0) + drinkCount;
-  });
-  const sortedPunched = Object.entries(staffPunched).sort((a, b) => b[1] - a[1]);
-  const sortedMade = Object.entries(staffMade).sort((a, b) => b[1] - a[1]);
+const staffPunched: Record<string, number> = {};
+const staffMade: Record<string, number> = {};
+doneOrders.forEach(o => {
+  const p = o.punchedBy;
+  const m = o.madeBy;
+  const drinkCount = o.items.reduce((s, i) => s + i.quantity, 0);
+  if (p) staffPunched[p] = (staffPunched[p] || 0) + 1;
+  if (m) staffMade[m] = (staffMade[m] || 0) + drinkCount;
+});
+const sortedPunched = Object.entries(staffPunched).sort((a, b) => b[1] - a[1]);
+const sortedMade = Object.entries(staffMade).sort((a, b) => b[1] - a[1]);
 
-  const sortedDays = dailySales.map(d => [d.date, d.total] as [string, number]);
+const sortedDays = dailySales.map(d => [d.date, d.total] as [string, number]);
   const maxDayRevenue = dailySales.length > 0 ? Math.max(...dailySales.map(d => d.total)) : 1;
 
   const salesByMonth: Record<string, number> = {};
@@ -86,9 +76,7 @@ export default function ReportsScreen({ onSwitchToAdmin }: ReportsScreenProps) {
   prevDate.setMonth(prevDate.getMonth() - 1);
   const prevMonth = prevDate.toISOString().slice(0, 7);
   const prevMonthTotal = salesByMonth[prevMonth] || 0;
-  const monthOverMonthChange = prevMonthTotal > 0
-    ? ((currentMonthTotal - prevMonthTotal) / prevMonthTotal * 100).toFixed(1)
-    : '0';
+  const monthOverMonthChange = prevMonthTotal > 0 ? ((currentMonthTotal - prevMonthTotal) / prevMonthTotal * 100).toFixed(1) : '0';
 
   const salesByItem: Record<string, { name: string; qty: number; revenue: number }> = {};
   doneOrders.forEach(o => {
@@ -105,355 +93,169 @@ export default function ReportsScreen({ onSwitchToAdmin }: ReportsScreenProps) {
     o.items.forEach(i => { salesByCat[i.category] = (salesByCat[i.category] || 0) + i.lineTotal; });
   });
   const sortedCats = Object.entries(salesByCat).sort((a, b) => b[1] - a[1]);
+
   const maxItemRevenue = sortedItems.length > 0 ? Math.max(...sortedItems.map(i => i.revenue)) : 1;
   const maxCatRevenue = sortedCats.length > 0 ? Math.max(...sortedCats.map(c => c[1])) : 1;
 
-  const totalRevenue = doneOrders.reduce((s, o) => s + o.total, 0);
-  const totalQty = doneOrders.reduce((s, o) => s + o.items.reduce((a, i) => a + i.quantity, 0), 0);
-  const avgOrder = doneOrders.length > 0 ? totalRevenue / doneOrders.length : 0;
-
-  const PIE_COLORS = ['#a78bfa', '#34d399', '#fb923c', '#60a5fa', '#f472b6', '#facc15', '#4ade80', '#e879f9'];
-  const totalCatRevenue = sortedCats.reduce((s, [, v]) => s + v, 0);
-  let cumulativeAngle = 0;
-  const pieSlices = sortedCats.map(([cat, total], i) => {
-    const pct = total / totalCatRevenue;
-    const angle = pct * 360;
-    const startAngle = cumulativeAngle;
-    cumulativeAngle += angle;
-    const start = startAngle * (Math.PI / 180);
-    const end = (startAngle + angle) * (Math.PI / 180);
-    const r = 80; const cx = 100; const cy = 100;
-    const x1 = cx + r * Math.sin(start); const y1 = cy - r * Math.cos(start);
-    const x2 = cx + r * Math.sin(end); const y2 = cy - r * Math.cos(end);
-    const largeArc = angle > 180 ? 1 : 0;
-    const path = `M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${largeArc},1 ${x2},${y2} Z`;
-    return { cat, total, pct, path, color: PIE_COLORS[i % PIE_COLORS.length] };
-  });
-
-  const MOM = parseFloat(monthOverMonthChange);
-
-
-
-  if (!isAuthenticated) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-black p-4">
-        <div className="bg-black border border-white/20 rounded-2xl p-8 text-center max-w-md">
-          <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center mx-auto mb-4">
-            <span className="text-4xl">🔒</span>
-          </div>
-          <h2 className="text-2xl font-bold text-white mb-2">Reports Locked</h2>
-          <p className="text-gray-400 mb-4">Please login to Admin area first to access reports.</p>
-          <button 
-            onClick={() => onSwitchToAdmin?.()}
-            className="inline-block px-6 py-3 rounded-xl bg-white text-black font-semibold hover:bg-gray-200"
-          >
-            Go to Admin Login
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (loading) return (
-    <div className="flex-1 flex items-center justify-center bg-black">
-      <div className="text-center">
-        <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin mx-auto mb-3" />
-        <p className="text-gray-500 text-sm">Loading reports...</p>
-      </div>
-    </div>
-  );
+  if (loading) return <div className="flex-1 p-6 bg-black text-white">Loading reports...</div>;
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-black">
-
-      {/* ── TOP HEADER ── */}
-      <div className="px-5 pt-4 pb-3 border-b border-white/10 shrink-0">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-lg font-bold text-white tracking-tight">Sales Reports</h1>
-            <p className="text-xs text-gray-500 mt-0.5">{doneOrders.length} completed orders · Ocean Brew</p>
-          </div>
-          <button onClick={() => setShowDatePicker(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 text-white text-xs font-semibold hover:bg-white/20 border border-white/20 transition-colors">
-            ⬇️ Export
+    <div className="flex-1 p-6 overflow-y-auto bg-black">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Sales Reports</h1>
+          <p className="text-sm text-gray-400 mt-1">Last 30 days • {orders.length} total orders</p>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={async () => {
+              const stats = await getDatabaseStats();
+              alert(`📊 Database Stats\n\nTotal Orders: ${stats.totalOrders}\nOldest: ${stats.dateRange.oldest.toLocaleDateString()}\nNewest: ${stats.dateRange.newest.toLocaleDateString()}`);
+            }}
+            className="px-4 py-2 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20 transition-colors flex items-center gap-2 border border-white/20"
+          >
+            <span>📊</span> DB Stats
           </button>
-        </div>
-
-        {/* KPI CARDS */}
-        <div className="grid grid-cols-4 gap-2 mb-4">
-          {[
-            { label: 'Total Revenue', value: `₱${totalRevenue.toLocaleString()}`, sub: `${doneOrders.length} orders`, color: 'text-violet-400', bg: 'bg-violet-500/10 border-violet-500/20' },
-            { label: 'This Month', value: `₱${currentMonthTotal.toLocaleString()}`, sub: `${MOM >= 0 ? '+' : ''}${monthOverMonthChange}% vs last mo.`, color: MOM >= 0 ? 'text-emerald-400' : 'text-red-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
-            { label: 'Avg. Order', value: `₱${avgOrder.toFixed(0)}`, sub: 'per transaction', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
-            { label: 'Items Sold', value: totalQty.toLocaleString(), sub: 'total quantity', color: 'text-sky-400', bg: 'bg-sky-500/10 border-sky-500/20' },
-          ].map(card => (
-            <div key={card.label} className={`rounded-xl p-3 border ${card.bg}`}>
-              <p className="text-xs text-gray-400 mb-1">{card.label}</p>
-              <p className={`text-base font-bold ${card.color}`}>{card.value}</p>
-              <p className="text-xs text-gray-500 mt-0.5">{card.sub}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* TABS */}
-        <div className="flex gap-1">
-          {(['overview', 'items', 'category', 'staff'] as const).map(tab => (
-            <button key={tab} onClick={() => setActiveReport(tab)}
-              className={`px-4 py-1.5 rounded-lg text-xs font-bold capitalize transition-all ${activeReport === tab
-                ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/20'
-                : 'text-gray-400 hover:text-white hover:bg-white/10'}`}>
-              {tab === 'overview' ? '📊 Overview' : tab === 'items' ? '🏆 Items' : tab === 'category' ? '🍩 Category' : '👥 Staff'}
-            </button>
-          ))}
+          <button onClick={() => setShowDatePicker(true)} className="px-4 py-2 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20 transition-colors flex items-center gap-2 border border-white/20">
+            <span>⬇️</span> Export Orders
+          </button>
         </div>
       </div>
 
-      {exportSuccess && (
-        <div className="mx-5 mt-3 p-2 bg-emerald-900/30 border border-emerald-800 text-emerald-400 rounded-lg text-xs">{exportSuccess}</div>
+      {exportSuccess && <div className="mb-4 p-3 bg-green-900/30 border border-green-800 text-green-400 rounded-lg">{exportSuccess}</div>}
+
+      {orders.length === 0 && (
+        <div className="bg-black border border-white/20 rounded-2xl p-12 text-center">
+          <p className="text-gray-500 text-lg">No orders to report</p>
+          <p className="text-gray-600 text-sm mt-2">Orders will appear here after you generate them</p>
+        </div>
       )}
 
-      {/* ── TAB CONTENT ── */}
-      <div className="flex-1 overflow-y-auto p-5 pt-4 space-y-4">
-
-        {/* OVERVIEW */}
-        {activeReport === 'overview' && (
-          <>
-            {/* Daily Bar Chart */}
-            {sortedDays.length > 0 && (
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-bold text-white">Sales Trend</h3>
-                  <span className="text-xs text-gray-500">Last {Math.min(sortedDays.length, 14)} days</span>
-                </div>
-                <div className="flex items-end gap-1.5 h-36">
-                  {sortedDays.slice(-14).map(([day, total]) => {
-                    const heightPct = Math.max(4, (total / maxDayRevenue) * 100);
-                    const isToday = day === new Date().toISOString().slice(0, 10);
-                    return (
-                      <div key={day} className="flex flex-col items-center gap-1 flex-1 min-w-0 group">
-                        <span className="text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity" style={{ fontSize: '9px' }}>
-                          ₱{(total / 1000).toFixed(1)}k
-                        </span>
-                        <div className="w-full relative">
-                          <div
-                            className={`w-full rounded-t-md transition-all ${isToday ? 'bg-violet-500' : 'bg-white/30 hover:bg-white/50'}`}
-                            style={{ height: `${heightPct * 0.9}px` }}
-                          />
-                        </div>
-                        <span className="text-gray-600 whitespace-nowrap truncate w-full text-center" style={{ fontSize: '9px' }}>{day.slice(5)}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Monthly breakdown */}
-            {sortedMonths.length > 0 && (
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-                <h3 className="text-sm font-bold text-white mb-4">Monthly Breakdown</h3>
-                <div className="space-y-3">
-                  {sortedMonths.map(([month, total]) => {
-                    const [year, mon] = month.split('-');
-                    const monthName = new Date(parseInt(year), parseInt(mon) - 1).toLocaleString('default', { month: 'long' });
-                    const maxMonth = Math.max(...sortedMonths.map(([, v]) => v));
-                    const pct = (total / maxMonth) * 100;
-                    const isCurrent = month === currentMonth;
-                    return (
-                      <div key={month} className="flex items-center gap-3">
-                        <div className="w-20 shrink-0">
-                          <span className={`text-xs font-semibold ${isCurrent ? 'text-violet-400' : 'text-gray-400'}`}>{monthName.slice(0, 3)} {year.slice(2)}</span>
-                        </div>
-                        <div className="flex-1 bg-white/5 rounded-full h-5 overflow-hidden relative">
-                          <div
-                            className={`h-full rounded-full transition-all ${isCurrent ? 'bg-violet-500/70' : 'bg-white/20'}`}
-                            style={{ width: `${pct}%` }}
-                          />
-                          <span className="absolute inset-0 flex items-center px-2" style={{ fontSize: '10px', color: 'rgba(255,255,255,0.6)' }}>
-                            {pct.toFixed(0)}%
-                          </span>
-                        </div>
-                        <span className={`text-xs font-bold w-24 text-right ${isCurrent ? 'text-violet-400' : 'text-white'}`}>
-                          ₱{total.toLocaleString()}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* ITEMS */}
-        {activeReport === 'items' && (
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-bold text-white">Top Items by Revenue</h3>
-              <span className="text-xs text-gray-500">{sortedItems.length} items</span>
+      {sortedMonths.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="bg-gradient-to-br from-gray-800 to-black rounded-2xl border border-white/20 p-5 text-white">
+            <p className="text-sm opacity-80 mb-1">Current Month</p>
+            <p className="text-3xl font-bold">{currentMonth}</p>
+            <p className="text-2xl font-bold mt-2">₱{currentMonthTotal.toFixed(2)}</p>
+            <div className="flex items-center mt-2 text-sm">
+              <span className={monthOverMonthChange >= '0' ? 'text-green-400' : 'text-red-400'}>{monthOverMonthChange}% vs last month</span>
             </div>
-            {sortedItems.length === 0 && <p className="text-gray-500 text-sm py-8 text-center">No data yet</p>}
-            <div className="space-y-2.5">
-              {sortedItems.slice(0, 20).map((item, index) => {
-                const pct = (item.revenue / maxItemRevenue) * 100;
-                const medals = ['🥇', '🥈', '🥉'];
+          </div>
+          <div className="bg-black border border-white/20 rounded-2xl p-5 col-span-2">
+            <h3 className="font-semibold text-gray-300 mb-3">Monthly Totals</h3>
+            <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
+              {sortedMonths.map(([month, total]) => {
+                const [year, mon] = month.split('-');
+                const monthName = new Date(parseInt(year), parseInt(mon) - 1).toLocaleString('default', { month: 'short' });
                 return (
-                  <div key={`${item.name}-${index}`} className="group">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs w-5 shrink-0 text-center">
-                        {index < 3 ? medals[index] : <span className="text-gray-600">{index + 1}</span>}
-                      </span>
-                      <span className="text-xs font-medium text-gray-200 flex-1 truncate">{item.name}</span>
-                      <span className="text-xs text-gray-500">{item.qty}x</span>
-                      <span className="text-xs font-bold text-white w-20 text-right">₱{item.revenue.toLocaleString()}</span>
-                    </div>
-                    <div className="ml-7 bg-white/5 rounded-full h-1.5 overflow-hidden">
-                      <div
-                        className={`h-full rounded-full ${index === 0 ? 'bg-amber-400' : index === 1 ? 'bg-gray-300' : index === 2 ? 'bg-amber-700' : 'bg-violet-500/60'}`}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
+                  <div key={month} className="flex items-center justify-between text-sm">
+                    <span className="text-gray-400">{monthName} {year}</span>
+                    <span className="font-semibold text-white">₱{total.toFixed(2)}</span>
                   </div>
                 );
               })}
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* CATEGORY */}
-        {activeReport === 'category' && (
-          <div className="space-y-4">
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-              <h3 className="text-sm font-bold text-white mb-4">Revenue by Category</h3>
-              {sortedCats.length === 0 && <p className="text-gray-500 text-sm">No data yet</p>}
-              <div className="flex gap-6 items-start">
-                {/* Donut */}
-                <div className="shrink-0">
-                  <svg viewBox="0 0 200 200" className="w-36 h-36">
-                    {pieSlices.map((slice, i) => (
-                      <path key={i} d={slice.path} fill={slice.color} stroke="#000" strokeWidth="2" />
-                    ))}
-                    <circle cx="100" cy="100" r="50" fill="#000" />
-                    <text x="100" y="94" textAnchor="middle" fill="rgba(255,255,255,0.5)" fontSize="8">TOTAL</text>
-                    <text x="100" y="108" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold">₱{(totalCatRevenue / 1000).toFixed(1)}k</text>
-                  </svg>
+      {sortedDays.length > 0 && (
+        <div className="bg-black border border-white/20 rounded-2xl p-5 mb-6">
+          <h2 className="font-bold text-lg text-white mb-4">Daily Sales</h2>
+          <div className="space-y-2">
+            {sortedDays.map(([day, total]) => (
+              <div key={day} className="flex items-center gap-3">
+                <span className="w-28 text-sm font-medium text-gray-400 shrink-0">{day}</span>
+                <div className="flex-1 bg-white/10 rounded-full h-6 overflow-hidden">
+                  <div className="bg-white h-full rounded-full transition-all" style={{ width: `${(total / maxDayRevenue) * 100}%` }} />
                 </div>
-                {/* Legend + bars */}
-                <div className="flex-1 space-y-2.5 min-w-0">
-                  {pieSlices.map((slice, i) => (
-                    <div key={i}>
-                      <div className="flex items-center gap-2 mb-1">
-                        <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: slice.color }} />
-                        <span className="text-xs text-gray-300 flex-1 truncate">{slice.cat}</span>
-                        <span className="text-xs text-gray-500">{(slice.pct * 100).toFixed(1)}%</span>
-                        <span className="text-xs font-bold text-white w-20 text-right">₱{slice.total.toLocaleString()}</span>
-                      </div>
-                      <div className="ml-4 bg-white/5 rounded-full h-1.5 overflow-hidden">
-                        <div className="h-full rounded-full" style={{ width: `${slice.pct * 100}%`, backgroundColor: slice.color, opacity: 0.7 }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <span className="w-24 text-right text-sm font-bold text-white">₱{total.toFixed(0)}</span>
               </div>
-            </div>
+            ))}
+          </div>
+        </div>
+      )}
 
-            {/* Category bar chart */}
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-              <h3 className="text-sm font-bold text-white mb-4">Category Comparison</h3>
-              <div className="space-y-2">
-                {sortedCats.map(([cat, total], i) => (
-                  <div key={cat} className="flex items-center gap-3">
-                    <span className="text-xs text-gray-400 w-28 shrink-0 truncate">{cat}</span>
-                    <div className="flex-1 bg-white/5 rounded-full h-6 overflow-hidden relative">
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{ width: `${(total / maxCatRevenue) * 100}%`, backgroundColor: PIE_COLORS[i % PIE_COLORS.length], opacity: 0.8 }}
-                      />
-                      <span className="absolute inset-0 flex items-center px-2 text-white" style={{ fontSize: '10px' }}>
-                        ₱{total.toLocaleString()}
-                      </span>
-                    </div>
+      {sortedItems.length > 0 && (
+        <div className="bg-black border border-white/20 rounded-2xl p-5 mb-6">
+          <h2 className="font-bold text-lg text-white mb-4">Sales by Item</h2>
+          <div className="space-y-2">
+            {sortedItems.slice(0, 20).map((item, index) => (
+              <div key={`${item.name}-${index}`} className="flex items-center gap-3">
+                <span className="w-44 text-sm font-medium text-gray-400 shrink-0 truncate">{item.name}</span>
+                <div className="flex-1 bg-white/10 rounded-full h-6 overflow-hidden">
+                  <div className="bg-green-500 h-full rounded-full transition-all" style={{ width: `${(item.revenue / maxItemRevenue) * 100}%` }} />
+                </div>
+                <span className="w-16 text-right text-xs text-gray-500">{item.qty} sold</span>
+                <span className="w-24 text-right text-sm font-bold text-white">₱{item.revenue.toFixed(0)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {sortedCats.length > 0 && (
+        <div className="bg-black border border-white/20 rounded-2xl p-5 mb-6">
+          <h2 className="font-bold text-lg text-white mb-4">Sales by Category</h2>
+          <div className="space-y-2">
+            {sortedCats.map(([cat, total]) => (
+              <div key={cat} className="flex items-center gap-3">
+                <span className="w-44 text-sm font-medium text-gray-400 shrink-0">{cat}</span>
+                <div className="flex-1 bg-white/10 rounded-full h-6 overflow-hidden">
+                  <div className="bg-amber-600 h-full rounded-full transition-all" style={{ width: `${(total / maxCatRevenue) * 100}%` }} />
+                </div>
+                <span className="w-24 text-right text-sm font-bold text-white">₱{total.toFixed(0)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+<div className="bg-black border border-white/20 rounded-2xl p-5 mb-6">
+        <h2 className="font-bold text-lg text-white mb-4">👥 Staff Performance</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-400 mb-3">🖊️ Orders Punched</h3>
+            {sortedPunched.length === 0 && <p className="text-gray-500 text-sm">No data yet</p>}
+            <div className="space-y-2">
+              {sortedPunched.map(([name, count], i) => (
+                <div key={name}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs text-gray-500 w-4">{i + 1}</span>
+                    <span className="text-sm font-semibold text-white flex-1">{name}</span>
+                    <span className="text-xs font-bold text-white">{count} orders</span>
                   </div>
-                ))}
-              </div>
+                  <div className="ml-6 bg-white/10 rounded-full h-2 overflow-hidden">
+                    <div className="bg-white h-full rounded-full"
+                      style={{ width: `${(count / (sortedPunched[0]?.[1] || 1)) * 100}%` }} />
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-        )}
-
-        {/* STAFF */}
-        {activeReport === 'staff' && (
-          <div className="space-y-4">
-            {/* Summary cards */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-violet-500/10 border border-violet-500/20 rounded-xl p-4 text-center">
-                <p className="text-xs text-gray-400 mb-1">Top Cashier</p>
-                <p className="text-base font-bold text-violet-400">{sortedPunched[0]?.[0] || '—'}</p>
-                <p className="text-xs text-gray-500">{sortedPunched[0]?.[1] || 0} orders punched</p>
-              </div>
-              <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 text-center">
-                <p className="text-xs text-gray-400 mb-1">Top Barista</p>
-                <p className="text-base font-bold text-amber-400">{sortedMade[0]?.[0] || '—'}</p>
-                <p className="text-xs text-gray-500">{sortedMade[0]?.[1] || 0} drinks made</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Punched */}
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-                <h3 className="text-sm font-bold text-white mb-4">👤 Orders Punched</h3>
-                {sortedPunched.length === 0 && (
-                  <p className="text-gray-500 text-sm py-6 text-center">No data yet — select a cashier when generating orders</p>
-                )}
-                <div className="space-y-3">
-                  {sortedPunched.map(([name, count], i) => (
-                    <div key={name}>
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${i === 0 ? 'bg-violet-500 text-white' : 'bg-white/10 text-gray-400'}`}>
-                          {i + 1}
-                        </div>
-                        <span className="text-sm font-semibold text-white flex-1">{name}</span>
-                        <span className="text-xs font-bold text-violet-400">{count}</span>
-                      </div>
-                      <div className="ml-7 bg-white/5 rounded-full h-2 overflow-hidden">
-                        <div className="bg-violet-500 h-full rounded-full"
-                          style={{ width: `${(count / (sortedPunched[0]?.[1] || 1)) * 100}%` }} />
-                      </div>
-                    </div>
-                  ))}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-400 mb-3">☕ Drinks Made</h3>
+            {sortedMade.length === 0 && <p className="text-gray-500 text-sm">No data yet</p>}
+            <div className="space-y-2">
+              {sortedMade.map(([name, count], i) => (
+                <div key={name}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs text-gray-500 w-4">{i + 1}</span>
+                    <span className="text-sm font-semibold text-white flex-1">{name}</span>
+                    <span className="text-xs font-bold text-white">{count} drinks</span>
+                  </div>
+                  <div className="ml-6 bg-white/10 rounded-full h-2 overflow-hidden">
+                    <div className="bg-amber-500 h-full rounded-full"
+                      style={{ width: `${(count / (sortedMade[0]?.[1] || 1)) * 100}%` }} />
+                  </div>
                 </div>
-              </div>
-
-              {/* Made */}
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-                <h3 className="text-sm font-bold text-white mb-4">☕ Drinks Made</h3>
-                {sortedMade.length === 0 && (
-                  <p className="text-gray-500 text-sm py-6 text-center">No data yet — select a barista when generating orders</p>
-                )}
-                <div className="space-y-3">
-                  {sortedMade.map(([name, count], i) => (
-                    <div key={name}>
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${i === 0 ? 'bg-amber-500 text-black' : 'bg-white/10 text-gray-400'}`}>
-                          {i + 1}
-                        </div>
-                        <span className="text-sm font-semibold text-white flex-1">{name}</span>
-                        <span className="text-xs font-bold text-amber-400">{count}</span>
-                      </div>
-                      <div className="ml-7 bg-white/5 rounded-full h-2 overflow-hidden">
-                        <div className="bg-amber-500 h-full rounded-full"
-                          style={{ width: `${(count / (sortedMade[0]?.[1] || 1)) * 100}%` }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              ))}
             </div>
           </div>
-        )}
-
+        </div>
       </div>
 
       {showDatePicker && <DateRangePicker onExport={handleExport} onClose={() => setShowDatePicker(false)} />}
     </div>
   );
-}
+} 

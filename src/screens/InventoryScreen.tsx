@@ -900,31 +900,25 @@ const thresholdDisplay = packCount !== null
   const actualIdx = editableRows.indexOf(row);
   const selectedIngredient = ingredients.find(i => i.id === row.ingredient_id);
   return (
-<div key={actualIdx} className="grid grid-cols-[1fr_55px_75px_45px_32px] gap-2 items-center bg-white/5 rounded-xl px-3 py-2 border border-white/10 mb-2">
-      <select value={row.ingredient_id} onChange={e => updateEditableRow(actualIdx, 'ingredient_id', e.target.value)}
-        className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-white/50">
-        {ingredients.filter(i => i.category !== 'Packaging Supplies').map(ing => (
-          <option key={ing.id} value={ing.id} className="bg-black">{ing.name} ({ing.unit})</option>
-        ))}
-      </select>
-      <select value={row.ingredient_id} onChange={e => updateEditableRow(actualIdx, 'ingredient_id', e.target.value)}
-        className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-white/50">
-        {ingredients.filter(i => i.category !== 'Packaging Supplies').map(ing => (
-          <option key={ing.id} value={ing.id} className="bg-black">{ing.name} ({ing.unit})</option>
-        ))}
-      </select>
-      <select value={row.size} onChange={e => updateEditableRow(actualIdx, 'size', e.target.value)}
-        className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white text-center focus:outline-none focus:border-white/50">
-        <option value="R" className="bg-black">R</option>
-        <option value="L" className="bg-black">L</option>
-      </select>
-      <input type="number" min="0" step="any" value={row.quantity}
-        onChange={e => updateEditableRow(actualIdx, 'quantity', parseFloat(e.target.value) || 0)}
-        className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white text-center focus:outline-none focus:border-white/50" />
-      <span className="text-xs text-gray-400 text-center font-mono">{selectedIngredient?.unit || '—'}</span>
-      <button onClick={() => markRowDeleted(actualIdx)}
-        className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-900/30 hover:text-red-400 transition-colors">×</button>
-    </div>
+<div key={actualIdx} className="grid grid-cols-[1fr_50px_70px_40px_28px] gap-2 items-center bg-white/5 rounded-xl px-3 py-2 border border-white/10 mb-2">
+  <select value={row.ingredient_id} onChange={e => updateEditableRow(actualIdx, 'ingredient_id', e.target.value)}
+    className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-white/50">
+    {ingredients.filter(i => i.category !== 'Packaging Supplies').map(ing => (
+      <option key={ing.id} value={ing.id} className="bg-black">{ing.name} ({ing.unit})</option>
+    ))}
+  </select>
+  <select value={row.size} onChange={e => updateEditableRow(actualIdx, 'size', e.target.value)}
+    className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white text-center focus:outline-none focus:border-white/50">
+    <option value="R" className="bg-black">R</option>
+    <option value="L" className="bg-black">L</option>
+  </select>
+  <input type="number" min="0" step="any" value={row.quantity}
+    onChange={e => updateEditableRow(actualIdx, 'quantity', parseFloat(e.target.value) || 0)}
+    className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white text-center focus:outline-none focus:border-white/50" />
+  <span className="text-xs text-gray-400 text-center font-mono">{selectedIngredient?.unit || '—'}</span>
+  <button onClick={() => markRowDeleted(actualIdx)}
+    className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-900/30 hover:text-red-400 transition-colors">×</button>
+</div>
   );
 })}
   {editableRows.filter(r => !r._deleted && ingredients.find(i => i.id === r.ingredient_id)?.category !== 'Packaging Supplies').length === 0 && (
@@ -940,7 +934,7 @@ const thresholdDisplay = packCount !== null
 {/* ── PACKAGING SUPPLIES SECTION ── */}
 <div className="mt-4 pt-4 border-t border-white/10">
   <p className="text-xs font-semibold text-yellow-400 uppercase tracking-wide mb-2">📦 Packaging Supplies</p>
-<div className="grid grid-cols-[1fr_55px_75px_45px_32px] gap-2 px-1 mb-1">
+<div className="grid grid-cols-[1fr_50px_70px_40px_28px] gap-2 px-1 mb-1">
   <span className="text-xs text-gray-600 uppercase">Name</span>
   <span className="text-xs text-gray-600 uppercase text-center">Size</span>
   <span className="text-xs text-gray-600 uppercase text-center">Qty</span>
