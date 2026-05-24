@@ -785,8 +785,7 @@ const thresholdDisplay = packCount !== null
 <th className="px-3 py-3 text-left whitespace-nowrap">Ingredients</th>
 <th className="px-3 py-3 text-left whitespace-nowrap text-yellow-300">Cup R / Cold</th>
 <th className="px-3 py-3 text-left whitespace-nowrap text-yellow-300">Cup L / Hot</th>
-<th className="px-3 py-3 text-left whitespace-nowrap text-yellow-300">Straw R</th>
-<th className="px-3 py-3 text-left whitespace-nowrap text-yellow-300">Straw L</th>
+<th className="px-3 py-3 text-left whitespace-nowrap text-yellow-300">Straw (R / L)</th>
     <th className="px-3 py-3 text-center whitespace-nowrap">Actions</th>
   </tr>
 </thead>
@@ -800,7 +799,7 @@ const thresholdDisplay = packCount !== null
     <span className="text-gray-600">—</span>
   ) : (
     <div className="space-y-0.5">
-{row.ingSlots.map((slot: any, i: number) => (
+      {row.ingSlots.map((slot: any, i: number) => (
         <div key={i} className="whitespace-nowrap">
           <span className="text-gray-300">{slot.name}</span>
           {slot.qty_r != null && <span className="text-white ml-1">{slot.qty_r}{slot.unit}</span>}
@@ -810,10 +809,29 @@ const thresholdDisplay = packCount !== null
     </div>
   )}
 </td>
-      <td className="px-3 py-3 text-gray-300 text-xs whitespace-nowrap">{row.cup_r || '—'}</td>
-      <td className="px-3 py-3 text-gray-300 text-xs whitespace-nowrap">{row.cup_l || '—'}</td>
-      <td className="px-3 py-3 text-gray-300 text-xs whitespace-nowrap">{row.straw_r || '—'}</td>
-      <td className="px-3 py-3 text-gray-300 text-xs whitespace-nowrap">{row.straw_l || '—'}</td>
+
+<td className="px-3 py-3 text-gray-300 text-xs align-top">
+  {row.cup_r ? (
+    <div className="whitespace-pre-line">
+      {row.cup_r.split(' / ').join('\n')}
+    </div>
+  ) : '—'}
+</td>
+<td className="px-3 py-3 text-gray-300 text-xs align-top">
+  {row.cup_l ? (
+    <div className="whitespace-pre-line">
+      {row.cup_l.split(' / ').join('\n')}
+    </div>
+  ) : '—'}
+</td>
+<td className="px-3 py-3 text-gray-300 text-xs align-top">
+  {row.straw_r || row.straw_l ? (
+    <div className="whitespace-pre-line">
+      {[row.straw_r, row.straw_l].filter(Boolean).join('\n')}
+    </div>
+  ) : '—'}
+</td>
+
       <td className="px-3 py-3 text-center">
         <div className="flex gap-2 justify-center">
           <button onClick={() => openEditRecipeGroup(row.menuItemId, row.menuItemName, '')}
