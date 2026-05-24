@@ -160,8 +160,9 @@ const deductStock = async (orderItems: any[], orderId: string) => {
       .eq('menu_item_id', menuItemId)
       .eq('size', sizeToQuery);
 
-    if (error) { console.error('Recipe fetch error:', error); continue; }
+if (error) { console.error('Recipe fetch error:', error); continue; }
 
+    let espressoCupHandled = false;
     for (const recipe of recipeData || []) {
       const ingredient = recipe.ingredients;
       if (!ingredient || ingredient.current_stock == null) continue;
@@ -169,15 +170,18 @@ const deductStock = async (orderItems: any[], orderId: string) => {
       const isCup = ingredient.name?.toLowerCase().includes('cup');
 
       // Espresso: skip recipe cup, add temperature-correct cup instead
-      if (isEspresso && isCup) {
-        const cupName = temperature === 'Hot' ? 'Hot Coffee Cups 12oz' : 'Dabba Cups 16oz';
-        const { data: cupIng } = await supabase
-          .from('ingredients').select('*').eq('name', cupName).single();
-        if (cupIng) {
-          deductionMap[cupIng.id] = (deductionMap[cupIng.id] || 0) + qty;
-        }
-        continue;
-      }
+if (isEspresso && isCup) {
+  if (!espressoCupHandled) {
+    espressoCupHandled = true;
+    const cupName = temperature === 'Hot' ? 'Hot Coffee Cups 12oz' : 'Dabba Cups 16oz';
+    const { data: cupIng } = await supabase
+      .from('ingredients').select('*').eq('name', cupName).single();
+    if (cupIng) {
+      deductionMap[cupIng.id] = (deductionMap[cupIng.id] || 0) + qty;
+    }
+  }
+  continue;  // ← this must be OUTSIDE the inner if, INSIDE the outer if
+}
 
       // Espresso Hot: skip straw deduction
       const isStraw = ingredient.name?.toLowerCase().includes('straw');
