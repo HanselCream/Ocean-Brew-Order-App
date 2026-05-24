@@ -780,20 +780,19 @@ const thresholdDisplay = packCount !== null
             <table className="w-full text-sm min-w-[1000px]">
 <thead className="bg-white/5 text-gray-300 border-b border-white/10 sticky top-0">
   <tr>
-    <th className="px-3 py-3 text-left whitespace-nowrap">Category</th>
-    <th className="px-3 py-3 text-left whitespace-nowrap">Menu Item</th>
-<th className="px-3 py-3 text-left whitespace-nowrap">Ingredients</th>
-<th className="px-3 py-3 text-left whitespace-nowrap text-yellow-300">Cup R / Cold</th>
-<th className="px-3 py-3 text-left whitespace-nowrap text-yellow-300">Cup L / Hot</th>
-<th className="px-3 py-3 text-left whitespace-nowrap text-yellow-300">Straw (R / L)</th>
-    <th className="px-3 py-3 text-center whitespace-nowrap">Actions</th>
+<th className="px-3 py-3 text-left">Category</th>
+<th className="px-3 py-3 text-left">Menu Item</th>
+<th className="px-3 py-3 text-left">Ingredients</th>
+<th className="px-3 py-3 text-left text-yellow-300">Cups (R / L)</th>
+<th className="px-3 py-3 text-left text-yellow-300">Straw (R / L)</th>
+<th className="px-3 py-3 text-center whitespace-nowrap">Actions</th>
   </tr>
 </thead>
 <tbody>
   {filteredPivotedRecipes.map(row => (
     <tr key={row.menuItemId} className="border-t border-white/10 hover:bg-white/5">
-      <td className="px-3 py-3 text-gray-400 text-xs whitespace-nowrap">{row.category}</td>
-      <td className="px-3 py-3 font-medium text-white whitespace-nowrap">{row.menuItemName}</td>
+<td className="px-3 py-3 text-gray-400 text-xs">{row.category}</td>
+<td className="px-3 py-3 font-medium text-white">{row.menuItemName}</td>
 <td className="px-3 py-3 text-xs align-top">
   {row.ingSlots.length === 0 ? (
     <span className="text-gray-600">—</span>
@@ -811,16 +810,16 @@ const thresholdDisplay = packCount !== null
 </td>
 
 <td className="px-3 py-3 text-gray-300 text-xs align-top">
-  {row.cup_r ? (
+  {row.cup_r || row.cup_l ? (
     <div className="whitespace-pre-line">
-      {row.cup_r.split(' / ').join('\n')}
+      {[row.cup_r, row.cup_l].filter(Boolean).join('\n')}
     </div>
   ) : '—'}
 </td>
 <td className="px-3 py-3 text-gray-300 text-xs align-top">
-  {row.cup_l ? (
+  {row.straw_r || row.straw_l ? (
     <div className="whitespace-pre-line">
-      {row.cup_l.split(' / ').join('\n')}
+      {[row.straw_r, row.straw_l].filter(Boolean).join('\n')}
     </div>
   ) : '—'}
 </td>
