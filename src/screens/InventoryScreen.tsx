@@ -823,15 +823,7 @@ const thresholdDisplay = packCount !== null
     </div>
   ) : '—'}
 </td>
-<td className="px-3 py-3 text-gray-300 text-xs align-top">
-  {row.straw_r || row.straw_l ? (
-    <div className="whitespace-pre-line">
-      {[row.straw_r, row.straw_l].filter(Boolean).join('\n')}
-    </div>
-  ) : '—'}
-</td>
-
-      <td className="px-3 py-3 text-center">
+<td className="px-3 py-3 text-center">
         <div className="flex gap-2 justify-center">
           <button onClick={() => openEditRecipeGroup(row.menuItemId, row.menuItemName, '')}
             className="text-green-400 hover:text-green-300 text-xs font-semibold">✏️ Edit</button>
