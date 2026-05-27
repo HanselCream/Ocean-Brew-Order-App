@@ -137,7 +137,15 @@ export default function InventoryScreen() {
     })));
   };
 
-  const loadStockLogs = async () => {
+const loadStockLogs = async () => {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 40);
+
+    // Delete logs older than 40 days
+    await supabase.from('stock_logs')
+      .delete()
+      .lt('created_at', cutoff.toISOString());
+
     const { data, error } = await supabase.from('stock_logs')
       .select(`*, ingredients:ingredient_id (name)`)
       .order('created_at', { ascending: false }).limit(200);
@@ -457,7 +465,11 @@ setEditingRecipeGroup(null);
     return () => { delete (window as any).deductStockForOrder; };
   }, [ingredients]);
 
-  useEffect(() => { loadAllData(); }, []);
+useEffect(() => { loadAllData(); }, []);
+
+  useEffect(() => {
+    if (menuItems.length > 0) calculateDrinksLeft();
+  }, [menuItems]);
 
   // ============================================
   // COMPUTED
@@ -589,22 +601,32 @@ const maxIngSlots = useMemo(() => {
   return (
     <div className="flex-1 p-6 overflow-y-auto bg-black">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+<div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white">Inventory Management</h1>
           <p className="text-sm text-gray-400 mt-1">{lowStockIngredients.length} items low on stock</p>
         </div>
         <div className="flex gap-3">
-          <button onClick={exportIngredients} className="px-4 py-2 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20 transition-colors flex items-center gap-2">
-            📥 Export Inventory
-          </button>
-          <label className="px-4 py-2 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20 transition-colors cursor-pointer flex items-center gap-2">
-            📂 Import Excel
-            <input type="file" accept=".xlsx,.xls" onChange={importIngredients} className="hidden" />
-          </label>
+          {activeTab === 'ingredients' && (
+            <>
+              <button onClick={exportIngredients} className="px-4 py-2 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20 transition-colors flex items-center gap-2">
+                📥 Export Ingredients
+              </button>
+              <label className="px-4 py-2 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20 transition-colors cursor-pointer flex items-center gap-2">
+                📂 Import Ingredients
+                <input type="file" accept=".xlsx,.xls" onChange={importIngredients} className="hidden" />
+              </label>
+            </>
+          )}
+          {activeTab === 'recipes' && (
+            <>
+              <button onClick={exportRecipes} className="px-4 py-2 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20 transition-colors flex items-center gap-2">
+                📥 Export Recipes
+              </button>
+            </>
+          )}
         </div>
       </div>
-
       {/* Low Stock Alert */}
       {lowStockIngredients.length > 0 && (
         <div className="mb-6 p-4 bg-red-900/30 border border-red-800 rounded-xl">
@@ -613,7 +635,7 @@ const maxIngSlots = useMemo(() => {
             <span className="font-semibold text-red-400">Low Stock Alert</span>
           </div>
           <div className="flex flex-wrap gap-2">
-            {lowStockIngredients.slice(0, 5).map(ing => (
+           {lowStockIngredients.map(ing => (
               <span key={ing.id} className="px-3 py-1 bg-red-900/50 rounded-lg text-sm text-red-300">
                 {ing.name}: {(() => {
                   const pc = ing.unit_size ? Math.floor(ing.current_stock / ing.unit_size) : null;
@@ -621,9 +643,6 @@ const maxIngSlots = useMemo(() => {
                 })()} left
               </span>
             ))}
-            {lowStockIngredients.length > 5 && (
-              <span className="px-3 py-1 bg-red-900/50 rounded-lg text-sm text-red-300">+{lowStockIngredients.length - 5} more</span>
-            )}
           </div>
         </div>
       )}
@@ -665,11 +684,18 @@ const maxIngSlots = useMemo(() => {
           <div className="flex items-center gap-3 mb-4 flex-wrap">
             <input type="text" placeholder="Search ingredients..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
               className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:border-white/50 w-56" />
-            <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}
-              className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white focus:outline-none">
-              <option value="All" className="bg-black">All Categories</option>
-              {INGREDIENT_CATEGORIES.map(cat => <option key={cat} value={cat} className="bg-black">{cat}</option>)}
-            </select>
+<div className="flex flex-wrap gap-2">
+              {['All', ...INGREDIENT_CATEGORIES].map(cat => (
+                <button key={cat} onClick={() => setCategoryFilter(cat)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+                    categoryFilter === cat
+                      ? 'bg-white text-black'
+                      : 'bg-white/10 text-gray-300 hover:bg-white/20'
+                  }`}>
+                  {cat === 'All' ? 'All' : cat}
+                </button>
+              ))}
+            </div>
             <div className="flex items-center gap-2 ml-auto">
               <span className="text-sm text-gray-400">Used period:</span>
               <select value={usedDateRange} onChange={e => setUsedDateRange(e.target.value as DateRange)}
@@ -740,37 +766,37 @@ const thresholdDisplay = packCount !== null
       {/* ── RECIPES TAB ── */}
       {activeTab === 'recipes' && (
         <>
-<div className="flex items-center gap-3 mb-4 flex-wrap">
-  <input
-    type="text"
-    placeholder="Search recipes..."
-    value={recipeSearchTerm}
-    onChange={e => setRecipeSearchTerm(e.target.value)}
-    className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:border-white/50 w-56"
-  />
-  <select
-    value={recipeCategoryFilter}
-    onChange={e => setRecipeCategoryFilter(e.target.value)}
-    className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white focus:outline-none"
-  >
-    {menuCategories.map(cat => (
-      <option key={cat} value={cat} className="bg-black">{cat === 'All' ? 'All Categories' : cat}</option>
-    ))}
-  </select>
-  <span className="text-xs text-gray-500">
-    {filteredPivotedRecipes.length} recipes
-    {recipeCategoryFilter !== 'All' && ` in ${recipeCategoryFilter}`}
-  </span>
-  <div className="flex gap-3 ml-auto">
-    <button
-      onClick={exportRecipes}
-      className="px-4 py-2 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20 transition-colors flex items-center gap-2"
-    >
-      📥 Export Recipes
-    </button>
-<button onClick={() => { setShowAddRecipe(true); setEditableRows([{ id: null, ingredient_id: ingredients[0]?.id || '', quantity: 1, size: 'R', _isNew: true, _deleted: false }]); }}
-      className="px-5 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200"
-    >
+<div className="flex flex-col gap-3 mb-4">
+  {/* Row 1: Search + category buttons */}
+  <div className="flex items-center gap-3 flex-wrap">
+    <input
+      type="text"
+      placeholder="Search recipes..."
+      value={recipeSearchTerm}
+      onChange={e => setRecipeSearchTerm(e.target.value)}
+      className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:border-white/50 w-56"
+    />
+    <div className="flex flex-wrap gap-2">
+      {menuCategories.map(cat => (
+        <button key={cat} onClick={() => setRecipeCategoryFilter(cat)}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+            recipeCategoryFilter === cat
+              ? 'bg-white text-black'
+              : 'bg-white/10 text-gray-300 hover:bg-white/20'
+          }`}>
+          {cat === 'All' ? 'All' : cat}
+        </button>
+      ))}
+    </div>
+  </div>
+  {/* Row 2: count + Add button */}
+  <div className="flex items-center justify-between">
+    <span className="text-xs text-gray-500">
+      {filteredPivotedRecipes.length} recipes
+      {recipeCategoryFilter !== 'All' && ` in ${recipeCategoryFilter}`}
+    </span>
+    <button onClick={() => { setShowAddRecipe(true); setEditableRows([{ id: null, ingredient_id: ingredients[0]?.id || '', quantity: 1, size: 'R', _isNew: true, _deleted: false }]); }}
+      className="px-5 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200">
       + Add Recipe
     </button>
   </div>
