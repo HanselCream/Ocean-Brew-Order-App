@@ -1007,23 +1007,21 @@ const thresholdDisplay = packCount !== null
 <option value={5} className="bg-black">Large</option>
 <option value={6} className="bg-black">Cold</option>
 <option value={7} className="bg-black">Hot</option>
-<option value={8} className="bg-black">Straw</option>
 <option value={9} className="bg-black">Others</option>
 </select>
 <select value={row.ingredient_id} onChange={e => updateEditableRow(actualIdx, 'ingredient_id', e.target.value)}
   className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-white/50">
   {ingredients
     .filter(i => i.category === 'Packaging Supplies')
-    .filter(i => {
-      const n = i.name.toLowerCase();
-      if (row.slot === 4) return n.includes('regular u cup') || n.includes('u cup');
-      if (row.slot === 5) return n.includes('hard cup');
-      if (row.slot === 6) return n.includes('dabba');
-      if (row.slot === 7) return n.includes('hot coffee cup');
-      if (row.slot === 8) return n.includes('straw');
-      if (row.slot === 9) return n.includes('stirrer') || n.includes('bag') || n.includes('others');
-      return true;
-    })
+.filter(i => {
+  const n = i.name.toLowerCase();
+if (row.slot === 4) return n.includes('u cup') || n.includes('21');
+if (row.slot === 5) return n.includes('hard cup') || n.includes('23');
+if (row.slot === 6) return n.includes('dabba') || n.includes('thin');
+if (row.slot === 7) return n.includes('hot coffee cup') || n.includes('stirrer');
+if (row.slot === 9) return n.includes('bag') || n.includes('takeout');
+  return true;
+})
     .map(ing => (
       <option key={ing.id} value={ing.id} className="bg-black">{ing.name} ({ing.unit})</option>
     ))}
@@ -1228,7 +1226,6 @@ const thresholdDisplay = packCount !== null
 <option value={5} className="bg-black">Large</option>
 <option value={6} className="bg-black">Cold</option>
 <option value={7} className="bg-black">Hot</option>
-<option value={8} className="bg-black">Straw</option>
 <option value={9} className="bg-black">Others</option>
 </select>
 )}
@@ -1237,16 +1234,15 @@ const thresholdDisplay = packCount !== null
   {(isPacking
 ? ingredients
     .filter(i => i.category === 'Packaging Supplies')
-    .filter(i => {
-      const n = i.name.toLowerCase();
-      if (row.slot === 4) return n.includes('regular u cup') || n.includes('u cup');
-      if (row.slot === 5) return n.includes('hard cup');
-      if (row.slot === 6) return n.includes('dabba');
-      if (row.slot === 7) return n.includes('hot coffee cup');
-      if (row.slot === 8) return n.includes('straw');
-      if (row.slot === 9) return n.includes('stirrer') || n.includes('bag');
-      return true;
-    })
+.filter(i => {
+  const n = i.name.toLowerCase();
+if (row.slot === 4) return n.includes('u cup') || n.includes('21');
+if (row.slot === 5) return n.includes('hard cup') || n.includes('23');
+if (row.slot === 6) return n.includes('dabba') || n.includes('thin');
+if (row.slot === 7) return n.includes('hot coffee cup') || n.includes('stirrer');
+if (row.slot === 9) return n.includes('bag') || n.includes('takeout');
+  return true;
+})
     : ingredients.filter(i => i.category !== 'Packaging Supplies')
   ).map(ing => <option key={ing.id} value={ing.id}>{ing.name} ({ing.unit})</option>)}
 </select>
