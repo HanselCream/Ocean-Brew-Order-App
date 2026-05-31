@@ -1034,9 +1034,9 @@ if (row.slot === 7) return n.includes('hot coffee cup') || n.includes('stirrer')
 if (row.slot === 9) return n.includes('straw') || n.includes('bag') || n.includes('takeout') || n.includes('paper') || n.includes('film');
 return true;
 })
-    .map(ing => (
-      <option key={ing.id} value={ing.id} className="bg-black">{ing.name} ({ing.unit})</option>
-    ))}
+.map(ing => (
+  <option key={ing.id} value={ing.id} className="bg-black">{ing.name} ({ing.unit === 'pieces' ? 'pc' : ing.unit})</option>
+))}
 </select>
       <input type="number" min="0" step="any" value={row.quantity}
         onChange={e => updateEditableRow(actualIdx, 'quantity', parseFloat(e.target.value) || 0)}
@@ -1255,7 +1255,7 @@ if (row.slot === 9) return n.includes('straw') || n.includes('bag') || n.include
 return true;
 })
     : ingredients.filter(i => i.category !== 'Packaging Supplies')
-  ).map(ing => <option key={ing.id} value={ing.id}>{ing.name} ({ing.unit})</option>)}
+  ).map(ing => <option key={ing.id} value={ing.id}>{ing.name} ({ing.unit === 'pieces' ? 'pc' : ing.unit})</option>)}
 </select>
 {!isPacking && (
   <select value={row.size} onChange={e => updateEditableRow(idx, 'size', e.target.value)}
