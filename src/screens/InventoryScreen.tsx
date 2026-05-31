@@ -328,8 +328,11 @@ const isPacking = ing?.category === 'Packaging Supplies';
 const dbSlot = (r as any).slot as string | null;
 // Map DB slot string to numeric slot for the dropdown
 const slotNumMap: Record<string, number> = {
-  cup_r: 4, cup_l: 5, straw_r: 8, straw_l: 8, others: 9,
-  cup_cold_r: 4, cup_cold_l: 5, cup_hot_r: 6, cup_hot_l: 7, straw: 8,
+  // new
+  regular: 4, large: 5, cold: 6, hot: 7, straw: 8, others: 9,
+  // legacy compat
+  cup_r: 4, cup_l: 5, cup_cold_r: 6, cup_cold_l: 6,
+  cup_hot_r: 7, cup_hot_l: 7, straw_r: 8, straw_l: 8,
 };
 const slot = isPacking
   ? (dbSlot ? slotNumMap[dbSlot] ?? 4 : 4)
@@ -364,9 +367,7 @@ const addEditableRow = () => {
 
 const getSlotString = (slotNum: number | undefined): string | null => {
   const map: Record<number, string> = {
-    4: 'cup_cold_r', 5: 'cup_cold_l',
-    6: 'cup_hot_r',  7: 'cup_hot_l',
-    8: 'straw',      9: 'others',
+    4: 'regular', 5: 'large', 6: 'cold', 7: 'hot', 8: 'straw', 9: 'others',
   };
   return slotNum ? map[slotNum] ?? null : null;
 };
@@ -575,19 +576,12 @@ const ingSlots = Object.entries(ingMap)
   .sort((a, b) => getIngOrder(a.ingredient_id, a.name) - getIngOrder(b.ingredient_id, b.name));
 
     // packing
-const CUP_SLOTS = new Set(['cup_r','cup_l','cup_cold_r','cup_cold_l','cup_hot_r','cup_hot_l']);
-const OTHER_SLOTS = new Set(['straw_r','straw_l','straw','others']);
+const CUP_SLOTS = new Set(['regular','large','cold','hot','cup_r','cup_l','cup_cold_r','cup_cold_l','cup_hot_r','cup_hot_l']);
+const OTHER_SLOTS = new Set(['straw','straw_r','straw_l','others']);
 
 const packing_supplies = packingRows
   .filter(r => r.slot && CUP_SLOTS.has(r.slot))
-  .map(r => {
-    const name = getIngName(r);
-    const label = (r.slot === 'cup_cold_r' || r.slot === 'cup_r') ? '(Cold R)'
-      : (r.slot === 'cup_cold_l' || r.slot === 'cup_l') ? '(Cold L)'
-      : r.slot === 'cup_hot_r' ? '(Hot R)'
-      : '(Hot L)';
-    return `${name} ${label}`;
-  }).join('\n');
+  .map(r => getIngName(r)).join('\n');
 const other_supplies = packingRows
   .filter(r => !r.slot || OTHER_SLOTS.has(r.slot))
   .map(r => getIngName(r)).join('\n');
@@ -990,22 +984,46 @@ const thresholdDisplay = packCount !== null
   const selectedIngredient = ingredients.find(i => i.id === row.ingredient_id);
   return (
 <div key={actualIdx} className="grid grid-cols-[100px_1fr_70px_40px_28px] gap-2 items-center bg-yellow-900/10 rounded-xl px-3 py-2 border border-yellow-900/30 mb-2">      <select value={row.slot || 4} onChange={e => {
-        const newSlot = parseInt(e.target.value);
-        updateEditableRow(actualIdx, 'slot', newSlot);
-      }}
-        className="w-full bg-black border border-yellow-900/50 rounded-lg px-2 py-1.5 text-xs text-yellow-300 focus:outline-none">
-<option value={4} className="bg-black">Cold Cup R</option>
-<option value={5} className="bg-black">Cold Cup L</option>
-<option value={6} className="bg-black">Hot Cup R</option>
-<option value={7} className="bg-black">Hot Cup L</option>
+  const newSlot = parseInt(e.target.value);
+  updateEditableRow(actualIdx, 'slot', newSlot);
+  // auto-select the correct ingredient for this slot
+  const defaults: Record<number, string[]> = {
+    4: ['regular u cup', 'u cup'],
+    5: ['hard cup'],
+    6: ['dabba cup'],
+    7: ['hot coffee cup'],
+    8: ['boba straw 21', 'boba straw 23', 'thin coffee straw', 'thin straw', 'straw'],
+    9: ['coffee stirrer', 'stirrer'],
+  };
+  const keywords = defaults[newSlot] || [];
+  const match = ingredients.find(i =>
+    i.category === 'Packaging Supplies' &&
+    keywords.some(kw => i.name.toLowerCase().includes(kw))
+  );
+  if (match) updateEditableRow(actualIdx, 'ingredient_id', match.id);
+}}
+  className="w-full bg-black border border-yellow-900/50 rounded-lg px-2 py-1.5 text-xs text-yellow-300 focus:outline-none">
+<option value={4} className="bg-black">Regular</option>
+<option value={5} className="bg-black">Large</option>
+<option value={6} className="bg-black">Cold</option>
+<option value={7} className="bg-black">Hot</option>
 <option value={8} className="bg-black">Straw</option>
 <option value={9} className="bg-black">Others</option>
-      </select>
+</select>
 <select value={row.ingredient_id} onChange={e => updateEditableRow(actualIdx, 'ingredient_id', e.target.value)}
   className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-white/50">
   {ingredients
     .filter(i => i.category === 'Packaging Supplies')
-.filter(() => true)
+    .filter(i => {
+      const n = i.name.toLowerCase();
+      if (row.slot === 4) return n.includes('regular u cup') || n.includes('u cup');
+      if (row.slot === 5) return n.includes('hard cup');
+      if (row.slot === 6) return n.includes('dabba');
+      if (row.slot === 7) return n.includes('hot coffee cup');
+      if (row.slot === 8) return n.includes('straw');
+      if (row.slot === 9) return n.includes('stirrer') || n.includes('bag') || n.includes('others');
+      return true;
+    })
     .map(ing => (
       <option key={ing.id} value={ing.id} className="bg-black">{ing.name} ({ing.unit})</option>
     ))}
@@ -1187,23 +1205,48 @@ const thresholdDisplay = packCount !== null
   <div key={idx} className={`flex gap-2 items-center rounded-xl px-3 py-2 border mb-2 ${isPacking ? 'bg-yellow-900/10 border-yellow-900/30' : 'bg-white/5 border-white/10'}`}>
 
 {isPacking && (
-  <select value={row.slot || 8} onChange={e => {
-    const newSlot = parseInt(e.target.value);
-    updateEditableRow(idx, 'slot', newSlot);
-  }}
-className="w-24 shrink-0 bg-black border border-yellow-900/50 rounded-lg px-2 py-1.5 text-xs text-yellow-300 focus:outline-none"><option value={5} className="bg-black">Cold Cup L</option>
-<option value={6} className="bg-black">Hot Cup R</option>
-<option value={7} className="bg-black">Hot Cup L</option>
+<select value={row.slot || 4} onChange={e => {
+  const newSlot = parseInt(e.target.value);
+  updateEditableRow(idx, 'slot', newSlot);
+  const defaults: Record<number, string[]> = {
+    4: ['regular u cup', 'u cup'],
+    5: ['hard cup'],
+    6: ['dabba cup'],
+    7: ['hot coffee cup'],
+    8: ['straw'],
+    9: ['stirrer', 'bag'],
+  };
+  const keywords = defaults[newSlot] || [];
+  const match = ingredients.find(i =>
+    i.category === 'Packaging Supplies' &&
+    keywords.some(kw => i.name.toLowerCase().includes(kw))
+  );
+  if (match) updateEditableRow(idx, 'ingredient_id', match.id);
+}}
+  className="w-20 shrink-0 bg-black border border-yellow-900/50 rounded-lg px-2 py-1.5 text-xs text-yellow-300 focus:outline-none">
+<option value={4} className="bg-black">Regular</option>
+<option value={5} className="bg-black">Large</option>
+<option value={6} className="bg-black">Cold</option>
+<option value={7} className="bg-black">Hot</option>
 <option value={8} className="bg-black">Straw</option>
 <option value={9} className="bg-black">Others</option>
-  </select>
+</select>
 )}
 <select value={row.ingredient_id} onChange={e => updateEditableRow(idx, 'ingredient_id', e.target.value)}
   className="flex-1 min-w-[160px] bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none">
   {(isPacking
-    ? ingredients
-        .filter(i => i.category === 'Packaging Supplies')
-.filter(() => true)
+? ingredients
+    .filter(i => i.category === 'Packaging Supplies')
+    .filter(i => {
+      const n = i.name.toLowerCase();
+      if (row.slot === 4) return n.includes('regular u cup') || n.includes('u cup');
+      if (row.slot === 5) return n.includes('hard cup');
+      if (row.slot === 6) return n.includes('dabba');
+      if (row.slot === 7) return n.includes('hot coffee cup');
+      if (row.slot === 8) return n.includes('straw');
+      if (row.slot === 9) return n.includes('stirrer') || n.includes('bag');
+      return true;
+    })
     : ingredients.filter(i => i.category !== 'Packaging Supplies')
   ).map(ing => <option key={ing.id} value={ing.id}>{ing.name} ({ing.unit})</option>)}
 </select>
