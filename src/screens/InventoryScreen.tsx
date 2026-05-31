@@ -22,6 +22,7 @@ interface Recipe {
   ingredient_id: string;
   quantity: number;
   size: string;
+  slot: string | null;  
   menu_item_name?: string;
   ingredient_name?: string;
 }
@@ -125,17 +126,18 @@ export default function InventoryScreen() {
     setIngredients(data || []);
   };
 
-  const loadRecipes = async () => {
-    const { data, error } = await supabase.from('recipes').select(`
-      *, menu_items:menu_item_id (name), ingredients:ingredient_id (name)
-    `);
-    if (error) throw error;
-    setRecipes((data || []).map((r: any) => ({
-      ...r,
-      menu_item_name: r.menu_items?.name,
-      ingredient_name: r.ingredients?.name,
-    })));
-  };
+const loadRecipes = async () => {
+  const { data, error } = await supabase.from('recipes').select(`
+    *, slot, menu_items:menu_item_id (name), ingredients:ingredient_id (name)
+  `);
+  if (error) throw error;
+  setRecipes((data || []).map((r: any) => ({
+    ...r,
+    slot: r.slot ?? null,
+    menu_item_name: r.menu_items?.name,
+    ingredient_name: r.ingredients?.name,
+  })));
+};
 
 const loadStockLogs = async () => {
     const cutoff = new Date();
@@ -322,20 +324,15 @@ const openEditRecipeGroup = (menuItemId: string, menuItemName: string, size: str
   const groupRows = recipes.filter(r => r.menu_item_id === menuItemId);
   setEditableRows(groupRows.map(r => {
     const ing = ingredients.find(i => i.id === r.ingredient_id);
-    const isPacking = ing?.category === 'Packaging Supplies';
-    let slot = 1;
-    if (isPacking) {
-      const n = (ing?.name || '').toLowerCase();
-      if (/hard cups/i.test(n)) slot = 5;
-      else if (/cup/i.test(n)) slot = 4;
-      else if (/straw 23/i.test(n)) slot = 7;
-      else slot = 6;
-    } else {
-      const n = (ing?.name || r.ingredient_name || '').toLowerCase();
-      if (n === 'fructose') slot = 3;
-      else if (n === 'creamer') slot = 2;
-      else slot = 1;
-    }
+const isPacking = ing?.category === 'Packaging Supplies';
+const dbSlot = (r as any).slot as string | null;
+// Map DB slot string to numeric slot for the dropdown
+const slotNumMap: Record<string, number> = {
+  cup_r: 4, cup_l: 5, straw_r: 6, straw_l: 7, others: 8,
+};
+const slot = isPacking
+  ? (dbSlot ? slotNumMap[dbSlot] ?? 8 : 8) 
+  : 1; // non-packing slot number doesn't matter for packaging section
     return {
       id: r.id, ingredient_id: r.ingredient_id,
       quantity: r.quantity, size: r.size,
@@ -364,6 +361,13 @@ const addEditableRow = () => {
     setEditableRows(prev => prev.map((row, i) => i === idx ? { ...row, _deleted: true } : row));
   };
 
+            const getSlotString = (slotNum: number | undefined): string | null => {
+          const map: Record<number, string> = {
+            4: 'cup_r', 5: 'cup_l', 6: 'straw_r', 7: 'straw_l', 8: 'others',
+          };
+          return slotNum ? map[slotNum] ?? null : null;
+        };
+
   const saveRecipeGroup = async () => {
     if (!editingRecipeGroup) return;
     setSavingRecipes(true);
@@ -383,6 +387,7 @@ const addEditableRow = () => {
             menu_item_id: editingRecipeGroup.menuItemId,
             ingredient_id: row.ingredient_id,
             quantity: row.quantity,
+            slot: getSlotString(row.slot),
             size: row.size,
           }]);
           if (error) throw error;
@@ -392,6 +397,7 @@ const addEditableRow = () => {
             ingredient_id: row.ingredient_id,
             quantity: row.quantity,
             size: row.size,
+            slot: getSlotString(row.slot),  // ← ADD
           }).eq('id', row.id);
           if (error) throw error;
         }
@@ -519,11 +525,9 @@ const getIngName = (r: Recipe) => ingredients.find(i => i.id === r.ingredient_id
   const IS_CUP = (n: string) => /cup/i.test(n);
  const IS_STRAW = (n: string) => /\bstraw\b/i.test(n);
   const IS_PACKING_ROW = (r: Recipe) => {
-    const ing = ingredients.find(i => i.id === r.ingredient_id);
-    if (ing?.category === 'Packaging Supplies') return true;
-    const n = getIngName(r);
-    return IS_CUP(n) || IS_STRAW(n);
-  };
+  const ing = ingredients.find(i => i.id === r.ingredient_id);
+  return ing?.category === 'Packaging Supplies';
+};
 
   // group all recipe rows by menu_item_id
   const grouped: Record<string, Recipe[]> = {};
@@ -569,14 +573,22 @@ const ingSlots = Object.entries(ingMap)
 
     // packing
 const cup_r = packingRows
-  .filter(r => IS_CUP(getIngName(r)) && !/hot coffee cups/i.test(getIngName(r)) && r.size === 'R')
-  .map(r => getIngName(r)).join(' / ');
+  .filter(r => r.slot === 'cup_r')
+  .map(r => getIngName(r)).join('\n');
 const cup_l = packingRows
-  .filter(r => IS_CUP(getIngName(r)) && (r.size === 'L' || /hot coffee cups/i.test(getIngName(r))))
-  .map(r => getIngName(r)).join(' / ');
-  const straw_r = packingRows.filter(r => r.size === 'R' && IS_STRAW(getIngName(r))).map(r => getIngName(r)).join(' / ');
-  const straw_l = packingRows.filter(r => r.size === 'L' && IS_STRAW(getIngName(r))).map(r => getIngName(r)).join(' / ');
-    result.push({ menuItemId, menuItemName, category, ingSlots, cup_r, cup_l, straw_r, straw_l });
+  .filter(r => r.slot === 'cup_l')
+  .map(r => getIngName(r)).join('\n');
+const straw_r = packingRows
+  .filter(r => r.slot === 'straw_r')
+  .map(r => getIngName(r)).join('\n');
+const straw_l = packingRows
+  .filter(r => r.slot === 'straw_l')
+  .map(r => getIngName(r)).join('\n');
+const others = packingRows
+  .filter(r => r.slot === 'others' || !r.slot)
+  .map(r => getIngName(r)).join('\n');
+
+result.push({ menuItemId, menuItemName, category, ingSlots, cup_r, cup_l, straw_r, straw_l, others }); // ← ADD THIS
   });
 
   return result.sort((a, b) => {
@@ -811,6 +823,7 @@ const thresholdDisplay = packCount !== null
 <th className="px-3 py-3 text-left">Ingredients</th>
 <th className="px-3 py-3 text-left text-yellow-300">Cups (R / L)</th>
 <th className="px-3 py-3 text-left text-yellow-300">Straw (R / L)</th>
+<th className="px-3 py-3 text-left text-gray-400">Others</th> 
 <th className="px-3 py-3 text-center whitespace-nowrap">Actions</th>
   </tr>
 </thead>
@@ -847,6 +860,13 @@ const thresholdDisplay = packCount !== null
     <div className="whitespace-pre-line">
       {[row.straw_r, row.straw_l].filter(Boolean).join('\n')}
     </div>
+  ) : '—'}
+</td>
+
+{/* after the straw_r / straw_l cell */}
+<td className="px-3 py-3 text-gray-500 text-xs align-top">
+  {row.others ? (
+    <div className="whitespace-pre-line">{row.others}</div>
   ) : '—'}
 </td>
 <td className="px-3 py-3 text-center">
@@ -991,13 +1011,22 @@ const thresholdDisplay = packCount !== null
         <option value={5} className="bg-black">Cup L</option>
         <option value={6} className="bg-black">Straw R</option>
         <option value={7} className="bg-black">Straw L</option>
+        <option value={8} className="bg-black">Others</option>
       </select>
-      <select value={row.ingredient_id} onChange={e => updateEditableRow(actualIdx, 'ingredient_id', e.target.value)}
-        className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-white/50">
-        {ingredients.filter(i => i.category === 'Packaging Supplies').map(ing => (
-          <option key={ing.id} value={ing.id} className="bg-black">{ing.name} ({ing.unit})</option>
-        ))}
-      </select>
+<select value={row.ingredient_id} onChange={e => updateEditableRow(actualIdx, 'ingredient_id', e.target.value)}
+  className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-white/50">
+  {ingredients
+    .filter(i => i.category === 'Packaging Supplies')
+    .filter(i => {
+      const n = i.name.toLowerCase();
+      if (row.slot === 4 || row.slot === 5) return /cup/i.test(n);
+      if (row.slot === 6 || row.slot === 7) return /straw/i.test(n);
+      return !/cup/i.test(n) && !/straw/i.test(n); // Others
+    })
+    .map(ing => (
+      <option key={ing.id} value={ing.id} className="bg-black">{ing.name} ({ing.unit})</option>
+    ))}
+</select>
       <input type="number" min="0" step="any" value={row.quantity}
         onChange={e => updateEditableRow(actualIdx, 'quantity', parseFloat(e.target.value) || 0)}
         className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white text-center focus:outline-none focus:border-white/50" />
@@ -1175,7 +1204,7 @@ const thresholdDisplay = packCount !== null
   <div key={idx} className={`flex gap-2 items-center rounded-xl px-3 py-2 border mb-2 ${isPacking ? 'bg-yellow-900/10 border-yellow-900/30' : 'bg-white/5 border-white/10'}`}>
 
 {isPacking && (
-  <select value={row.slot || 4} onChange={e => {
+  <select value={row.slot || 8} onChange={e => {
     const newSlot = parseInt(e.target.value);
     updateEditableRow(idx, 'slot', newSlot);
     updateEditableRow(idx, 'size', (newSlot === 5 || newSlot === 7) ? 'L' : 'R');
@@ -1185,12 +1214,23 @@ const thresholdDisplay = packCount !== null
     <option value={5} className="bg-black">Cup L</option>
     <option value={6} className="bg-black">Straw R</option>
     <option value={7} className="bg-black">Straw L</option>
+     <option value={8} className="bg-black">Others</option> 
   </select>
 )}
 <select value={row.ingredient_id} onChange={e => updateEditableRow(idx, 'ingredient_id', e.target.value)}
   className="flex-1 min-w-[160px] bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none">
-        {ingredients.map(ing => <option key={ing.id} value={ing.id}>{ing.name} ({ing.unit})</option>)}
-      </select>
+  {(isPacking
+    ? ingredients
+        .filter(i => i.category === 'Packaging Supplies')
+        .filter(i => {
+          const n = i.name.toLowerCase();
+          if (row.slot === 4 || row.slot === 5) return /cup/i.test(n);
+          if (row.slot === 6 || row.slot === 7) return /straw/i.test(n);
+          return !/cup/i.test(n) && !/straw/i.test(n); // Others
+        })
+    : ingredients.filter(i => i.category !== 'Packaging Supplies')
+  ).map(ing => <option key={ing.id} value={ing.id}>{ing.name} ({ing.unit})</option>)}
+</select>
 {!isPacking && (
   <select value={row.size} onChange={e => updateEditableRow(idx, 'size', e.target.value)}
     className="w-16 shrink-0 bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white text-center focus:outline-none">
@@ -1241,6 +1281,7 @@ for (const row of rows) {
     ingredient_id: row.ingredient_id,
     quantity: row.quantity,
     size: row.size,  // ← use each row's own size
+    slot: getSlotString(row.slot),
   }]);
                 if (error) { alert('Error: ' + error.message); return; }
               }
