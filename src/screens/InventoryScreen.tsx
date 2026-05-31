@@ -587,8 +587,9 @@ const straw_l = packingRows
 const others = packingRows
   .filter(r => r.slot === 'others' || !r.slot)
   .map(r => getIngName(r)).join('\n');
+const other_supplies = [straw_r, straw_l, others].filter(Boolean).join('\n');
 
-result.push({ menuItemId, menuItemName, category, ingSlots, cup_r, cup_l, straw_r, straw_l, others }); // ← ADD THIS
+result.push({ menuItemId, menuItemName, category, ingSlots, cup_r, cup_l, other_supplies });
   });
 
   return result.sort((a, b) => {
@@ -821,9 +822,8 @@ const thresholdDisplay = packCount !== null
 <th className="px-3 py-3 text-left">Category</th>
 <th className="px-3 py-3 text-left">Menu Item</th>
 <th className="px-3 py-3 text-left">Ingredients</th>
-<th className="px-3 py-3 text-left text-yellow-300">Cups (R / L)</th>
-<th className="px-3 py-3 text-left text-yellow-300">Straw (R / L)</th>
-<th className="px-3 py-3 text-left text-gray-400">Others</th> 
+<th className="px-3 py-3 text-left text-yellow-300">Packing Supplies</th>
+<th className="px-3 py-3 text-left text-yellow-300">Other Supplies</th>
 <th className="px-3 py-3 text-center whitespace-nowrap">Actions</th>
   </tr>
 </thead>
@@ -833,9 +833,7 @@ const thresholdDisplay = packCount !== null
 <td className="px-3 py-3 text-gray-400 text-xs">{row.category}</td>
 <td className="px-3 py-3 font-medium text-white">{row.menuItemName}</td>
 <td className="px-3 py-3 text-xs align-top">
-  {row.ingSlots.length === 0 ? (
-    <span className="text-gray-600">—</span>
-  ) : (
+  {row.ingSlots.length > 0 && (
     <div className="space-y-0.5">
       {row.ingSlots.map((slot: any, i: number) => (
         <div key={i} className="whitespace-nowrap">
@@ -849,20 +847,10 @@ const thresholdDisplay = packCount !== null
 </td>
 
 <td className="px-3 py-3 text-gray-300 text-xs align-top">
-  {row.cup_r || row.cup_l ? (
-    <div className="whitespace-pre-line">
-      {[row.cup_r, row.cup_l].filter(Boolean).join('\n')}
-    </div>
-  ) : '—'}
+  {row.other_supplies && (
+    <div className="whitespace-pre-line">{row.other_supplies}</div>
+  )}
 </td>
-<td className="px-3 py-3 text-gray-300 text-xs align-top">
-  {row.straw_r || row.straw_l ? (
-    <div className="whitespace-pre-line">
-      {[row.straw_r, row.straw_l].filter(Boolean).join('\n')}
-    </div>
-  ) : '—'}
-</td>
-
 {/* after the straw_r / straw_l cell */}
 <td className="px-3 py-3 text-gray-500 text-xs align-top">
   {row.others ? (
@@ -1007,11 +995,11 @@ const thresholdDisplay = packCount !== null
         updateEditableRow(actualIdx, 'size', (newSlot === 5 || newSlot === 7) ? 'L' : 'R');
       }}
         className="w-full bg-black border border-yellow-900/50 rounded-lg px-2 py-1.5 text-xs text-yellow-300 focus:outline-none">
-        <option value={4} className="bg-black">Cup R</option>
-        <option value={5} className="bg-black">Cup L</option>
-        <option value={6} className="bg-black">Straw R</option>
-        <option value={7} className="bg-black">Straw L</option>
-        <option value={8} className="bg-black">Others</option>
+<option value={4} className="bg-black">Cup R</option>
+<option value={5} className="bg-black">Cup L</option>
+<option value={6} className="bg-black">Straw R</option>
+<option value={7} className="bg-black">Straw L</option>
+<option value={8} className="bg-black">Other</option>
       </select>
 <select value={row.ingredient_id} onChange={e => updateEditableRow(actualIdx, 'ingredient_id', e.target.value)}
   className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-white/50">
@@ -1182,7 +1170,7 @@ const thresholdDisplay = packCount !== null
             className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white">
             <option value="">Select menu item...</option>
             {menuItems
-              .filter(item => !['Supplies','Merchandise','Appetizers','Add Ons','Food'].includes(item.category))
+              .filter(item => !['Supplies','Merchandise','Add Ons'].includes(item.category))
               .map(item => <option key={item.id} value={item.id}>{item.name} ({item.category})</option>)}
           </select>
         </div>

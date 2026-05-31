@@ -92,12 +92,13 @@ export const CATEGORIES = [
   'Classic',
   'Cream Soda',
   'Espresso',
+  'Food',
   'Iced Tea',
-  'Tropical Trio',
+  'Merchandise',
   'Refreshers',
   'Rock Salt and Cheese',
-  'Merchandise',
   'Supplies',
+  'Tropical Trio',
 ] as const;
 
 export type Category = typeof CATEGORIES[number];
