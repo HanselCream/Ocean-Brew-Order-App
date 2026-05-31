@@ -67,7 +67,7 @@ function AdminEditModal({
             <div>
               <label className="block text-sm font-semibold text-gray-300 mb-1">Category</label>
               <select value={category} onChange={e => setCategory(e.target.value)} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white">
-                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                {[...CATEGORIES].sort().map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
           )}

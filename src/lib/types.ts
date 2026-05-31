@@ -93,7 +93,7 @@ export const CATEGORIES = [
   'Cream Soda',
   'Espresso',
   'Iced Tea',
-  'Island Pop',
+  'Tropical Trio',
   'Refreshers',
   'Rock Salt and Cheese',
   'Merchandise',
