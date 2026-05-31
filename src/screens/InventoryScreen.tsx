@@ -993,12 +993,12 @@ const thresholdDisplay = packCount !== null
   updateEditableRow(actualIdx, 'slot', newSlot);
   // auto-select the correct ingredient for this slot
   const defaults: Record<number, string[]> = {
-    4: ['regular u cup', 'u cup'],
-    5: ['hard cup'],
-    6: ['dabba cup'],
-    7: ['hot coffee cup'],
-    8: ['boba straw 21', 'boba straw 23', 'thin coffee straw', 'thin straw', 'straw'],
-    9: ['coffee stirrer', 'stirrer'],
+4: ['u cup', 'regular u cup'],
+5: ['hard cup'],
+6: ['dabba cup'],
+7: ['hot coffee cup', 'stirrer'],
+8: ['boba straw 21', 'thin straw'],
+9: ['bag', 'takeout'],
   };
   const keywords = defaults[newSlot] || [];
   const match = ingredients.find(i =>
@@ -1020,12 +1020,12 @@ const thresholdDisplay = packCount !== null
     .filter(i => i.category === 'Packaging Supplies')
 .filter(i => {
   const n = i.name.toLowerCase();
-  if (row.slot === 4) return n.includes('u cup') || n.includes('regular');
-  if (row.slot === 5) return n.includes('hard cup') || n.includes('22oz');
-  if (row.slot === 6) return n.includes('dabba');
+if (row.slot === 4) return n.includes('u cup') || n.includes('21');
+if (row.slot === 5) return n.includes('hard cup') || n.includes('23');
+if (row.slot === 6) return n.includes('dabba') || n.includes('thin');
 if (row.slot === 7) return n.includes('hot coffee cup') || n.includes('stirrer');
-if (row.slot === 8) return n.includes('straw');
 if (row.slot === 9) return n.includes('bag') || n.includes('takeout') || n.includes('paper') || n.includes('film');
+return true;
   return true;
 })
     .map(ing => (
@@ -1212,11 +1212,11 @@ if (row.slot === 9) return n.includes('bag') || n.includes('takeout') || n.inclu
   const newSlot = parseInt(e.target.value);
   updateEditableRow(idx, 'slot', newSlot);
 const defaults: Record<number, string[]> = {
-  4: ['regular u cup', 'u cup'],
+  4: ['u cup', 'regular u cup'],
   5: ['hard cup'],
   6: ['dabba cup'],
-  7: ['hot coffee cup', 'coffee stirrer', 'stirrer'],
-  8: ['boba straw 21', 'boba straw 23', 'thin coffee straw', 'thin straw', 'straw'],
+  7: ['hot coffee cup', 'stirrer'],
+  8: ['boba straw 21', 'thin straw', 'thin coffee straw'],
   9: ['bag', 'takeout'],
 };
   const keywords = defaults[newSlot] || [];
@@ -1245,8 +1245,8 @@ if (row.slot === 4) return n.includes('u cup') || n.includes('21');
 if (row.slot === 5) return n.includes('hard cup') || n.includes('23');
 if (row.slot === 6) return n.includes('dabba') || n.includes('thin');
 if (row.slot === 7) return n.includes('hot coffee cup') || n.includes('stirrer');
-if (row.slot === 9) return n.includes('bag') || n.includes('takeout') || n.includes('paper') || n.includes('film') || n.includes('stirrer');
-  return true;
+if (row.slot === 9) return n.includes('bag') || n.includes('takeout') || n.includes('paper') || n.includes('film');
+return true;
 })
     : ingredients.filter(i => i.category !== 'Packaging Supplies')
   ).map(ing => <option key={ing.id} value={ing.id}>{ing.name} ({ing.unit})</option>)}
