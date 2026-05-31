@@ -334,8 +334,11 @@ const slotNumMap: Record<string, number> = {
   cup_r: 4, cup_l: 5, cup_cold_r: 6, cup_cold_l: 6,
   cup_hot_r: 7, cup_hot_l: 7, straw_r: 8, straw_l: 8,
 };
+const ingName = ing?.name?.toLowerCase() || '';
+const isOtherSupply = ingName.includes('straw') || ingName.includes('stirrer');
+const defaultSlot = isOtherSupply ? 9 : 4;
 const slot = isPacking
-  ? (dbSlot ? slotNumMap[dbSlot] ?? 4 : 4)
+  ? (isOtherSupply ? 9 : (dbSlot ? slotNumMap[dbSlot] ?? defaultSlot : defaultSlot))
   : 1;
     return {
       id: r.id, ingredient_id: r.ingredient_id,
@@ -1003,9 +1006,9 @@ const thresholdDisplay = packCount !== null
 4: ['u cup', 'regular u cup'],
 5: ['hard cup'],
 6: ['dabba cup'],
-7: ['hot coffee cup', 'stirrer'],
+7: ['hot coffee cup'],
 8: ['boba straw 21', 'thin straw'],
-9: ['bag', 'takeout'],
+9: ['bag', 'takeout', 'stirrer'],
   };
   const keywords = defaults[newSlot] || [];
   const match = ingredients.find(i =>
@@ -1030,8 +1033,8 @@ const thresholdDisplay = packCount !== null
 if (row.slot === 4) return n.includes('u cup');
 if (row.slot === 5) return n.includes('hard cup');
 if (row.slot === 6) return n.includes('dabba');
-if (row.slot === 7) return n.includes('hot coffee cup') || n.includes('stirrer');
-if (row.slot === 9) return n.includes('straw') || n.includes('bag') || n.includes('takeout') || n.includes('paper') || n.includes('film');
+if (row.slot === 7) return n.includes('hot coffee cup');
+if (row.slot === 9) return n.includes('straw') || n.includes('stirrer') || n.includes('bag') || n.includes('takeout') || n.includes('paper') || n.includes('film');
 return true;
 })
 .map(ing => (
@@ -1221,9 +1224,9 @@ const defaults: Record<number, string[]> = {
   4: ['u cup', 'regular u cup'],
   5: ['hard cup'],
   6: ['dabba cup'],
-  7: ['hot coffee cup', 'stirrer'],
+7: ['hot coffee cup'],
   8: ['boba straw 21', 'thin straw', 'thin coffee straw'],
-  9: ['bag', 'takeout'],
+9: ['bag', 'takeout', 'stirrer'],
 };
   const keywords = defaults[newSlot] || [];
   const match = ingredients.find(i =>
@@ -1250,7 +1253,7 @@ const defaults: Record<number, string[]> = {
 if (row.slot === 4) return n.includes('u cup');
 if (row.slot === 5) return n.includes('hard cup');
 if (row.slot === 6) return n.includes('dabba');
-if (row.slot === 7) return n.includes('hot coffee cup') || n.includes('stirrer');
+if (row.slot === 7) return n.includes('hot coffee cup');
 if (row.slot === 9) return n.includes('straw') || n.includes('bag') || n.includes('takeout') || n.includes('paper') || n.includes('film');
 return true;
 })
