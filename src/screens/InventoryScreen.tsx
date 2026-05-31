@@ -577,13 +577,18 @@ const ingSlots = Object.entries(ingMap)
 
     // packing
 const CUP_SLOTS = new Set(['regular','large','cold','hot','cup_r','cup_l','cup_cold_r','cup_cold_l','cup_hot_r','cup_hot_l']);
-const OTHER_SLOTS = new Set(['straw','straw_r','straw_l','others']);
+
+const isCupRow = (r: Recipe) => {
+  const slotStr = (r as any).slot as string | null;
+  if (slotStr && CUP_SLOTS.has(slotStr)) return true;
+  return getIngName(r).toLowerCase().includes('cup');
+};
 
 const packing_supplies = packingRows
-  .filter(r => r.slot && CUP_SLOTS.has(r.slot))
+  .filter(r => isCupRow(r))
   .map(r => getIngName(r)).join('\n');
 const other_supplies = packingRows
-  .filter(r => !r.slot || OTHER_SLOTS.has(r.slot))
+  .filter(r => !isCupRow(r))
   .map(r => getIngName(r)).join('\n');
 result.push({ menuItemId, menuItemName, category, ingSlots, packing_supplies, other_supplies });
   });
@@ -1015,11 +1020,12 @@ const thresholdDisplay = packCount !== null
     .filter(i => i.category === 'Packaging Supplies')
 .filter(i => {
   const n = i.name.toLowerCase();
-if (row.slot === 4) return n.includes('u cup') || n.includes('21');
-if (row.slot === 5) return n.includes('hard cup') || n.includes('23');
-if (row.slot === 6) return n.includes('dabba') || n.includes('thin');
+  if (row.slot === 4) return n.includes('u cup') || n.includes('regular');
+  if (row.slot === 5) return n.includes('hard cup') || n.includes('22oz');
+  if (row.slot === 6) return n.includes('dabba');
 if (row.slot === 7) return n.includes('hot coffee cup') || n.includes('stirrer');
-if (row.slot === 9) return n.includes('bag') || n.includes('takeout');
+if (row.slot === 8) return n.includes('straw');
+if (row.slot === 9) return n.includes('bag') || n.includes('takeout') || n.includes('paper') || n.includes('film');
   return true;
 })
     .map(ing => (
@@ -1029,8 +1035,7 @@ if (row.slot === 9) return n.includes('bag') || n.includes('takeout');
       <input type="number" min="0" step="any" value={row.quantity}
         onChange={e => updateEditableRow(actualIdx, 'quantity', parseFloat(e.target.value) || 0)}
         className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white text-center focus:outline-none focus:border-white/50" />
-      <span className="text-xs text-gray-400 text-center font-mono">{selectedIngredient?.unit || '—'}</span>
-      <button onClick={() => markRowDeleted(actualIdx)}
+<span className="text-xs text-gray-400 text-center font-mono">{selectedIngredient?.unit === 'pieces' ? 'pc' : selectedIngredient?.unit || '—'}</span>      <button onClick={() => markRowDeleted(actualIdx)}
         className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-900/30 hover:text-red-400 transition-colors">×</button>
     </div>
     );
@@ -1206,14 +1211,14 @@ if (row.slot === 9) return n.includes('bag') || n.includes('takeout');
 <select value={row.slot || 4} onChange={e => {
   const newSlot = parseInt(e.target.value);
   updateEditableRow(idx, 'slot', newSlot);
-  const defaults: Record<number, string[]> = {
-    4: ['regular u cup', 'u cup'],
-    5: ['hard cup'],
-    6: ['dabba cup'],
-    7: ['hot coffee cup'],
-    8: ['straw'],
-    9: ['stirrer', 'bag'],
-  };
+const defaults: Record<number, string[]> = {
+  4: ['regular u cup', 'u cup'],
+  5: ['hard cup'],
+  6: ['dabba cup'],
+  7: ['hot coffee cup', 'coffee stirrer', 'stirrer'],
+  8: ['boba straw 21', 'boba straw 23', 'thin coffee straw', 'thin straw', 'straw'],
+  9: ['bag', 'takeout'],
+};
   const keywords = defaults[newSlot] || [];
   const match = ingredients.find(i =>
     i.category === 'Packaging Supplies' &&
@@ -1240,7 +1245,7 @@ if (row.slot === 4) return n.includes('u cup') || n.includes('21');
 if (row.slot === 5) return n.includes('hard cup') || n.includes('23');
 if (row.slot === 6) return n.includes('dabba') || n.includes('thin');
 if (row.slot === 7) return n.includes('hot coffee cup') || n.includes('stirrer');
-if (row.slot === 9) return n.includes('bag') || n.includes('takeout');
+if (row.slot === 9) return n.includes('bag') || n.includes('takeout') || n.includes('paper') || n.includes('film') || n.includes('stirrer');
   return true;
 })
     : ingredients.filter(i => i.category !== 'Packaging Supplies')
