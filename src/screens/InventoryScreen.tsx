@@ -576,13 +576,19 @@ const ingSlots = Object.entries(ingMap)
   .sort((a, b) => getIngOrder(a.ingredient_id, a.name) - getIngOrder(b.ingredient_id, b.name));
 
     // packing
-const PACKING_SLOTS = new Set(['regular','large','cold','hot','straw','cup_r','cup_l','cup_cold_r','cup_cold_l','cup_hot_r','cup_hot_l','straw_r','straw_l']);
+const CUP_SLOTS = new Set(['regular','large','cold','hot','cup_r','cup_l','cup_cold_r','cup_cold_l','cup_hot_r','cup_hot_l']);
+const OTHER_SLOTS = new Set(['straw','straw_r','straw_l','others']);
 
 const isCupRow = (r: Recipe) => {
-  const slotStr = (r as any).slot as string | null;
-  if (slotStr && PACKING_SLOTS.has(slotStr)) return true;
   const n = getIngName(r).toLowerCase();
-  return n.includes('cup') || n.includes('straw') || n.includes('stirrer');
+  // name always wins — stirrers and straws always go to Other Supplies
+  if (n.includes('straw') || n.includes('stirrer')) return false;
+  if (n.includes('cup')) return true;
+  // fallback to slot
+  const slotStr = (r as any).slot as string | null;
+  if (slotStr && OTHER_SLOTS.has(slotStr)) return false;
+  if (slotStr && CUP_SLOTS.has(slotStr)) return true;
+  return false;
 };
 
 const packing_supplies = packingRows
@@ -1021,11 +1027,11 @@ const thresholdDisplay = packCount !== null
     .filter(i => i.category === 'Packaging Supplies')
 .filter(i => {
   const n = i.name.toLowerCase();
-if (row.slot === 4) return n.includes('u cup') || n.includes('21');
-if (row.slot === 5) return n.includes('hard cup') || n.includes('23');
-if (row.slot === 6) return n.includes('dabba') || n.includes('thin');
+if (row.slot === 4) return n.includes('u cup');
+if (row.slot === 5) return n.includes('hard cup');
+if (row.slot === 6) return n.includes('dabba');
 if (row.slot === 7) return n.includes('hot coffee cup') || n.includes('stirrer');
-if (row.slot === 9) return n.includes('bag') || n.includes('takeout') || n.includes('paper') || n.includes('film');
+if (row.slot === 9) return n.includes('straw') || n.includes('bag') || n.includes('takeout') || n.includes('paper') || n.includes('film');
 return true;
 })
     .map(ing => (
@@ -1241,11 +1247,11 @@ const defaults: Record<number, string[]> = {
     .filter(i => i.category === 'Packaging Supplies')
 .filter(i => {
   const n = i.name.toLowerCase();
-if (row.slot === 4) return n.includes('u cup') || n.includes('21');
-if (row.slot === 5) return n.includes('hard cup') || n.includes('23');
-if (row.slot === 6) return n.includes('dabba') || n.includes('thin');
+if (row.slot === 4) return n.includes('u cup');
+if (row.slot === 5) return n.includes('hard cup');
+if (row.slot === 6) return n.includes('dabba');
 if (row.slot === 7) return n.includes('hot coffee cup') || n.includes('stirrer');
-if (row.slot === 9) return n.includes('bag') || n.includes('takeout') || n.includes('paper') || n.includes('film');
+if (row.slot === 9) return n.includes('straw') || n.includes('bag') || n.includes('takeout') || n.includes('paper') || n.includes('film');
 return true;
 })
     : ingredients.filter(i => i.category !== 'Packaging Supplies')
@@ -1262,7 +1268,7 @@ return true;
   onChange={e => updateEditableRow(idx, 'quantity', parseFloat(e.target.value) || 0)}
   className="w-20 shrink-0 bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white text-center focus:outline-none" />
 <span className="text-xs text-gray-400 text-center font-mono w-12 shrink-0">
-  {ingredients.find(i => i.id === row.ingredient_id)?.unit || '—'}
+  {(() => { const u = ingredients.find(i => i.id === row.ingredient_id)?.unit || '—'; return u === 'pieces' ? 'pc' : u; })()}
 </span>
 <button onClick={() => markRowDeleted(idx)}
                   className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-900/30">×</button>
