@@ -587,9 +587,9 @@ const straw_l = packingRows
 const others = packingRows
   .filter(r => r.slot === 'others' || !r.slot)
   .map(r => getIngName(r)).join('\n');
-const other_supplies = [straw_r, straw_l, others].filter(Boolean).join('\n');
-
-result.push({ menuItemId, menuItemName, category, ingSlots, cup_r, cup_l, other_supplies });
+const packing_supplies = [cup_r, cup_l, straw_r, straw_l].filter(Boolean).join('\n');
+const other_supplies = others;
+result.push({ menuItemId, menuItemName, category, ingSlots, packing_supplies, other_supplies });
   });
 
   return result.sort((a, b) => {
@@ -847,15 +847,14 @@ const thresholdDisplay = packCount !== null
 </td>
 
 <td className="px-3 py-3 text-gray-300 text-xs align-top">
+  {row.packing_supplies && (
+    <div className="whitespace-pre-line">{row.packing_supplies}</div>
+  )}
+</td>
+<td className="px-3 py-3 text-gray-300 text-xs align-top">
   {row.other_supplies && (
     <div className="whitespace-pre-line">{row.other_supplies}</div>
   )}
-</td>
-{/* after the straw_r / straw_l cell */}
-<td className="px-3 py-3 text-gray-500 text-xs align-top">
-  {row.others ? (
-    <div className="whitespace-pre-line">{row.others}</div>
-  ) : '—'}
 </td>
 <td className="px-3 py-3 text-center">
         <div className="flex gap-2 justify-center">
