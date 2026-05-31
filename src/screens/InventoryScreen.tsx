@@ -576,12 +576,13 @@ const ingSlots = Object.entries(ingMap)
   .sort((a, b) => getIngOrder(a.ingredient_id, a.name) - getIngOrder(b.ingredient_id, b.name));
 
     // packing
-const CUP_SLOTS = new Set(['regular','large','cold','hot','cup_r','cup_l','cup_cold_r','cup_cold_l','cup_hot_r','cup_hot_l']);
+const PACKING_SLOTS = new Set(['regular','large','cold','hot','straw','cup_r','cup_l','cup_cold_r','cup_cold_l','cup_hot_r','cup_hot_l','straw_r','straw_l']);
 
 const isCupRow = (r: Recipe) => {
   const slotStr = (r as any).slot as string | null;
-  if (slotStr && CUP_SLOTS.has(slotStr)) return true;
-  return getIngName(r).toLowerCase().includes('cup');
+  if (slotStr && PACKING_SLOTS.has(slotStr)) return true;
+  const n = getIngName(r).toLowerCase();
+  return n.includes('cup') || n.includes('straw') || n.includes('stirrer');
 };
 
 const packing_supplies = packingRows
@@ -1026,7 +1027,6 @@ if (row.slot === 6) return n.includes('dabba') || n.includes('thin');
 if (row.slot === 7) return n.includes('hot coffee cup') || n.includes('stirrer');
 if (row.slot === 9) return n.includes('bag') || n.includes('takeout') || n.includes('paper') || n.includes('film');
 return true;
-  return true;
 })
     .map(ing => (
       <option key={ing.id} value={ing.id} className="bg-black">{ing.name} ({ing.unit})</option>
