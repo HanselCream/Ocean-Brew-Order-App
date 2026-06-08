@@ -56,6 +56,7 @@ const INGREDIENT_CATEGORIES = [
   'Coffee Ingredients',
   'Packaging Supplies',
   'Food Supplies',
+  'Merchandise',
 ];
 
 const UNIT_OPTIONS = [
@@ -1111,13 +1112,13 @@ return true;
                   </div>
                 </div>
               </div>
-              <div>
+<div>
                 <label className="block text-sm font-semibold text-gray-300 mb-1">Initial Stock</label>
-                <input type="number" value={newIngredient.current_stock} onChange={e => setNewIngredient({...newIngredient, current_stock: parseFloat(e.target.value)})} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" />
+                <input type="number" value={newIngredient.current_stock} onChange={e => setNewIngredient({...newIngredient, current_stock: parseFloat(e.target.value) || 0})} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-300 mb-1">Low Stock Alert Threshold</label>
-                <input type="number" value={newIngredient.min_stock_threshold} onChange={e => setNewIngredient({...newIngredient, min_stock_threshold: parseFloat(e.target.value)})} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" />
+                <input type="number" value={newIngredient.min_stock_threshold} onChange={e => setNewIngredient({...newIngredient, min_stock_threshold: parseFloat(e.target.value) || 0})} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-300 mb-1">Category</label>
@@ -1195,7 +1196,7 @@ return true;
             className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white">
             <option value="">Select menu item...</option>
             {menuItems
-              .filter(item => !['Supplies','Merchandise','Add Ons'].includes(item.category))
+              .filter(item => !['Supplies','Add Ons'].includes(item.category))
               .map(item => <option key={item.id} value={item.id}>{item.name} ({item.category})</option>)}
           </select>
         </div>

@@ -226,8 +226,8 @@ export default function AdminScreen() {
     }
   };
 
-  const startNewMenuItem = () => {
-    setEditing({ id: crypto.randomUUID(), name: '', category: CATEGORIES[0], priceR: 0, priceL: null, available: true, hasSizeOption: false, addOnIds: [] });
+const startNewMenuItem = () => {
+    setEditing({ id: crypto.randomUUID(), name: '', category: 'Classic', priceR: 0, priceL: null, available: true, hasSizeOption: false, addOnIds: [] });
     setIsNew(true);
   };
 

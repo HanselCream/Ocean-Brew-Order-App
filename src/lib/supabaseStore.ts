@@ -115,7 +115,7 @@ export async function saveMenuItemWithAddons(item: MenuItem): Promise<void> {
       updated_at: new Date().toISOString()
     };
     
-    const { data, error } = await supabase
+const { data, error } = await supabase
       .from('menu_items')
       .upsert(itemData)
       .select();
@@ -124,7 +124,53 @@ export async function saveMenuItemWithAddons(item: MenuItem): Promise<void> {
     
     const menuItemId = data?.[0]?.id || item.id;
     console.log('Menu item ID:', menuItemId);
-    
+
+    // Auto-create ingredient + recipe for Merchandise items
+    if (['Merchandise', 'Food Supplies', 'Supplies', 'Food'].includes(item.category)) {
+      // Check if ingredient already exists
+const { data: existingIng } = await supabase
+        .from('ingredients')
+        .select('id')
+        .eq('name', item.name)
+        .maybeSingle();
+
+      let ingredientId = existingIng?.id;
+
+      if (!ingredientId) {
+        // Create ingredient
+        const { data: newIng } = await supabase
+          .from('ingredients')
+          .insert([{
+            name: item.name,
+            unit: 'pieces',
+            current_stock: 0,
+            min_stock_threshold: 2,
+            category: 'Merchandise',
+          }])
+          .select();
+        ingredientId = newIng?.[0]?.id;
+      }
+
+      if (ingredientId) {
+        // Check if recipe already exists
+const { data: existingRecipe } = await supabase
+          .from('recipes')
+          .select('id')
+          .eq('menu_item_id', menuItemId)
+          .eq('ingredient_id', ingredientId)
+          .maybeSingle();
+
+        if (!existingRecipe) {
+          await supabase.from('recipes').insert([{
+            menu_item_id: menuItemId,
+            ingredient_id: ingredientId,
+            quantity: 1,
+            size: 'R',
+          }]);
+        }
+      }
+    }
+
     // 2. Handle add-on relationships
     if (item.category !== 'Add Ons' && item.addOnIds) {
       // Delete existing
@@ -259,12 +305,11 @@ const orderData = {
   order_type: (order as any).orderType ?? null,
 };
 
-    console.log('📤 Inserting to Supabase:', orderData.order_number);
+console.log('📤 Inserting to Supabase:', orderData.order_number);
 
     const { data, error } = await supabase
       .from('orders')
       .insert([orderData])
-      
       .select();
 
     if (error) {
@@ -273,9 +318,49 @@ const orderData = {
     }
 
     console.log('✅ Supabase confirmed insert:', data);
+
+    // Deduct stock for Merchandise items immediately on order
+    const orderId = data?.[0]?.id || '';
+console.log('🛍️ All cart categories:', order.items.map(i => ({ name: i.name, cat: i.category })));
+const directDeductItems = order.items.filter(i => 
+  ['Merchandise', 'Food Supplies', 'Supplies', 'Food'].includes(i.category)
+);
+console.log('🛍️ Direct deduct items:', directDeductItems.length);
+if (directDeductItems.length > 0) {
+  await deductMerchStock(directDeductItems, orderId);
+}
+
   } catch (err: any) {
     console.error('❌ Error in saveOrder:', JSON.stringify(err), err?.message);
     throw err;
+  }
+}
+
+async function deductMerchStock(items: OrderItem[], orderId: string) {
+  for (const item of items) {
+    const qty = item.quantity || 1;
+    const { data: recipes } = await supabase
+      .from('recipes')
+      .select(`*, ingredients:ingredient_id (*)`)
+      .eq('menu_item_id', item.menuItemId);
+
+    for (const recipe of recipes || []) {
+      const ingredient = recipe.ingredients;
+      if (!ingredient) continue;
+      const needed = recipe.quantity * qty;
+      const newStock = Math.max(0, ingredient.current_stock - needed);
+      await supabase.from('ingredients')
+        .update({ current_stock: newStock, updated_at: new Date().toISOString() })
+        .eq('id', ingredient.id);
+      await supabase.from('stock_logs').insert([{
+        ingredient_id: ingredient.id,
+        previous_stock: ingredient.current_stock,
+        new_stock: newStock,
+        quantity_change: -needed,
+        reason: 'order',
+        reference_id: orderId,
+      }]);
+    }
   }
 }
 
