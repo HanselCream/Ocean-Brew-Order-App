@@ -139,6 +139,7 @@ if (['Merchandise', 'Food Supplies', 'Supplies', 'Food'].includes(item.category)
     const ingCategory =
       item.category === 'Merchandise' ? 'Merchandise' :
       item.category === 'Supplies' ? 'Packaging Supplies' :
+      item.category === 'Food' ? 'Food Supplies' :
       'Food Supplies';
 
     const { data: newIng } = await supabase

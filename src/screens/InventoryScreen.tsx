@@ -698,7 +698,7 @@ const maxIngSlots = useMemo(() => {
         {(['ingredients','recipes','logs'] as const).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             className={`px-6 py-3 font-semibold transition-colors capitalize ${activeTab === tab ? 'text-white border-b-2 border-white' : 'text-gray-400 hover:text-white'}`}>
-            {tab === 'ingredients' ? `📦 Ingredients (${ingredients.length})` : tab === 'recipes' ? `📋 Recipes (${recipes.length})` : '📜 Stock Logs'}
+            {tab === 'ingredients' ? `📦 Supplies (${ingredients.length})` : tab === 'recipes' ? `📋 Recipes (${recipes.length})` : '📜 Stock Logs'}
           </button>
         ))}
       </div>

@@ -92,7 +92,7 @@ export const CATEGORIES = [
   'Classic',
   'Cream Soda',
   'Espresso',
-  'Food',
+  'Food Supplies',
   'Iced Tea',
   'Merchandise',
   'Refreshers',
