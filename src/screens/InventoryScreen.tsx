@@ -723,10 +723,10 @@ const maxIngSlots = useMemo(() => {
             </div>
             <div className="flex items-center gap-2 ml-auto">
               <span className="text-sm text-gray-400">Used period:</span>
-              <select value={usedDateRange} onChange={e => setUsedDateRange(e.target.value as DateRange)}
-                className="px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white text-sm focus:outline-none">
-                {DATE_RANGE_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-              </select>
+<select value={usedDateRange} onChange={e => setUsedDateRange(e.target.value as DateRange)}
+  className="px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white text-sm focus:outline-none">
+  {DATE_RANGE_OPTIONS.map(opt => <option key={opt.value} value={opt.value} className="bg-black text-white">{opt.label}</option>)}
+</select>
             </div>
             <button onClick={() => setShowAddIngredient(true)} className="px-5 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200">
               + Add Ingredient
@@ -1113,17 +1113,23 @@ return true;
                 </div>
               </div>
 <div>
-                <label className="block text-sm font-semibold text-gray-300 mb-1">Initial Stock</label>
-                <input type="number" value={newIngredient.current_stock} onChange={e => setNewIngredient({...newIngredient, current_stock: parseFloat(e.target.value) || 0})} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" />
-              </div>
+  <label className="block text-sm font-semibold text-gray-300 mb-1">Initial Stock</label>
+  <input
+    type="number"
+    value={newIngredient.current_stock}
+    onChange={e => setNewIngredient({...newIngredient, current_stock: parseFloat(e.target.value) || 0})}
+    className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
+  />
+</div>
               <div>
                 <label className="block text-sm font-semibold text-gray-300 mb-1">Low Stock Alert Threshold</label>
                 <input type="number" value={newIngredient.min_stock_threshold} onChange={e => setNewIngredient({...newIngredient, min_stock_threshold: parseFloat(e.target.value) || 0})} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-300 mb-1">Category</label>
-                <input list="cat-list-add" value={newIngredient.category} onChange={e => setNewIngredient({...newIngredient, category: e.target.value})} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" />
-                <datalist id="cat-list-add">{allCategories.map(cat => <option key={cat} value={cat} />)}</datalist>
+                <select value={newIngredient.category} onChange={e => setNewIngredient({...newIngredient, category: e.target.value})} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white">
+  {allCategories.map(cat => <option key={cat} value={cat} className="bg-black">{cat}</option>)}
+</select>
               </div>
             </div>
             <div className="p-5 border-t border-white/20 flex justify-end gap-3">

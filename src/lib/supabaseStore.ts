@@ -126,27 +126,30 @@ const { data, error } = await supabase
     console.log('Menu item ID:', menuItemId);
 
     // Auto-create ingredient + recipe for Merchandise items
-    if (['Merchandise', 'Food Supplies', 'Supplies', 'Food'].includes(item.category)) {
-      // Check if ingredient already exists
-const { data: existingIng } = await supabase
-        .from('ingredients')
-        .select('id')
-        .eq('name', item.name)
-        .maybeSingle();
+if (['Merchandise', 'Food Supplies', 'Supplies', 'Food'].includes(item.category)) {
+  const { data: existingIng } = await supabase
+    .from('ingredients')
+    .select('id')
+    .eq('name', item.name)
+    .maybeSingle();
 
-      let ingredientId = existingIng?.id;
+  let ingredientId = existingIng?.id;
 
-      if (!ingredientId) {
-        // Create ingredient
-        const { data: newIng } = await supabase
-          .from('ingredients')
-          .insert([{
-            name: item.name,
-            unit: 'pieces',
-            current_stock: 0,
-            min_stock_threshold: 2,
-            category: 'Merchandise',
-          }])
+  if (!ingredientId) {
+    const ingCategory =
+      item.category === 'Merchandise' ? 'Merchandise' :
+      item.category === 'Supplies' ? 'Packaging Supplies' :
+      'Food Supplies';
+
+    const { data: newIng } = await supabase
+      .from('ingredients')
+      .insert([{
+        name: item.name,
+        unit: 'pieces',
+        current_stock: 0,
+        min_stock_threshold: 2,
+        category: ingCategory,
+      }])
           .select();
         ingredientId = newIng?.[0]?.id;
       }
@@ -323,13 +326,20 @@ console.log('📤 Inserting to Supabase:', orderData.order_number);
     const orderId = data?.[0]?.id || '';
 console.log('🛍️ All cart categories:', order.items.map(i => ({ name: i.name, cat: i.category })));
 const directDeductItems = order.items.filter(i => 
-  ['Merchandise', 'Food Supplies', 'Supplies', 'Food'].includes(i.category)
+  ['Merchandise', 'Food Supplies', 'Supplies', 'Food'].includes(i.category ?? '')
 );
 console.log('🛍️ Direct deduct items:', directDeductItems.length);
 if (directDeductItems.length > 0) {
   await deductMerchStock(directDeductItems, orderId);
 }
 
+// Auto-deduct drink ingredients via window bridge
+const drinkItems = order.items.filter(i =>
+  !['Merchandise', 'Food Supplies', 'Supplies', 'Food', 'Add Ons'].includes(i.category ?? '')
+);
+if (drinkItems.length > 0 && typeof window !== 'undefined' && (window as any).deductStockForOrder) {
+  await (window as any).deductStockForOrder(drinkItems, orderId);
+}
   } catch (err: any) {
     console.error('❌ Error in saveOrder:', JSON.stringify(err), err?.message);
     throw err;
@@ -339,22 +349,45 @@ if (directDeductItems.length > 0) {
 async function deductMerchStock(items: OrderItem[], orderId: string) {
   for (const item of items) {
     const qty = item.quantity || 1;
-    const { data: recipes } = await supabase
+    const { data: recipes, error: recipeError } = await supabase
       .from('recipes')
       .select(`*, ingredients:ingredient_id (*)`)
       .eq('menu_item_id', item.menuItemId);
 
-    for (const recipe of recipes || []) {
+    if (recipeError) {
+      console.error('❌ Recipe fetch error for', item.name, recipeError);
+      continue;
+    }
+
+    if (!recipes || recipes.length === 0) {
+      console.warn('⚠️ No recipe found for Merchandise item:', item.name, item.menuItemId);
+      continue;
+    }
+
+    for (const recipe of recipes) {
       const ingredient = recipe.ingredients;
-      if (!ingredient) continue;
+      if (!ingredient) {
+        console.warn('⚠️ No ingredient linked to recipe:', recipe.id);
+        continue;
+      }
+
+      // Re-fetch fresh stock to avoid race conditions
+      const { data: fresh } = await supabase
+        .from('ingredients').select('*').eq('id', ingredient.id).single();
+      if (!fresh) continue;
+
       const needed = recipe.quantity * qty;
-      const newStock = Math.max(0, ingredient.current_stock - needed);
+      const newStock = Math.max(0, fresh.current_stock - needed);
+
+      console.log(`📦 Deducting ${needed} from ${fresh.name}: ${fresh.current_stock} → ${newStock}`);
+
       await supabase.from('ingredients')
         .update({ current_stock: newStock, updated_at: new Date().toISOString() })
         .eq('id', ingredient.id);
+
       await supabase.from('stock_logs').insert([{
         ingredient_id: ingredient.id,
-        previous_stock: ingredient.current_stock,
+        previous_stock: fresh.current_stock,
         new_stock: newStock,
         quantity_change: -needed,
         reason: 'order',
