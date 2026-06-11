@@ -7,6 +7,7 @@ export interface MenuItem {
   available: boolean;
   hasSizeOption: boolean;
   addOnIds?: string[]; // Add-on IDs assigned to this menu item
+  autoDeduct?: boolean; 
 }
 
 export interface AddOn {

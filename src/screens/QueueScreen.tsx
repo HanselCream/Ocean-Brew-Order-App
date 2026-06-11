@@ -149,9 +149,11 @@ const deductStock = async (orderItems: any[], orderId: string) => {
     const qty = orderItem.quantity || 1;
 
     const { data: menuData } = await supabase
-      .from('menu_items').select('category').eq('id', menuItemId).single();
+      .from('menu_items').select('category, auto_deduct').eq('id', menuItemId).single();
 
-    const isEspresso = menuData?.category === 'Espresso';
+      if (!menuData?.auto_deduct) continue;  // ← skip if not flagged
+
+      const isEspresso = menuData?.category === 'Espresso';
     const sizeToQuery = isEspresso ? 'R' : (orderItem.customization?.size || 'R');
 
     const { data: recipeData, error } = await supabase

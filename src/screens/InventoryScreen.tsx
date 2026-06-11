@@ -157,8 +157,11 @@ const loadStockLogs = async () => {
   };
 
   const loadMenuItems = async () => {
+    const EXCLUDED = ['Add Ons', 'Merchandise', 'Supplies', 'Food Supplies'];
     const { data, error } = await supabase.from('menu_items')
-      .select('id, name, category').neq('category', 'Add Ons').order('name');
+      .select('id, name, category')
+      .not('category', 'in', `(${EXCLUDED.map(c => `"${c}"`).join(',')})`)
+      .order('name');
     if (error) throw error;
     setMenuItems(data || []);
   };
@@ -261,7 +264,9 @@ const { data: recipeData } = await supabase.from('recipes')
       reason: adjustReason, reference_id: 'manual_' + Date.now(),
     }]);
     setShowAdjustStock(null); setAdjustAmount(0);
-    await loadIngredients(); await loadStockLogs();
+    await loadIngredients();
+    await loadStockLogs();
+    await calculateDrinksLeft();
   };
 
   const addRecipe = async () => {
@@ -520,7 +525,12 @@ useEffect(() => { loadAllData(); }, []);
   });
 
   const menuCategories = useMemo(() => {
-    const cats = new Set(menuItems.map(item => item.category).filter(Boolean));
+    const RECIPE_EXCLUDED_CATS = ['Add Ons', 'Merchandise', 'Supplies', 'Food Supplies'];
+    const cats = new Set(
+      menuItems
+        .map(item => item.category)
+        .filter(c => c && !RECIPE_EXCLUDED_CATS.includes(c))
+    );
     return ['All', ...Array.from(cats).sort()];
   }, [menuItems]);
 

@@ -39,7 +39,8 @@ export async function getMenu(): Promise<MenuItem[]> {
       available: item.available,
       hasSizeOption: !!(item.pricel && parseFloat(item.pricel) > 0),
       addOnIds: addonMap[item.id] || [],
-      }));
+      autoDeduct: item.auto_deduct ?? false,  // ← ADD
+    }));
     } catch (err) {
       console.error('Unexpected error in getMenu:', err);
       return [];
@@ -51,17 +52,18 @@ export async function saveMenu(menu: MenuItem[]) {
   
   for (const item of menu) {
     try {
-      const itemData = {
-        id: item.id || crypto.randomUUID(),
-        name: item.name,
-        category: item.category,
-        pricer: item.priceR,
-        pricel: item.priceL,
-        available: item.available,
-        hassizeoption: item.hasSizeOption,
-        updated_at: new Date().toISOString()
-      };
-      
+const itemData = {
+  id: item.id || crypto.randomUUID(),
+  name: item.name,
+  category: item.category,
+  pricer: item.priceR,
+  pricel: item.priceL,
+  available: item.available,
+  hassizeoption: item.hasSizeOption,
+  auto_deduct: item.autoDeduct ?? false,  // ← ADD THIS
+  updated_at: new Date().toISOString()
+};
+          
       const { data, error } = await supabase
         .from('menu_items')
         .upsert(itemData)
@@ -104,16 +106,17 @@ export async function saveMenuItemWithAddons(item: MenuItem): Promise<void> {
     console.log('Add-on IDs to save:', item.addOnIds);
     
     // 1. Save the menu item
-    const itemData = {
-      id: item.id || crypto.randomUUID(),
-      name: item.name,
-      category: item.category,
-      pricer: item.priceR,
-      pricel: item.priceL,
-      available: item.available,
-      hassizeoption: item.hasSizeOption,
-      updated_at: new Date().toISOString()
-    };
+const itemData = {
+  id: item.id || crypto.randomUUID(),
+  name: item.name,
+  category: item.category,
+  pricer: item.priceR,
+  pricel: item.priceL,
+  available: item.available,
+  hassizeoption: item.hasSizeOption,
+  auto_deduct: item.autoDeduct ?? false,  // ← ADD THIS
+  updated_at: new Date().toISOString()
+};
     
 const { data, error } = await supabase
       .from('menu_items')

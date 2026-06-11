@@ -27,6 +27,8 @@ function AdminEditModal({
   const [priceR, setPriceR] = useState(item.priceR.toString());
   const [available, setAvailable] = useState(item.available);
   const [selectedAddOnIds, setSelectedAddOnIds] = useState<Set<string>>(new Set(item.addOnIds || []));
+  const [autoDeduct, setAutoDeduct] = useState(item.autoDeduct ?? false);
+
 
   const handleSave = () => {
     if (!name.trim()) return;
@@ -38,6 +40,7 @@ function AdminEditModal({
       priceL: null,
       hasSizeOption: false,
       available,
+      autoDeduct,
       addOnIds: isAddOn ? undefined : Array.from(selectedAddOnIds),
     });
   };
@@ -106,9 +109,14 @@ function AdminEditModal({
             </div>
           )}
           <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={available} onChange={e => setAvailable(e.target.checked)} className="w-5 h-5" />
-            <span className="text-sm font-semibold text-gray-300">Available</span>
-          </label>
+          <input
+            type="checkbox"
+            checked={autoDeduct}
+            onChange={e => setAutoDeduct(e.target.checked)}
+            className="w-5 h-5"
+          />
+          <span className="text-sm font-semibold text-gray-300">Auto Deduct Stock</span>
+        </label>
         </div>
         <div className="p-5 border-t border-white/20 flex justify-end gap-3">
           <button onClick={onCancel} className="px-5 py-2 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20">Cancel</button>
