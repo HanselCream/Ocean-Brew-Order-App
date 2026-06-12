@@ -443,7 +443,7 @@ setShowFinalConfirmModal(false);
 alert(`Order #${nextOrderNumber} completed! Change: ₱${changeAmount.toFixed(2)}`);
 onOrderPlaced();
     } catch (error: any) {
-      alert('Failed to save order: ' + (error?.message || JSON.stringify(error)));
+     alert('Failed to save order: ' + (error?.message || error?.toString() || 'Unknown error'));
     }
   };
 

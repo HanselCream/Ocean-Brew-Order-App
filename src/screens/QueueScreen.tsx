@@ -12,13 +12,73 @@ export default function QueueScreen({ refreshKey }: { refreshKey: number }) {
   const [showPrinterSettings, setShowPrinterSettings] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const deleteTestOrder = async (id: string) => {
-    if (confirm('Remove this test order? It will not affect sales totals.')) {
+const deleteTestOrder = async (id: string) => {
+    if (confirm('Remove this order? Stock will be restored.')) {
       try {
+        // Get the order first before cancelling
+        const order = orders.find(o => o.id === id);
+        if (!order) return;
+
         await updateOrder(id, { status: 'cancelled' });
+
+        // Restore stock for auto_deduct items
+        const menuItemIds = order.items.map(i => i.menuItemId);
+        const { data: menuFlags } = await supabase
+          .from('menu_items')
+          .select('id, auto_deduct')
+          .in('id', menuItemIds);
+        const autoDeductIds = new Set((menuFlags || []).filter(m => m.auto_deduct).map(m => m.id));
+
+        // Aggregate qty per ingredient name
+        const totals: Record<string, number> = {};
+        for (const item of order.items) {
+          if (autoDeductIds.has(item.menuItemId)) {
+            totals[item.name] = (totals[item.name] || 0) + (item.quantity || 1);
+          }
+        }
+
+        // Restore each ingredient
+// Restore each ingredient
+        for (const [name, qty] of Object.entries(totals)) {
+          const { data: ing } = await supabase
+            .from('ingredients')
+            .select('id')
+            .eq('name', name)
+            .maybeSingle();
+          if (!ing) continue;
+
+          // Re-fetch fresh stock to avoid stale values
+          const { data: fresh } = await supabase
+            .from('ingredients')
+            .select('*')
+            .eq('id', ing.id)
+            .single();
+          if (!fresh) continue;
+
+          const newStock = fresh.current_stock + qty;
+          await supabase.from('ingredients')
+            .update({ current_stock: newStock, updated_at: new Date().toISOString() })
+            .eq('id', fresh.id);
+
+          await supabase.from('stock_logs').insert([{
+            ingredient_id: fresh.id,
+            previous_stock: fresh.current_stock,
+            new_stock: newStock,
+            quantity_change: qty,
+            reason: 'cancelled_order',
+            reference_id: id,
+          }]);
+        }
+
+        // Restore drink ingredients via window bridge
+        const drinkItems = order.items.filter(i => !autoDeductIds.has(i.menuItemId) && !['Add Ons'].includes(i.category ?? ''));
+        if (drinkItems.length > 0 && typeof window !== 'undefined' && (window as any).restoreStockForOrder) {
+          await (window as any).restoreStockForOrder(drinkItems, id);
+        }
+
         loadPendingOrders();
       } catch (error) {
-        console.error('Failed to delete test order:', error);
+        console.error('Failed to cancel order:', error);
       }
     }
   };

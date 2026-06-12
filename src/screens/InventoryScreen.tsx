@@ -151,17 +151,18 @@ const loadStockLogs = async () => {
 
     const { data, error } = await supabase.from('stock_logs')
       .select(`*, ingredients:ingredient_id (name)`)
-      .order('created_at', { ascending: false }).limit(200);
+.order('created_at', { ascending: false }).limit(500);
     if (error) throw error;
     setStockLogs((data || []).map((l: any) => ({ ...l, ingredient_name: l.ingredients?.name })));
   };
 
-  const loadMenuItems = async () => {
-    const EXCLUDED = ['Add Ons', 'Merchandise', 'Supplies', 'Food Supplies'];
-    const { data, error } = await supabase.from('menu_items')
-      .select('id, name, category')
-      .not('category', 'in', `(${EXCLUDED.map(c => `"${c}"`).join(',')})`)
-      .order('name');
+const loadMenuItems = async () => {
+  const EXCLUDED = ['Add Ons', 'Merchandise', 'Supplies', 'Food Supplies'];
+  const { data, error } = await supabase.from('menu_items')
+    .select('id, name, category')
+    .not('category', 'in', `(${EXCLUDED.map(c => `"${c}"`).join(',')})`)
+    .not('auto_deduct', 'eq', true)   // ← ADD THIS LINE
+    .order('name');
     if (error) throw error;
     setMenuItems(data || []);
   };
@@ -484,7 +485,71 @@ setEditingRecipeGroup(null);
     return () => { delete (window as any).deductStockForOrder; };
   }, [ingredients]);
 
+  // After the deductStockForOrder useEffect:
+useEffect(() => {
+  (window as any).restoreStockForOrder = async (orderItems: any[], orderId: string) => {
+    // Aggregate per ingredient
+    const totals: Record<string, { ingredientId: string; qty: number; currentStock: number }> = {};
+
+    for (const orderItem of orderItems) {
+      const size = orderItem.customization?.size || 'R';
+      const { data: recipeData } = await supabase.from('recipes')
+        .select(`*, ingredients:ingredient_id (*)`)
+        .eq('menu_item_id', orderItem.menuItemId)
+        .eq('size', size);
+
+      for (const recipe of recipeData || []) {
+        const ingredient = recipe.ingredients;
+        const qty = recipe.quantity * (orderItem.quantity || 1);
+        if (!totals[ingredient.id]) {
+          totals[ingredient.id] = { ingredientId: ingredient.id, qty: 0, currentStock: ingredient.current_stock };
+        }
+        totals[ingredient.id].qty += qty;
+      }
+    }
+
+    for (const { ingredientId, qty, currentStock } of Object.values(totals)) {
+      const { data: fresh } = await supabase.from('ingredients').select('*').eq('id', ingredientId).single();
+      if (!fresh) continue;
+
+      const newStock = fresh.current_stock + qty;
+      await supabase.from('ingredients')
+        .update({ current_stock: newStock, updated_at: new Date().toISOString() })
+        .eq('id', ingredientId);
+
+      await supabase.from('stock_logs').insert([{
+        ingredient_id: ingredientId,
+        previous_stock: fresh.current_stock,
+        new_stock: newStock,
+        quantity_change: qty,
+        reason: 'cancelled_order',
+        reference_id: orderId,
+      }]);
+    }
+
+    await loadIngredients();
+    await loadStockLogs();
+  };
+  return () => { delete (window as any).restoreStockForOrder; };
+}, [ingredients]);
+
+// AFTER
 useEffect(() => { loadAllData(); }, []);
+
+useEffect(() => {
+  const channel = supabase
+    .channel('stock_logs_realtime')
+    .on('postgres_changes', {
+      event: 'INSERT',
+      schema: 'public',
+      table: 'stock_logs',
+    }, () => {
+      loadStockLogs();
+      loadIngredients();
+    })
+    .subscribe();
+  return () => { supabase.removeChannel(channel); };
+}, []);
 
   useEffect(() => {
     if (menuItems.length > 0) calculateDrinksLeft();
@@ -912,13 +977,13 @@ const thresholdDisplay = packCount !== null
             </thead>
             <tbody>
               {stockLogs.map(log => (
-              <tr key={log.id} className="border-t border-white/10 hover:bg-white/5">
+<tr key={log.id} className="border-t border-white/10 hover:bg-white/5">
   <td className="px-4 py-3 text-gray-400">{new Date(log.created_at + 'Z').toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}</td>
-  <td className="px-4 py-3 font-medium text-white">{log.ingredient_name}</td>
-                  <td className="px-4 py-3 text-right"><span className={log.quantity_change < 0 ? 'text-red-400' : 'text-green-400'}>{log.quantity_change > 0 ? '+' : ''}{log.quantity_change}</span></td>
-                  <td className="px-4 py-3 text-right text-gray-400">{log.previous_stock} → {log.new_stock}</td>
-                  <td className="px-4 py-3 text-gray-300">{log.reason}</td>
-                </tr>
+  <td className="px-4 py-3 font-medium text-white">{log.ingredient_name || <span className="text-gray-500 italic">Unknown item</span>}</td>
+  <td className="px-4 py-3 text-right"><span className={log.quantity_change < 0 ? 'text-red-400' : 'text-green-400'}>{log.quantity_change > 0 ? '+' : ''}{log.quantity_change}</span></td>
+  <td className="px-4 py-3 text-right text-gray-400">{log.previous_stock} → {log.new_stock}</td>
+  <td className="px-4 py-3 text-gray-300">{log.reason}</td>
+</tr>
               ))}
             </tbody>
           </table>
