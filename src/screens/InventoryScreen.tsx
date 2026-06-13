@@ -90,7 +90,9 @@ export default function InventoryScreen() {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [drinksLeft, setDrinksLeft] = useState<Record<string, number>>({});
+// AFTER
   const [usedDateRange, setUsedDateRange] = useState<DateRange>('30days');
+  const [lowStockExpanded, setLowStockExpanded] = useState(true);
 
   // ── NEW: full-row edit state ──────────────────────────────────────────────
   // editingRecipeGroup holds the pivot row context (menuItemId + size + menuItem name)
@@ -696,8 +698,31 @@ const maxIngSlots = useMemo(() => {
   return Math.max(1, ...filteredPivotedRecipes.map(r => r.ingSlots.length));
 }, [filteredPivotedRecipes]);
 
-  if (loading) return <div className="flex-1 p-8 bg-black text-white">Loading inventory...</div>;
-
+if (loading) return (
+  <div className="flex-1 p-6 overflow-y-auto bg-black">
+    <div className="flex items-center justify-between mb-6">
+      <div>
+        <div className="h-8 w-56 bg-white/10 rounded-lg animate-pulse mb-2" />
+        <div className="h-4 w-32 bg-white/10 rounded animate-pulse" />
+      </div>
+      <div className="h-9 w-40 bg-white/10 rounded-xl animate-pulse" />
+    </div>
+    <div className="h-20 bg-white/5 border border-white/10 rounded-xl animate-pulse mb-6" />
+    <div className="flex gap-2 mb-6">
+      {[1,2,3].map(i => <div key={i} className="h-10 w-32 bg-white/10 rounded-lg animate-pulse" />)}
+    </div>
+    <div className="bg-black border border-white/10 rounded-xl overflow-hidden">
+      {[1,2,3,4,5].map(i => (
+        <div key={i} className="flex gap-4 px-4 py-3 border-b border-white/10">
+          <div className="h-4 w-32 bg-white/10 rounded animate-pulse" />
+          <div className="h-4 w-40 bg-white/10 rounded animate-pulse" />
+          <div className="h-4 w-20 bg-white/10 rounded animate-pulse ml-auto" />
+          <div className="h-4 w-16 bg-white/10 rounded animate-pulse" />
+        </div>
+      ))}
+    </div>
+  </div>
+);
   return (
     <div className="flex-1 p-6 overflow-y-auto bg-black">
       {/* Header */}
@@ -729,24 +754,34 @@ const maxIngSlots = useMemo(() => {
       </div>
       {/* Low Stock Alert */}
       {lowStockIngredients.length > 0 && (
-        <div className="mb-6 p-4 bg-red-900/30 border border-red-800 rounded-xl">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-red-400 text-lg">⚠️</span>
-            <span className="font-semibold text-red-400">Low Stock Alert</span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-           {lowStockIngredients.map(ing => (
-              <span key={ing.id} className="px-3 py-1 bg-red-900/50 rounded-lg text-sm text-red-300">
-                {ing.name}: {(() => {
-                  const pc = ing.unit_size ? Math.floor(ing.current_stock / ing.unit_size) : null;
-                  return pc !== null ? `${pc}${ing.container_unit ? ' ' + ing.container_unit : ''}` : `${ing.current_stock} ${ing.unit}`;
-                })()} left
+        <div className="mb-6 bg-red-900/30 border border-red-800 rounded-xl overflow-hidden">
+          <button
+            onClick={() => setLowStockExpanded(prev => !prev)}
+            className="w-full flex items-center justify-between p-4 hover:bg-red-900/20 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-red-400 text-lg">⚠️</span>
+              <span className="font-semibold text-red-400">Low Stock Alert</span>
+              <span className="text-xs bg-red-900/60 text-red-300 px-2 py-0.5 rounded-full font-semibold">
+                {lowStockIngredients.length} items
               </span>
-            ))}
-          </div>
+            </div>
+            <span className={`text-red-400 text-xs transition-transform duration-200 ${lowStockExpanded ? 'rotate-180' : ''}`}>▼</span>
+          </button>
+          {lowStockExpanded && (
+            <div className="px-4 pb-4 flex flex-wrap gap-2">
+              {lowStockIngredients.map(ing => (
+                <span key={ing.id} className="px-3 py-1 bg-red-900/50 rounded-lg text-sm text-red-300">
+                  {ing.name}: {(() => {
+                    const pc = ing.unit_size ? Math.floor(ing.current_stock / ing.unit_size) : null;
+                    return pc !== null ? `${pc}${ing.container_unit ? ' ' + ing.container_unit : ''}` : `${ing.current_stock} ${ing.unit}`;
+                  })()} left
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
-
       {/* Drinks Left */}
       <div className="mb-6 p-4 bg-white/5 border border-white/10 rounded-xl">
         <div className="flex items-center justify-between mb-3">

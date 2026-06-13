@@ -269,8 +269,31 @@ if (!isAuthenticated) {
 }
 
 // SECOND: Then check loading (only after authenticated)
-if (loading) return <div className="flex-1 p-4 bg-black text-white">Loading...</div>;
-
+if (loading) return (
+  <div className="flex-1 p-4 overflow-y-auto bg-black">
+    <div className="flex gap-2 mb-6 border-b border-white/10">
+      {[1,2].map(i => <div key={i} className="h-10 w-28 bg-white/10 rounded-lg animate-pulse mb-1" />)}
+    </div>
+    <div className="flex items-center justify-between mb-4">
+      <div className="h-8 w-44 bg-white/10 rounded-lg animate-pulse" />
+      <div className="h-9 w-24 bg-white/10 rounded-xl animate-pulse" />
+    </div>
+    <div className="bg-black border border-white/10 rounded-xl overflow-hidden">
+      <div className="flex gap-4 px-4 py-3 bg-white/5 border-b border-white/10">
+        {[1,2,3,4,5].map(i => <div key={i} className="h-4 w-20 bg-white/10 rounded animate-pulse" />)}
+      </div>
+      {[1,2,3,4,5,6].map(i => (
+        <div key={i} className="flex gap-4 px-4 py-3 border-b border-white/10">
+          <div className="h-4 w-36 bg-white/10 rounded animate-pulse" />
+          <div className="h-4 w-24 bg-white/10 rounded animate-pulse" />
+          <div className="h-4 w-16 bg-white/10 rounded animate-pulse ml-auto" />
+          <div className="h-4 w-16 bg-white/10 rounded animate-pulse" />
+          <div className="h-4 w-12 bg-white/10 rounded animate-pulse" />
+        </div>
+      ))}
+    </div>
+  </div>
+);
   return (
     <div className="flex-1 p-4 overflow-y-auto bg-black">
       <div className="flex gap-2 mb-6 border-b border-white/10">

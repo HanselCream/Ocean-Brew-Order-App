@@ -110,7 +110,31 @@ export default function DashboardScreen() {
     }
   };
 
-  if (loading) return <div className="flex-1 p-6 bg-black text-white">Loading dashboard...</div>;
+if (loading) return (
+  <div className="flex-1 p-6 overflow-y-auto bg-black">
+    <div className="flex items-center justify-between mb-6">
+      <div>
+        <div className="h-8 w-56 bg-white/10 rounded-lg animate-pulse mb-2" />
+        <div className="h-4 w-32 bg-white/10 rounded animate-pulse" />
+      </div>
+      <div className="h-9 w-40 bg-white/10 rounded-xl animate-pulse" />
+    </div>
+    <div className="h-20 bg-white/5 border border-white/10 rounded-xl animate-pulse mb-6" />
+    <div className="flex gap-2 mb-6">
+      {[1,2,3].map(i => <div key={i} className="h-10 w-32 bg-white/10 rounded-lg animate-pulse" />)}
+    </div>
+    <div className="bg-black border border-white/10 rounded-xl overflow-hidden">
+      {[1,2,3,4,5].map(i => (
+        <div key={i} className="flex gap-4 px-4 py-3 border-b border-white/10">
+          <div className="h-4 w-32 bg-white/10 rounded animate-pulse" />
+          <div className="h-4 w-40 bg-white/10 rounded animate-pulse" />
+          <div className="h-4 w-20 bg-white/10 rounded animate-pulse ml-auto" />
+          <div className="h-4 w-16 bg-white/10 rounded animate-pulse" />
+        </div>
+      ))}
+    </div>
+  </div>
+);
 
   return (
     <div className="flex-1 p-6 overflow-y-auto bg-black">
