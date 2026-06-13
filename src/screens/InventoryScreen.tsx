@@ -52,10 +52,11 @@ interface EditableRecipeRow {
 
 const INGREDIENT_CATEGORIES = [
   'Milktea Ingredients',
-  'Syrups & Fruit Bases',
+  'Syrups and Fruit Bases',
   'Coffee Ingredients',
+  'Food Ingredients',
   'Packaging Supplies',
-  'Food Supplies',
+  'Other Supplies',
   'Merchandise',
 ];
 
@@ -161,7 +162,6 @@ const loadMenuItems = async () => {
   const { data, error } = await supabase.from('menu_items')
     .select('id, name, category')
     .not('category', 'in', `(${EXCLUDED.map(c => `"${c}"`).join(',')})`)
-    .not('auto_deduct', 'eq', true)   // ← ADD THIS LINE
     .order('name');
     if (error) throw error;
     setMenuItems(data || []);
