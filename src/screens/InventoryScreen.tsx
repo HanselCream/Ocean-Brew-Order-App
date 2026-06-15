@@ -93,7 +93,7 @@ export default function InventoryScreen() {
 // AFTER
   const [usedDateRange, setUsedDateRange] = useState<DateRange>('30days');
 const [lowStockExpanded, setLowStockExpanded] = useState(false);
-const [sortByStatus, setSortByStatus] = useState(false);
+const [sortByStatus, setSortByStatus] = useState<'off' | 'asc' | 'desc'>('off');
 
   // ── NEW: full-row edit state ──────────────────────────────────────────────
   // editingRecipeGroup holds the pivot row context (menuItemId + size + menuItem name)
@@ -587,11 +587,11 @@ useEffect(() => {
   });
 
 const filteredIngredients = useMemo(() => {
-  const getStatusOrder = (ing: Ingredient) => {
-    if (ing.current_stock === 0) return 0;
+const getStatusOrder = (ing: Ingredient) => {
+    if (ing.current_stock === 0) return 3;
     const pc = ing.unit_size ? Math.floor(ing.current_stock / ing.unit_size) : null;
     const isLow = pc !== null ? pc <= ing.min_stock_threshold : ing.current_stock <= ing.min_stock_threshold;
-    return isLow ? 1 : 2;
+    return isLow ? 2 : 1;
   };
 
   let list = ingredients.filter(ing => {
@@ -600,8 +600,12 @@ const filteredIngredients = useMemo(() => {
     return matchesSearch && matchesCategory;
   });
 
-  if (sortByStatus) {
-    list = [...list].sort((a, b) => getStatusOrder(a) - getStatusOrder(b));
+if (sortByStatus !== 'off') {
+    list = [...list].sort((a, b) => 
+      sortByStatus === 'asc' 
+        ? getStatusOrder(a) - getStatusOrder(b)
+        : getStatusOrder(b) - getStatusOrder(a)
+    );
   }
 
   return list;
@@ -867,8 +871,8 @@ if (loading) return (
                   <th className="px-4 py-3 text-right">In Stock</th>
                   <th className="px-4 py-3 text-right">Total Measurement</th>
                   <th className="px-4 py-3 text-right">Used ({DATE_RANGE_OPTIONS.find(o => o.value === usedDateRange)?.label})</th>
-                  <th className="px-4 py-3 text-center cursor-pointer select-none" onClick={() => setSortByStatus(prev => !prev)}>
-  Status {sortByStatus ? '↑' : '↓'}
+ <th className="px-4 py-3 text-center cursor-pointer select-none" onClick={() => setSortByStatus(prev => prev === 'off' ? 'asc' : prev === 'asc' ? 'desc' : 'off')}>
+  Status {sortByStatus === 'asc' ? '↑' : sortByStatus === 'desc' ? '↓' : '⇅'}
 </th>
                   <th className="px-4 py-3 text-center">Actions</th>
                 </tr>
