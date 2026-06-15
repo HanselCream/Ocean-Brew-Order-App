@@ -92,7 +92,8 @@ export default function InventoryScreen() {
   const [drinksLeft, setDrinksLeft] = useState<Record<string, number>>({});
 // AFTER
   const [usedDateRange, setUsedDateRange] = useState<DateRange>('30days');
-  const [lowStockExpanded, setLowStockExpanded] = useState(true);
+const [lowStockExpanded, setLowStockExpanded] = useState(true);
+const [sortByStatus, setSortByStatus] = useState(false);
 
   // ── NEW: full-row edit state ──────────────────────────────────────────────
   // editingRecipeGroup holds the pivot row context (menuItemId + size + menuItem name)
@@ -585,11 +586,26 @@ useEffect(() => {
     return pc !== null ? pc <= ing.min_stock_threshold : ing.current_stock <= ing.min_stock_threshold;
   });
 
-  const filteredIngredients = ingredients.filter(ing => {
+const filteredIngredients = useMemo(() => {
+  const getStatusOrder = (ing: Ingredient) => {
+    if (ing.current_stock === 0) return 0;
+    const pc = ing.unit_size ? Math.floor(ing.current_stock / ing.unit_size) : null;
+    const isLow = pc !== null ? pc <= ing.min_stock_threshold : ing.current_stock <= ing.min_stock_threshold;
+    return isLow ? 1 : 2;
+  };
+
+  let list = ingredients.filter(ing => {
     const matchesSearch = ing.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = categoryFilter === 'All' || ing.category === categoryFilter;
     return matchesSearch && matchesCategory;
   });
+
+  if (sortByStatus) {
+    list = [...list].sort((a, b) => getStatusOrder(a) - getStatusOrder(b));
+  }
+
+  return list;
+}, [ingredients, searchTerm, categoryFilter, sortByStatus]);
 
   const menuCategories = useMemo(() => {
     const RECIPE_EXCLUDED_CATS = ['Add Ons', 'Merchandise', 'Supplies', 'Food Supplies'];
@@ -851,7 +867,9 @@ if (loading) return (
                   <th className="px-4 py-3 text-right">In Stock</th>
                   <th className="px-4 py-3 text-right">Total Measurement</th>
                   <th className="px-4 py-3 text-right">Used ({DATE_RANGE_OPTIONS.find(o => o.value === usedDateRange)?.label})</th>
-                  <th className="px-4 py-3 text-center">Status</th>
+                  <th className="px-4 py-3 text-center cursor-pointer select-none" onClick={() => setSortByStatus(prev => !prev)}>
+  Status {sortByStatus ? '↑' : '↓'}
+</th>
                   <th className="px-4 py-3 text-center">Actions</th>
                 </tr>
               </thead>
