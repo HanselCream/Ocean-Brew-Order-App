@@ -131,11 +131,11 @@ const { data, error } = await supabase
     // Auto-create ingredient + recipe for Merchandise items
 // Auto-create ingredient for auto_deduct items (no recipe — supplies tab only)
     if (item.autoDeduct === true) {
-      const { data: existingIng } = await supabase
-        .from('ingredients')
-        .select('id')
-        .eq('name', item.name)
-        .maybeSingle();
+const { data: existingIng } = await supabase
+  .from('ingredients')
+  .select('id')
+  .ilike('name', item.name)  // ← case-insensitive, catches near-duplicates
+  .maybeSingle();
 
       if (!existingIng) {
         const ingCategory =
@@ -206,15 +206,16 @@ export async function getAddOnItems(): Promise<MenuItem[]> {
       return [];
     }
     
-    return (data || []).map(item => ({
-      id: item.id,
-      name: item.name,
-      category: item.category,
-      priceR: parseFloat(item.pricer) || 0,
-      priceL: item.pricel ? parseFloat(item.pricel) : null,
-      available: item.available,
-      hasSizeOption: !!(item.pricel && parseFloat(item.pricel) > 0),
-    }));
+return (data || []).map(item => ({
+  id: item.id,
+  name: item.name,
+  category: item.category,
+  priceR: parseFloat(item.pricer) || 0,
+  priceL: item.pricel ? parseFloat(item.pricel) : null,
+  available: item.available,
+  hasSizeOption: !!(item.pricel && parseFloat(item.pricel) > 0),
+  autoDeduct: item.auto_deduct ?? false,  // ← ADD THIS
+}));
   } catch (err) {
     console.error('Error in getAddOnItems:', err);
     return [];
@@ -338,8 +339,12 @@ async function deductMerchStock(items: OrderItem[], orderId: string) {
   const totals: Record<string, number> = {};
   for (const item of items) {
     totals[item.name] = (totals[item.name] || 0) + (item.quantity || 1);
-  }
 
+    // Also aggregate add-ons
+    for (const addOn of item.customization?.addOns || []) {
+      totals[addOn.name] = (totals[addOn.name] || 0) + (item.quantity || 1);
+    }
+  }
   for (const [name, totalQty] of Object.entries(totals)) {
     const { data: fresh } = await supabase
       .from('ingredients')

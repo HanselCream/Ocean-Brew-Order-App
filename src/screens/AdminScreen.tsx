@@ -192,24 +192,38 @@ export default function AdminScreen() {
   };
 
   const saveAddOn = async (addOn: MenuItem) => {
-    try {
-      if (isNew) {
-        const { data, error } = await supabase.from('menu_items').insert([{ ...addOn, category: 'Add Ons' }]).select();
-        if (error) throw error;
-        addOnsRefreshEvent.dispatchEvent(new Event('refresh'));
-        if (data) setAddOns([...addOns, data[0]]);
-      } else {
-        const { error } = await supabase.from('menu_items').update({ name: addOn.name, pricer: addOn.priceR, available: addOn.available }).eq('id', addOn.id);
-        if (error) throw error;
-        addOnsRefreshEvent.dispatchEvent(new Event('refresh'));
-        setAddOns(addOns.map(a => a.id === addOn.id ? addOn : a));
-      }
-      setEditing(null); setIsNew(false);
-    } catch (err) {
-      console.error('Error saving add-on:', err);
-      alert('Failed to save add-on');
+  try {
+    if (isNew) {
+      const { data, error } = await supabase.from('menu_items').insert([{
+        id: addOn.id,
+        name: addOn.name,
+        category: 'Add Ons',
+        pricer: addOn.priceR,
+        pricel: null,
+        available: addOn.available,
+        hassizeoption: false,
+        auto_deduct: addOn.autoDeduct ?? false,
+      }]).select();
+      if (error) throw error;
+      addOnsRefreshEvent.dispatchEvent(new Event('refresh'));
+      if (data) setAddOns([...addOns, { ...addOn, id: data[0].id }]);
+    } else {
+      const { error } = await supabase.from('menu_items').update({
+        name: addOn.name,
+        pricer: addOn.priceR,
+        available: addOn.available,
+        auto_deduct: addOn.autoDeduct ?? false,
+      }).eq('id', addOn.id);
+      if (error) throw error;
+      addOnsRefreshEvent.dispatchEvent(new Event('refresh'));
+      setAddOns(addOns.map(a => a.id === addOn.id ? addOn : a));
     }
-  };
+    setEditing(null); setIsNew(false);
+  } catch (err) {
+    console.error('Error saving add-on:', err);
+    alert('Failed to save add-on');
+  }
+};
 
   const deleteAddOn = async (id: string) => {
     try {

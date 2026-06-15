@@ -211,7 +211,19 @@ const deductStock = async (orderItems: any[], orderId: string) => {
     const { data: menuData } = await supabase
       .from('menu_items').select('category, auto_deduct').eq('id', menuItemId).single();
 
-      if (!menuData?.auto_deduct) continue;  // ← skip if not flagged
+      // AFTER — route correctly
+if (menuData?.auto_deduct) {
+  for (const addOn of orderItem.customization?.addOns || []) {
+    const { data: addOnIng } = await supabase
+      .from('ingredients')
+      .select('*')
+      .ilike('name', addOn.name)
+      .maybeSingle();
+    if (!addOnIng) continue;
+    deductionMap[addOnIng.id] = (deductionMap[addOnIng.id] || 0) + qty;
+  }
+  continue;
+}
 
       const isEspresso = menuData?.category === 'Espresso';
     const sizeToQuery = isEspresso ? 'R' : (orderItem.customization?.size || 'R');
@@ -252,8 +264,22 @@ if (isEspresso && isCup) {
       const quantityNeeded = recipe.quantity * qty;
       deductionMap[ingredient.id] = (deductionMap[ingredient.id] || 0) + quantityNeeded;
     }
-  }
 
+    // Deduct add-ons via ingredient name match
+// Add-on deduction — deduct if matching ingredient found
+for (const addOn of orderItem.customization?.addOns || []) {
+const { data: addOnIng } = await supabase
+  .from('ingredients')
+  .select('*')
+  .ilike('name', addOn.name)  // ← case-insensitive match
+  .maybeSingle();
+
+  if (!addOnIng) continue; // silently skip if no matching ingredient
+
+  deductionMap[addOnIng.id] = (deductionMap[addOnIng.id] || 0) + qty;
+}
+  }
+console.log('📦 deductionMap:', JSON.stringify(deductionMap));
   for (const [ingredientId, totalDeduction] of Object.entries(deductionMap)) {
     const { data: fresh } = await supabase
       .from('ingredients').select('*').eq('id', ingredientId).single();
