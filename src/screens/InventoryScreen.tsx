@@ -92,7 +92,7 @@ export default function InventoryScreen() {
   const [drinksLeft, setDrinksLeft] = useState<Record<string, number>>({});
 // AFTER
   const [usedDateRange, setUsedDateRange] = useState<DateRange>('30days');
-const [lowStockExpanded, setLowStockExpanded] = useState(true);
+const [lowStockExpanded, setLowStockExpanded] = useState(false);
 const [sortByStatus, setSortByStatus] = useState(false);
 
   // ── NEW: full-row edit state ──────────────────────────────────────────────
