@@ -322,6 +322,7 @@ function FinalConfirmModal({
   punchedBy: string;
   madeBy: string;
 }) {
+  const [confirming, setConfirming] = useState(false);
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4">
       <div className="bg-black border border-white/20 rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
@@ -349,7 +350,9 @@ function FinalConfirmModal({
 </div>
           <div className="flex gap-3">
             <button onClick={onCancel} className="flex-1 py-3 rounded-xl bg-white/10 font-semibold text-white hover:bg-white/20 transition-colors">No, Go Back</button>
-            <button onClick={onConfirm} className="flex-1 py-3 rounded-xl bg-white font-semibold text-black hover:bg-gray-200 transition-colors">Yes, Generate Order</button>
+<button onClick={() => { setConfirming(true); onConfirm(); }} disabled={confirming} className="flex-1 py-3 rounded-xl bg-white font-semibold text-black hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+              {confirming ? 'Processing...' : 'Yes, Generate Order'}
+            </button>
           </div>
         </div>
       </div>

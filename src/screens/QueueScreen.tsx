@@ -212,18 +212,7 @@ const deductStock = async (orderItems: any[], orderId: string) => {
       .from('menu_items').select('category, auto_deduct').eq('id', menuItemId).single();
 
       // AFTER — route correctly
-if (menuData?.auto_deduct) {
-  for (const addOn of orderItem.customization?.addOns || []) {
-    const { data: addOnIng } = await supabase
-      .from('ingredients')
-      .select('*')
-      .ilike('name', addOn.name)
-      .maybeSingle();
-    if (!addOnIng) continue;
-    deductionMap[addOnIng.id] = (deductionMap[addOnIng.id] || 0) + qty;
-  }
-  continue;
-}
+if (menuData?.auto_deduct) continue;
 
       const isEspresso = menuData?.category === 'Espresso';
     const sizeToQuery = isEspresso ? 'R' : (orderItem.customization?.size || 'R');
@@ -265,19 +254,29 @@ if (isEspresso && isCup) {
       deductionMap[ingredient.id] = (deductionMap[ingredient.id] || 0) + quantityNeeded;
     }
 
-    // Deduct add-ons via ingredient name match
-// Add-on deduction — deduct if matching ingredient found
-for (const addOn of orderItem.customization?.addOns || []) {
-const { data: addOnIng } = await supabase
-  .from('ingredients')
-  .select('*')
-  .ilike('name', addOn.name)  // ← case-insensitive match
-  .maybeSingle();
+// Deduct add-ons via ingredient name match
+    for (const addOn of orderItem.customization?.addOns || []) {
+      const { data: addOnMenu } = await supabase
+        .from('menu_items')
+        .select('auto_deduct')
+        .eq('name', addOn.name)
+        .maybeSingle();
 
-  if (!addOnIng) continue; // silently skip if no matching ingredient
+      if (!addOnMenu?.auto_deduct) continue;
 
-  deductionMap[addOnIng.id] = (deductionMap[addOnIng.id] || 0) + qty;
-}
+      const { data: ing } = await supabase
+        .from('ingredients')
+        .select('id')
+        .eq('name', addOn.name)
+        .maybeSingle();
+
+      if (!ing) {
+        console.warn(`⚠️ No ingredient found for add-on: ${addOn.name}`);
+        continue;
+      }
+
+      deductionMap[ing.id] = (deductionMap[ing.id] || 0) + (orderItem.quantity || 1);
+    }
   }
 console.log('📦 deductionMap:', JSON.stringify(deductionMap));
   for (const [ingredientId, totalDeduction] of Object.entries(deductionMap)) {
