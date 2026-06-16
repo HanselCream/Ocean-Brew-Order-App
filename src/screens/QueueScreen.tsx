@@ -207,6 +207,8 @@ const deductStock = async (orderItems: any[], orderId: string) => {
     const temperature = orderItem.customization?.temperature;
     const menuItemId = orderItem.menuItemId;
     const qty = orderItem.quantity || 1;
+    console.log('🧮 item:', orderItem.name, '| qty:', qty, '| size:', orderItem.customization?.size)
+
 
     const { data: menuData } = await supabase
       .from('menu_items').select('category, auto_deduct').eq('id', menuItemId).single();
@@ -251,6 +253,7 @@ if (isEspresso && isCup) {
       if (isEspresso && isStraw && temperature === 'Hot') continue;
 
       const quantityNeeded = recipe.quantity * qty;
+      console.log('💧', ingredient.name, '| recipe.quantity:', recipe.quantity, '| qty:', qty, '| quantityNeeded:', quantityNeeded)
       deductionMap[ingredient.id] = (deductionMap[ingredient.id] || 0) + quantityNeeded;
     }
 
@@ -278,7 +281,7 @@ if (isEspresso && isCup) {
       deductionMap[ing.id] = (deductionMap[ing.id] || 0) + (orderItem.quantity || 1);
     }
   }
-console.log('📦 deductionMap:', JSON.stringify(deductionMap));
+console.log('📦 deductionMap:', JSON.stringify(deductionMap), 'orderId:', orderId, new Date().toISOString());
   for (const [ingredientId, totalDeduction] of Object.entries(deductionMap)) {
     const { data: fresh } = await supabase
       .from('ingredients').select('*').eq('id', ingredientId).single();
@@ -290,12 +293,12 @@ console.log('📦 deductionMap:', JSON.stringify(deductionMap));
       .update({ current_stock: newStock, updated_at: new Date().toISOString() })
       .eq('id', ingredientId);
 
-    await supabase.from('stock_logs').insert([{
+await supabase.from('stock_logs').insert([{
       ingredient_id: ingredientId,
       previous_stock: fresh.current_stock,
       new_stock: newStock,
       quantity_change: -totalDeduction,
-      reason: 'order',
+      reason: 'order_queue',
       reference_id: orderId
     }]);
   }
@@ -305,6 +308,7 @@ const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
 const [errorIds, setErrorIds] = useState<Set<string>>(new Set());
 
 const markDone = async (id: string, orderItems?: any[]) => {
+  console.log('🔴 markDone called for:', id, new Date().toISOString());
   if (processingIds.has(id)) return;
   setProcessingIds(prev => new Set(prev).add(id));
   setErrorIds(prev => { const n = new Set(prev); n.delete(id); return n; });

@@ -190,29 +190,29 @@ const { data: recipeData, error } = await supabase.from('recipes')
     setDrinksLeft(drinks);
   };
 
-  const deductStockForOrder = async (orderItems: any[], orderId: string) => {
-    for (const orderItem of orderItems) {
-const size = orderItem.customization?.size || 'R';
-const { data: recipeData } = await supabase.from('recipes')
-  .select(`*, ingredients:ingredient_id (*)`)
-  .eq('menu_item_id', orderItem.menuItemId)
-  .eq('size', size);
-      for (const recipe of recipeData || []) {
-        const ingredient = recipe.ingredients;
-        const quantityNeeded = recipe.quantity * orderItem.quantity;
-        const newStock = ingredient.current_stock - quantityNeeded;
-        await supabase.from('ingredients')
-          .update({ current_stock: Math.max(0, newStock), updated_at: new Date().toISOString() })
-          .eq('id', ingredient.id);
-        await supabase.from('stock_logs').insert([{
-          ingredient_id: ingredient.id, previous_stock: ingredient.current_stock,
-          new_stock: Math.max(0, newStock), quantity_change: -quantityNeeded,
-          reason: 'order', reference_id: orderId,
-        }]);
-      }
-    }
-    await loadIngredients(); await loadStockLogs(); await calculateDrinksLeft();
-  };
+//   const deductStockForOrder = async (orderItems: any[], orderId: string) => {
+//     for (const orderItem of orderItems) {
+// const size = orderItem.customization?.size || 'R';
+// const { data: recipeData } = await supabase.from('recipes')
+//   .select(`*, ingredients:ingredient_id (*)`)
+//   .eq('menu_item_id', orderItem.menuItemId)
+//   .eq('size', size);
+//       for (const recipe of recipeData || []) {
+//         const ingredient = recipe.ingredients;
+//         const quantityNeeded = recipe.quantity * orderItem.quantity;
+//         const newStock = ingredient.current_stock - quantityNeeded;
+//         await supabase.from('ingredients')
+//           .update({ current_stock: Math.max(0, newStock), updated_at: new Date().toISOString() })
+//           .eq('id', ingredient.id);
+//         await supabase.from('stock_logs').insert([{
+//           ingredient_id: ingredient.id, previous_stock: ingredient.current_stock,
+//           new_stock: Math.max(0, newStock), quantity_change: -quantityNeeded,
+//           reason: 'order', reference_id: orderId,
+//         }]);
+//       }
+//     }
+//     await loadIngredients(); await loadStockLogs(); await calculateDrinksLeft();
+//   };
 
   const loadAllData = async () => {
     setLoading(true);
@@ -483,10 +483,10 @@ setEditingRecipeGroup(null);
     reader.readAsArrayBuffer(file);
   };
 
-  useEffect(() => {
-    (window as any).deductStockForOrder = deductStockForOrder;
-    return () => { delete (window as any).deductStockForOrder; };
-  }, [ingredients]);
+  // useEffect(() => {
+  //   (window as any).deductStockForOrder = deductStockForOrder;
+  //   return () => { delete (window as any).deductStockForOrder; };
+  // }, [ingredients]);
 
   // After the deductStockForOrder useEffect:
 useEffect(() => {
@@ -549,6 +549,7 @@ useEffect(() => {
     }, () => {
       loadStockLogs();
       loadIngredients();
+      calculateDrinksLeft();
     })
     .subscribe();
   return () => { supabase.removeChannel(channel); };
@@ -1098,7 +1099,8 @@ const thresholdDisplay = packCount !== null
     <option value="R" className="bg-black">R</option>
     <option value="L" className="bg-black">L</option>
   </select>
-  <input type="number" min="0" step="any" value={row.quantity}
+ <input type="number" min="0" step="any" value={parseFloat(row.quantity.toFixed(6))}
+
     onChange={e => updateEditableRow(actualIdx, 'quantity', parseFloat(e.target.value) || 0)}
     className="w-full bg-black border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white text-center focus:outline-none focus:border-white/50" />
   <span className="text-xs text-gray-400 text-center font-mono">{selectedIngredient?.unit || '—'}</span>

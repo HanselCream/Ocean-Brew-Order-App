@@ -325,9 +325,9 @@ const orderId = data?.[0]?.id || '';
     if (directDeductItems.length > 0) {
       await deductMerchStock(directDeductItems, orderId);
     }
-    if (drinkItems.length > 0 && typeof window !== 'undefined' && (window as any).deductStockForOrder) {
-      await (window as any).deductStockForOrder(drinkItems, orderId);
-    }
+    // if (drinkItems.length > 0 && typeof window !== 'undefined' && (window as any).deductStockForOrder) {
+    //   await (window as any).deductStockForOrder(drinkItems, orderId);
+    // }
   } catch (err: any) {
     console.error('❌ Error in saveOrder:', JSON.stringify(err), err?.message);
     throw err;
