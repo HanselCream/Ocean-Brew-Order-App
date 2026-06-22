@@ -81,7 +81,7 @@ export default function InventoryScreen() {
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [stockLogs, setStockLogs] = useState<StockLog[]>([]);
-
+const [menuItems, setMenuItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddIngredient, setShowAddIngredient] = useState(false);
   const [showAdjustStock, setShowAdjustStock] = useState<string | null>(null);
@@ -185,18 +185,26 @@ const loadStockLogs = async () => {
 //     await loadIngredients(); await loadStockLogs(); await calculateDrinksLeft();
 //   };
 
-  const loadAllData = async () => {
-    setLoading(true);
-    try {
-      await loadIngredients(); await loadRecipes();
-      await loadStockLogs();
-    } catch (error) {
-      console.error('Error loading inventory data:', error);
-      alert('Failed to load inventory data');
-    } finally {
-      setLoading(false);
-    }
-  };
+const loadAllData = async () => {
+  setLoading(true);
+  try {
+    await loadIngredients();
+    await loadRecipes();
+    await loadStockLogs();
+    
+    // Load menu items for the dropdown
+    const { data: menuData } = await supabase
+      .from('menu_items')
+      .select('id, name, category')
+      .order('name');
+    setMenuItems(menuData || []);
+  } catch (error) {
+    console.error('Error loading inventory data:', error);
+    alert('Failed to load inventory data');
+  } finally {
+    setLoading(false);
+  }
+};
 
   // ============================================
   // CRUD
@@ -1284,9 +1292,18 @@ return true;
         {/* Menu Item + Size */}
 <div>
           <label className="block text-sm font-semibold text-gray-300 mb-1">Menu Item</label>
-          <select value={newRecipe.menu_item_id} onChange={e => setNewRecipe({...newRecipe, menu_item_id: e.target.value})}
-            className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white">
-          </select>
+<select 
+  value={newRecipe.menu_item_id} 
+  onChange={e => setNewRecipe({...newRecipe, menu_item_id: e.target.value})}
+  className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white"
+>
+  <option value="">Select a menu item...</option>
+  {menuItems.map(item => (
+    <option key={item.id} value={item.id} className="bg-black">
+      {item.name} ({item.category})
+    </option>
+  ))}
+</select>
         </div>
 
         {/* Ingredient rows */}
