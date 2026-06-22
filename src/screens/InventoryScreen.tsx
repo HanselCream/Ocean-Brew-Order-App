@@ -782,11 +782,27 @@ if (loading) return (
                   const packCount = ing.unit_size ? Math.floor(ing.current_stock / ing.unit_size) : null;
                   const displayStock = packCount !== null ? `${packCount}${ing.container_unit ? ' ' + ing.container_unit : ''}` : `${ing.current_stock.toLocaleString()} ${ing.unit}`;
                   const isLowStock = packCount !== null ? packCount <= ing.min_stock_threshold : ing.current_stock <= ing.min_stock_threshold;
-                  const usedAmount = usedStockFiltered[ing.id] || 0;
+const usedAmount = usedStockFiltered[ing.id] || 0;
+
+// Convert if unit is kg (stock logs are in grams)
+const convertedAmount = ing.unit === 'kg' ? usedAmount / 1000 : usedAmount;
+
+const formatUsedAmount = (amount: number, unit: string) => {
+  if (unit === 'L') return amount.toFixed(3) + ' L';
+  if (unit === 'kg') return amount.toFixed(3) + ' kg';
+  if (unit === 'ml') return amount.toFixed(0) + ' ml';
+  if (unit === 'g') return amount.toFixed(0) + ' g';
+  return amount.toLocaleString() + ' ' + unit;
+};
+
+const packsOpened = usedAmount > 0 && ing.unit_size
+  ? Math.ceil(usedAmount / ing.unit_size)
+  : 0;
+
 const usedDisplay = usedAmount > 0
-  ? (packCount !== null 
-    ? `${Math.floor(usedAmount / ing.unit_size!)} ${ing.container_unit ? ing.container_unit + 's' : ing.unit}` 
-    : `${usedAmount.toLocaleString()} ${ing.unit}`) 
+  ? packsOpened > 0 
+    ? `${formatUsedAmount(convertedAmount, ing.unit)} (${packsOpened})`
+    : formatUsedAmount(convertedAmount, ing.unit)
   : '—';
 const thresholdDisplay = packCount !== null 
   ? `${ing.min_stock_threshold} ${ing.container_unit ? ing.container_unit + 's' : ing.unit}` 
@@ -804,7 +820,52 @@ const thresholdDisplay = packCount !== null
     return ing.current_stock.toLocaleString() + ' ' + ing.unit;
   })()}
 </td>
-                      <td className="px-4 py-3 text-right text-gray-400">{usedDisplay}</td>
+<td className="px-4 py-3 text-right">
+  <input
+    type="text"
+    defaultValue={usedDisplay || ''}
+    onFocus={(e) => e.target.select()}
+    onBlur={async (e) => {
+      const val = e.target.value.trim();
+      if (val === '—' || val === usedDisplay) return;
+      
+      // Parse: "0.040 kg" or "0.040 kg (1)" → extract number
+      const match = val.match(/^([\d.]+)/);
+      if (!match) return;
+      
+      const amount = parseFloat(match[1]);
+      if (isNaN(amount) || amount <= 0) return;
+      
+      // Convert to grams if unit is kg (stock logs store in grams)
+      const convertToGrams = ing.unit === 'kg' ? amount * 1000 : amount;
+      
+      // Create manual usage log
+      const { error } = await supabase.from('stock_logs').insert([{
+        ingredient_id: ing.id,
+        previous_stock: ing.current_stock,
+        new_stock: Math.max(0, ing.current_stock - convertToGrams),
+        quantity_change: -convertToGrams,
+        reason: 'manual_usage',
+        reference_id: 'manual_' + Date.now(),
+      }]);
+      
+      if (error) {
+        alert('Failed to update: ' + error.message);
+        return;
+      }
+      
+      // Update current stock
+      await supabase.from('ingredients')
+        .update({ current_stock: Math.max(0, ing.current_stock - convertToGrams) })
+        .eq('id', ing.id);
+      
+      // Reload data
+      await loadAllData();
+    }}
+    className="w-24 bg-transparent text-white text-right text-sm focus:outline-none focus:ring-1 focus:ring-white/30 rounded px-1 py-0.5"
+    placeholder="—"
+  />
+</td>
                       <td className="px-4 py-3 text-center">
                         {ing.current_stock === 0 ? <span className="px-2 py-1 rounded-full bg-red-900/60 text-red-300 text-xs font-semibold">NO STOCK</span>
                           : isLowStock ? <span className="px-2 py-1 rounded-full bg-yellow-900/60 text-yellow-300 text-xs font-semibold">LOW STOCK</span>
@@ -1129,19 +1190,6 @@ return true;
                   {UNIT_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                 </select>
               </div>
-              <div className="bg-white/5 rounded-xl p-3">
-                <p className="text-xs text-gray-400 mb-2">📦 Optional: If this item comes in packs/bottles</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-400 mb-1">Size per pack</label>
-                    <input type="number" value={newIngredient.unit_size || ''} onChange={e => setNewIngredient({...newIngredient, unit_size: e.target.value ? parseFloat(e.target.value) : null})} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" placeholder="e.g., 500" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-400 mb-1">Pack name</label>
-                    <input value={newIngredient.container_unit || ''} onChange={e => setNewIngredient({...newIngredient, container_unit: e.target.value})} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" placeholder="bottle, pack, sachet" />
-                  </div>
-                </div>
-              </div>
 <div>
   <label className="block text-sm font-semibold text-gray-300 mb-1">Initial Stock</label>
   <input
@@ -1376,19 +1424,6 @@ setShowAddRecipe(false);
                 <select value={editingIngredient.unit} onChange={e => setEditingIngredient({...editingIngredient, unit: e.target.value})} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white">
                   {UNIT_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                 </select>
-              </div>
-              <div className="bg-white/5 rounded-xl p-3">
-                <p className="text-xs text-gray-400 mb-2">📦 If this item comes in packs/bottles</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-400 mb-1">Size per pack</label>
-                    <input type="number" value={editingIngredient.unit_size ?? ''} onChange={e => setEditingIngredient({...editingIngredient, unit_size: e.target.value ? parseFloat(e.target.value) : null})} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-400 mb-1">Pack name</label>
-                    <input value={editingIngredient.container_unit ?? ''} onChange={e => setEditingIngredient({...editingIngredient, container_unit: e.target.value})} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" />
-                  </div>
-                </div>
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-300 mb-1">Low Stock Alert Threshold</label>
