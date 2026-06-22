@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import DateRangePicker from '@/components/DateRangePicker';
 import ExcelExport from '@/lib/excelExport';
 import { Order } from '@/lib/types';
@@ -46,40 +46,89 @@ export default function ReportsScreen() {
     setShowDatePicker(false);
   };
 
-const doneOrders = orders.filter(o => o.status === 'done');
+  // ─── HELPER: Get Monday of current week ──────────────────────────────────
+  const getStartOfWeek = (date: Date): Date => {
+    const d = new Date(date);
+    const day = d.getDay(); // 0=Sun, 1=Mon
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust to Monday
+    d.setDate(diff);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
 
-const staffPunched: Record<string, number> = {};
-const staffMade: Record<string, number> = {};
-doneOrders.forEach(o => {
-  const p = o.punchedBy;
-  const m = o.madeBy;
-  const drinkCount = o.items.reduce((s, i) => s + i.quantity, 0);
-  if (p) staffPunched[p] = (staffPunched[p] || 0) + 1;
-  if (m) staffMade[m] = (staffMade[m] || 0) + drinkCount;
-});
-const sortedPunched = Object.entries(staffPunched).sort((a, b) => b[1] - a[1]);
-const sortedMade = Object.entries(staffMade).sort((a, b) => b[1] - a[1]);
+  const getEndOfWeek = (startOfWeek: Date): Date => {
+    const d = new Date(startOfWeek);
+    d.setDate(d.getDate() + 6);
+    d.setHours(23, 59, 59, 999);
+    return d;
+  };
 
-const sortedDays = dailySales.map(d => [d.date, d.total] as [string, number]);
-  const maxDayRevenue = dailySales.length > 0 ? Math.max(...dailySales.map(d => d.total)) : 1;
+  // ─── FILTER: Only orders from current week (Mon-Sun) ──────────────────
+  const currentWeekOrders = useMemo(() => {
+    const now = new Date();
+    const start = getStartOfWeek(now);
+    const end = getEndOfWeek(start);
+    
+    return orders.filter(o => {
+      const orderDate = new Date(o.createdAt);
+      return o.status === 'done' && orderDate >= start && orderDate <= end;
+    });
+  }, [orders]);
 
-  const salesByMonth: Record<string, number> = {};
-  doneOrders.forEach(o => {
-    const month = o.createdAt.slice(0, 7);
-    salesByMonth[month] = (salesByMonth[month] || 0) + o.total;
+  // ─── WEEKLY SALES DATA ──────────────────────────────────────────────────
+  const weekDays = useMemo(() => {
+    const start = getStartOfWeek(new Date());
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(start);
+      d.setDate(d.getDate() + i);
+      const dateStr = d.toISOString().split('T')[0];
+      const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+      const dayNum = d.getDate();
+      const month = d.toLocaleDateString('en-US', { month: 'short' });
+      
+      // Find sales for this day
+      const daySales = dailySales.find(s => s.date === dateStr);
+      const total = daySales?.total || 0;
+      const count = daySales?.orderCount || 0;
+      
+      // Also count from currentWeekOrders directly
+      const orderCount = currentWeekOrders.filter(o => 
+        new Date(o.createdAt).toISOString().split('T')[0] === dateStr
+      ).length;
+      
+      days.push({
+        date: dateStr,
+        display: `${dayName} ${dayNum}`,
+        fullDisplay: `${dayName} ${month} ${dayNum}`,
+        total,
+        orderCount: orderCount || count,
+        isToday: dateStr === new Date().toISOString().split('T')[0],
+      });
+    }
+    return days;
+  }, [dailySales, currentWeekOrders]);
+
+  const weekTotal = weekDays.reduce((sum, d) => sum + d.total, 0);
+  const weekOrderCount = weekDays.reduce((sum, d) => sum + d.orderCount, 0);
+  const maxDayRevenue = weekDays.length > 0 ? Math.max(...weekDays.map(d => d.total)) : 1;
+
+  // ─── STAFF PERFORMANCE (Current Week Only) ────────────────────────────
+  const staffPunched: Record<string, number> = {};
+  const staffMade: Record<string, number> = {};
+  currentWeekOrders.forEach(o => {
+    const p = o.punchedBy;
+    const m = o.madeBy;
+    const drinkCount = o.items.reduce((s, i) => s + i.quantity, 0);
+    if (p) staffPunched[p] = (staffPunched[p] || 0) + 1;
+    if (m) staffMade[m] = (staffMade[m] || 0) + drinkCount;
   });
-  const sortedMonths = Object.entries(salesByMonth).sort((a, b) => b[0].localeCompare(a[0]));
+  const sortedPunched = Object.entries(staffPunched).sort((a, b) => b[1] - a[1]);
+  const sortedMade = Object.entries(staffMade).sort((a, b) => b[1] - a[1]);
 
-  const currentMonth = new Date().toISOString().slice(0, 7);
-  const currentMonthTotal = salesByMonth[currentMonth] || 0;
-  const prevDate = new Date();
-  prevDate.setMonth(prevDate.getMonth() - 1);
-  const prevMonth = prevDate.toISOString().slice(0, 7);
-  const prevMonthTotal = salesByMonth[prevMonth] || 0;
-  const monthOverMonthChange = prevMonthTotal > 0 ? ((currentMonthTotal - prevMonthTotal) / prevMonthTotal * 100).toFixed(1) : '0';
-
+  // ─── SALES BY ITEM (Current Week Only) ────────────────────────────────
   const salesByItem: Record<string, { name: string; qty: number; revenue: number }> = {};
-  doneOrders.forEach(o => {
+  currentWeekOrders.forEach(o => {
     o.items.forEach(i => {
       if (!salesByItem[i.menuItemId]) salesByItem[i.menuItemId] = { name: i.name, qty: 0, revenue: 0 };
       salesByItem[i.menuItemId].qty += i.quantity;
@@ -87,48 +136,55 @@ const sortedDays = dailySales.map(d => [d.date, d.total] as [string, number]);
     });
   });
   const sortedItems = Object.values(salesByItem).sort((a, b) => b.revenue - a.revenue);
+  const maxItemRevenue = sortedItems.length > 0 ? Math.max(...sortedItems.map(i => i.revenue)) : 1;
 
+  // ─── SALES BY CATEGORY (Current Week Only) ────────────────────────────
   const salesByCat: Record<string, number> = {};
-  doneOrders.forEach(o => {
+  currentWeekOrders.forEach(o => {
     o.items.forEach(i => { salesByCat[i.category] = (salesByCat[i.category] || 0) + i.lineTotal; });
   });
   const sortedCats = Object.entries(salesByCat).sort((a, b) => b[1] - a[1]);
-
-  const maxItemRevenue = sortedItems.length > 0 ? Math.max(...sortedItems.map(i => i.revenue)) : 1;
   const maxCatRevenue = sortedCats.length > 0 ? Math.max(...sortedCats.map(c => c[1])) : 1;
 
-if (loading) return (
-  <div className="flex-1 p-6 overflow-y-auto bg-black">
-    <div className="flex items-center justify-between mb-6">
-      <div>
-        <div className="h-8 w-56 bg-white/10 rounded-lg animate-pulse mb-2" />
-        <div className="h-4 w-32 bg-white/10 rounded animate-pulse" />
-      </div>
-      <div className="h-9 w-40 bg-white/10 rounded-xl animate-pulse" />
-    </div>
-    <div className="h-20 bg-white/5 border border-white/10 rounded-xl animate-pulse mb-6" />
-    <div className="flex gap-2 mb-6">
-      {[1,2,3].map(i => <div key={i} className="h-10 w-32 bg-white/10 rounded-lg animate-pulse" />)}
-    </div>
-    <div className="bg-black border border-white/10 rounded-xl overflow-hidden">
-      {[1,2,3,4,5].map(i => (
-        <div key={i} className="flex gap-4 px-4 py-3 border-b border-white/10">
+  // ─── WEEK RANGE DISPLAY ─────────────────────────────────────────────────
+  const weekStart = getStartOfWeek(new Date());
+  const weekEnd = getEndOfWeek(weekStart);
+  const weekRangeStr = `${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+
+  if (loading) return (
+    <div className="flex-1 p-6 overflow-y-auto bg-black">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <div className="h-8 w-56 bg-white/10 rounded-lg animate-pulse mb-2" />
           <div className="h-4 w-32 bg-white/10 rounded animate-pulse" />
-          <div className="h-4 w-40 bg-white/10 rounded animate-pulse" />
-          <div className="h-4 w-20 bg-white/10 rounded animate-pulse ml-auto" />
-          <div className="h-4 w-16 bg-white/10 rounded animate-pulse" />
         </div>
-      ))}
+        <div className="h-9 w-40 bg-white/10 rounded-xl animate-pulse" />
+      </div>
+      <div className="h-20 bg-white/5 border border-white/10 rounded-xl animate-pulse mb-6" />
+      <div className="flex gap-2 mb-6">
+        {[1,2,3].map(i => <div key={i} className="h-10 w-32 bg-white/10 rounded-lg animate-pulse" />)}
+      </div>
+      <div className="bg-black border border-white/10 rounded-xl overflow-hidden">
+        {[1,2,3,4,5].map(i => (
+          <div key={i} className="flex gap-4 px-4 py-3 border-b border-white/10">
+            <div className="h-4 w-32 bg-white/10 rounded animate-pulse" />
+            <div className="h-4 w-40 bg-white/10 rounded animate-pulse" />
+            <div className="h-4 w-20 bg-white/10 rounded animate-pulse ml-auto" />
+            <div className="h-4 w-16 bg-white/10 rounded animate-pulse" />
+          </div>
+        ))}
+      </div>
     </div>
-  </div>
-);
+  );
 
   return (
     <div className="flex-1 p-6 overflow-y-auto bg-black">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white">Sales Reports</h1>
-          <p className="text-sm text-gray-400 mt-1">Last 30 days • {orders.length} total orders</p>
+          <p className="text-sm text-gray-400 mt-1">
+            Week of {weekRangeStr} • {currentWeekOrders.length} orders • ₱{weekTotal.toFixed(2)} total
+          </p>
         </div>
         <div className="flex gap-3">
           <button
@@ -148,58 +204,73 @@ if (loading) return (
 
       {exportSuccess && <div className="mb-4 p-3 bg-green-900/30 border border-green-800 text-green-400 rounded-lg">{exportSuccess}</div>}
 
-      {orders.length === 0 && (
-        <div className="bg-black border border-white/20 rounded-2xl p-12 text-center">
-          <p className="text-gray-500 text-lg">No orders to report</p>
-          <p className="text-gray-600 text-sm mt-2">Orders will appear here after you generate them</p>
+      {/* ─── WEEK SUMMARY CARDS ────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="bg-gradient-to-br from-gray-800 to-black rounded-2xl border border-white/20 p-5 text-white">
+          <p className="text-sm opacity-80 mb-1">Week Total</p>
+          <p className="text-3xl font-bold">₱{weekTotal.toFixed(2)}</p>
+          <p className="text-sm text-gray-400 mt-1">{weekOrderCount} orders</p>
         </div>
-      )}
-
-      {sortedMonths.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-gradient-to-br from-gray-800 to-black rounded-2xl border border-white/20 p-5 text-white">
-            <p className="text-sm opacity-80 mb-1">Current Month</p>
-            <p className="text-3xl font-bold">{currentMonth}</p>
-            <p className="text-2xl font-bold mt-2">₱{currentMonthTotal.toFixed(2)}</p>
-            <div className="flex items-center mt-2 text-sm">
-              <span className={monthOverMonthChange >= '0' ? 'text-green-400' : 'text-red-400'}>{monthOverMonthChange}% vs last month</span>
-            </div>
-          </div>
-          <div className="bg-black border border-white/20 rounded-2xl p-5 col-span-2">
-            <h3 className="font-semibold text-gray-300 mb-3">Monthly Totals</h3>
-            <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
-              {sortedMonths.map(([month, total]) => {
-                const [year, mon] = month.split('-');
-                const monthName = new Date(parseInt(year), parseInt(mon) - 1).toLocaleString('default', { month: 'short' });
-                return (
-                  <div key={month} className="flex items-center justify-between text-sm">
-                    <span className="text-gray-400">{monthName} {year}</span>
-                    <span className="font-semibold text-white">₱{total.toFixed(2)}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+        <div className="bg-black border border-white/20 rounded-2xl p-5 text-white">
+          <p className="text-sm text-gray-400 mb-1">Best Day</p>
+          {weekDays.length > 0 && (() => {
+            const best = weekDays.reduce((a, b) => a.total > b.total ? a : b);
+            return (
+              <>
+                <p className="text-xl font-bold">{best.fullDisplay}</p>
+                <p className="text-lg font-semibold text-green-400">₱{best.total.toFixed(2)}</p>
+                <p className="text-xs text-gray-500">{best.orderCount} orders</p>
+              </>
+            );
+          })()}
         </div>
-      )}
+        <div className="bg-black border border-white/20 rounded-2xl p-5 text-white">
+          <p className="text-sm text-gray-400 mb-1">Average Daily</p>
+          <p className="text-2xl font-bold">₱{(weekTotal / 7).toFixed(2)}</p>
+          <p className="text-xs text-gray-500">{Math.round(weekOrderCount / 7)} orders/day</p>
+        </div>
+        <div className="bg-black border border-white/20 rounded-2xl p-5 text-white">
+          <p className="text-sm text-gray-400 mb-1">Top Item</p>
+          {sortedItems.length > 0 ? (
+            <>
+              <p className="text-lg font-bold truncate">{sortedItems[0].name}</p>
+              <p className="text-sm text-gray-400">₱{sortedItems[0].revenue.toFixed(2)}</p>
+            </>
+          ) : (
+            <p className="text-gray-500">—</p>
+          )}
+        </div>
+      </div>
 
-      {sortedDays.length > 0 && (
-        <div className="bg-black border border-white/20 rounded-2xl p-5 mb-6">
-          <h2 className="font-bold text-lg text-white mb-4">Daily Sales</h2>
-          <div className="space-y-2">
-            {sortedDays.map(([day, total]) => (
-              <div key={day} className="flex items-center gap-3">
-                <span className="w-28 text-sm font-medium text-gray-400 shrink-0">{day}</span>
-                <div className="flex-1 bg-white/10 rounded-full h-6 overflow-hidden">
-                  <div className="bg-white h-full rounded-full transition-all" style={{ width: `${(total / maxDayRevenue) * 100}%` }} />
-                </div>
-                <span className="w-24 text-right text-sm font-bold text-white">₱{total.toFixed(0)}</span>
+      {/* ─── DAILY SALES (7 Days) ────────────────────────────────────── */}
+      <div className="bg-black border border-white/20 rounded-2xl p-5 mb-6">
+        <h2 className="font-bold text-lg text-white mb-4">
+          This Week <span className="text-sm font-normal text-gray-400">(Mon - Sun)</span>
+        </h2>
+        <div className="space-y-2">
+          {weekDays.map((day) => (
+            <div key={day.date} className={`flex items-center gap-3 ${day.isToday ? 'bg-white/5 rounded-lg px-3 py-1 -mx-3' : ''}`}>
+              <span className={`w-28 text-sm font-medium shrink-0 ${day.isToday ? 'text-white font-bold' : 'text-gray-400'}`}>
+                {day.fullDisplay} {day.isToday && <span className="text-xs text-green-400">← Today</span>}
+              </span>
+              <div className="flex-1 bg-white/10 rounded-full h-6 overflow-hidden">
+                <div 
+                  className={`h-full rounded-full transition-all ${day.total > 0 ? 'bg-white' : 'bg-white/20'}`} 
+                  style={{ width: `${maxDayRevenue > 0 ? (day.total / maxDayRevenue) * 100 : 0}%` }} 
+                />
               </div>
-            ))}
-          </div>
+              <span className="w-24 text-right text-sm font-bold text-white">₱{day.total.toFixed(0)}</span>
+              <span className="w-12 text-right text-xs text-gray-500">{day.orderCount}</span>
+            </div>
+          ))}
         </div>
-      )}
+        <div className="mt-3 pt-3 border-t border-white/10 flex justify-between text-sm">
+          <span className="text-gray-400">Total: {weekOrderCount} orders</span>
+          <span className="font-bold text-white">₱{weekTotal.toFixed(2)}</span>
+        </div>
+      </div>
 
+      {/* ─── SALES BY ITEM ────────────────────────────────────────────── */}
       {sortedItems.length > 0 && (
         <div className="bg-black border border-white/20 rounded-2xl p-5 mb-6">
           <h2 className="font-bold text-lg text-white mb-4">Sales by Item</h2>
@@ -218,6 +289,7 @@ if (loading) return (
         </div>
       )}
 
+      {/* ─── SALES BY CATEGORY ────────────────────────────────────────── */}
       {sortedCats.length > 0 && (
         <div className="bg-black border border-white/20 rounded-2xl p-5 mb-6">
           <h2 className="font-bold text-lg text-white mb-4">Sales by Category</h2>
@@ -235,7 +307,8 @@ if (loading) return (
         </div>
       )}
 
-<div className="bg-black border border-white/20 rounded-2xl p-5 mb-6">
+      {/* ─── STAFF PERFORMANCE ────────────────────────────────────────── */}
+      <div className="bg-black border border-white/20 rounded-2xl p-5 mb-6">
         <h2 className="font-bold text-lg text-white mb-4">👥 Staff Performance</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
@@ -282,4 +355,4 @@ if (loading) return (
       {showDatePicker && <DateRangePicker onExport={handleExport} onClose={() => setShowDatePicker(false)} />}
     </div>
   );
-} 
+}

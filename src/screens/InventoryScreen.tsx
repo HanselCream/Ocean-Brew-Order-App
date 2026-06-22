@@ -92,6 +92,8 @@ export default function InventoryScreen() {
   const [usedDateRange, setUsedDateRange] = useState<DateRange>('30days');
 
 const [sortByStatus, setSortByStatus] = useState<'off' | 'asc' | 'desc'>('off');
+const [sortByUsed, setSortByUsed] = useState<'off' | 'asc' | 'desc'>('off');  // ← ADD THIS
+
 
   // ── NEW: full-row edit state ──────────────────────────────────────────────
   // editingRecipeGroup holds the pivot row context (menuItemId + size + menuItem name)
@@ -567,9 +569,17 @@ if (sortByStatus !== 'off') {
     );
   }
 
-  return list;
-}, [ingredients, searchTerm, categoryFilter, sortByStatus]);
+    // ─── SORT BY USED ──────────────────────────────────
+  if (sortByUsed !== 'off') {
+    list = [...list].sort((a, b) => {
+      const usedA = usedStockFiltered[a.id] || 0;
+      const usedB = usedStockFiltered[b.id] || 0;
+      return sortByUsed === 'asc' ? usedA - usedB : usedB - usedA;
+    });
+  }
 
+  return list;
+}, [ingredients, searchTerm, categoryFilter, sortByStatus, sortByUsed, usedStockFiltered]);  // ← ADD sortByUsed
 
   const allCategories = Array.from(new Set([
     ...INGREDIENT_CATEGORIES, ...ingredients.map(i => i.category).filter(Boolean),
@@ -740,27 +750,20 @@ if (loading) return (
             <input type="text" placeholder="Search ingredients..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
               className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:border-white/50 w-56" />
 <div className="flex flex-wrap gap-2">
-              {['All', ...INGREDIENT_CATEGORIES].map(cat => (
-                <button key={cat} onClick={() => setCategoryFilter(cat)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
-                    categoryFilter === cat
-                      ? 'bg-white text-black'
-                      : 'bg-white/10 text-gray-300 hover:bg-white/20'
-                  }`}>
-                  {cat === 'All' ? 'All' : cat}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-2 ml-auto">
-              <span className="text-sm text-gray-400">Used period:</span>
-<select value={usedDateRange} onChange={e => setUsedDateRange(e.target.value as DateRange)}
-  className="px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white text-sm focus:outline-none">
-  {DATE_RANGE_OPTIONS.map(opt => <option key={opt.value} value={opt.value} className="bg-black text-white">{opt.label}</option>)}
-</select>
-            </div>
-            <button onClick={() => setShowAddIngredient(true)} className="px-5 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200">
-              + Add Ingredient
-            </button>
+  {['All', ...INGREDIENT_CATEGORIES].map(cat => (
+    <button key={cat} onClick={() => setCategoryFilter(cat)}
+      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+        categoryFilter === cat
+          ? 'bg-white text-black'
+          : 'bg-white/10 text-gray-300 hover:bg-white/20'
+      }`}>
+      {cat === 'All' ? 'All' : cat}
+    </button>
+  ))}
+</div>
+<button onClick={() => setShowAddIngredient(true)} className="px-5 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200">
+  + Add Ingredient
+</button>
           </div>
           <div className="bg-black border border-white/20 rounded-xl overflow-x-auto">
             <table className="w-full text-sm min-w-[900px]">
@@ -770,7 +773,12 @@ if (loading) return (
                   <th className="px-4 py-3 text-left">Item</th>
                   <th className="px-4 py-3 text-right">In Stock</th>
                   <th className="px-4 py-3 text-right">Total Measurement</th>
-                  <th className="px-4 py-3 text-right">Used ({DATE_RANGE_OPTIONS.find(o => o.value === usedDateRange)?.label})</th>
+<th 
+  className="px-4 py-3 text-right cursor-pointer select-none hover:text-white transition-colors" 
+  onClick={() => setSortByUsed(prev => prev === 'off' ? 'asc' : prev === 'asc' ? 'desc' : 'off')}
+>
+  Used {sortByUsed === 'asc' ? '↑' : sortByUsed === 'desc' ? '↓' : '⇅'}
+</th>
  <th className="px-4 py-3 text-center cursor-pointer select-none" onClick={() => setSortByStatus(prev => prev === 'off' ? 'asc' : prev === 'asc' ? 'desc' : 'off')}>
   Status {sortByStatus === 'asc' ? '↑' : sortByStatus === 'desc' ? '↓' : '⇅'}
 </th>
