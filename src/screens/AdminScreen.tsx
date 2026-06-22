@@ -14,10 +14,11 @@ import { supabase } from '@/lib/supabaseClient';
 // ADMIN EDIT MODAL
 // ─────────────────────────────────────────────
 function AdminEditModal({
-  item, isAddOn, addOnsList, onSave, onCancel,
+  item, isAddOn, isSupply, addOnsList, onSave, onCancel,
 }: {
   item: MenuItem;
   isAddOn: boolean;
+  isSupply: boolean;
   addOnsList: MenuItem[];
   onSave: (item: MenuItem) => void;
   onCancel: () => void;
@@ -78,7 +79,8 @@ function AdminEditModal({
             <label className="block text-sm font-semibold text-gray-300 mb-1">Price (₱)</label>
             <input type="number" value={priceR} onChange={e => setPriceR(e.target.value)} className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white" />
           </div>
-          {!isAddOn && addOnsList.length > 0 && (
+      {!isAddOn && !isSupply && addOnsList.length > 0 && (
+
             <div>
               <label className="block text-sm font-semibold text-gray-300 mb-2">Available Add-Ons for this item</label>
               <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 bg-white/5 rounded-xl">
@@ -108,15 +110,17 @@ function AdminEditModal({
               <p className="text-xs text-gray-500 mt-1">Select add-ons that can be added to this item</p>
             </div>
           )}
-          <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={autoDeduct}
-            onChange={e => setAutoDeduct(e.target.checked)}
-            className="w-5 h-5"
-          />
-          <span className="text-sm font-semibold text-gray-300">Auto Deduct Stock</span>
-        </label>
+          {(isAddOn || isSupply) && (
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={autoDeduct}
+                onChange={e => setAutoDeduct(e.target.checked)}
+                className="w-5 h-5"
+              />
+              <span className="text-sm font-semibold text-gray-300">Auto Deduct Stock</span>
+            </label>
+          )}
         </div>
         <div className="p-5 border-t border-white/20 flex justify-end gap-3">
           <button onClick={onCancel} className="px-5 py-2 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20">Cancel</button>
@@ -133,8 +137,10 @@ function AdminEditModal({
 export default function AdminScreen() {
   const { isAuthenticated, login } = useAuth();  // ← ADD login
   const [menu, setMenuState] = useState<MenuItem[]>([]);
+
   const [addOns, setAddOns] = useState<MenuItem[]>([]);
-  const [activeTab, setActiveTab] = useState<'menu' | 'addons'>('menu');
+  const supplies = menu.filter(m => m.category === 'Supplies');
+  const [activeTab, setActiveTab] = useState<'menu' | 'addons' | 'supplies'>('menu');
   const [editing, setEditing] = useState<MenuItem | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -145,6 +151,7 @@ export default function AdminScreen() {
       const loadData = async () => {
         setLoading(true);
         try {
+
           const menuData = await getMenu();
           setMenuState(Array.isArray(menuData) ? menuData : []);
           const addOnsData = await getAddOnItems();
@@ -253,9 +260,68 @@ const startNewMenuItem = () => {
     setIsNew(true);
   };
 
+
   const startNewAddOn = () => {
     setEditing({ id: crypto.randomUUID(), name: '', category: 'Add Ons', priceR: 0, priceL: null, available: true, hasSizeOption: false });
     setIsNew(true);
+  };
+
+  const startNewSupply = () => {
+    setEditing({ id: crypto.randomUUID(), name: '', category: 'Supplies', priceR: 0, priceL: null, available: true, hasSizeOption: false, autoDeduct: true });
+    setIsNew(true);
+  };
+
+  const saveSupply = async (supply: MenuItem) => {
+    try {
+      if (isNew) {
+        const { data, error } = await supabase.from('menu_items').insert([{
+          id: supply.id, name: supply.name, category: 'Supplies',
+          pricer: supply.priceR, pricel: null, available: supply.available,
+          hassizeoption: false, auto_deduct: supply.autoDeduct ?? true,
+        }]).select();
+        if (error) throw error;
+        if (data) {
+          const newItem: MenuItem = { ...supply, id: data[0].id };
+          setMenuState(prev => [...prev, newItem]);
+        }
+      } else {
+        const { error } = await supabase.from('menu_items').update({
+          name: supply.name, pricer: supply.priceR,
+          available: supply.available, auto_deduct: supply.autoDeduct ?? true,
+        }).eq('id', supply.id);
+        if (error) throw error;
+        setMenuState(prev => prev.map(m => m.id === supply.id ? { ...m, ...supply } : m));
+      }
+      setEditing(null); setIsNew(false);
+    } catch (err) {
+      console.error('Error saving supply:', err);
+      alert('Failed to save supply');
+    }
+  };
+
+  const deleteSupply = async (id: string) => {
+    try {
+      const { error } = await supabase.from('menu_items').delete().eq('id', id);
+      if (error) throw error;
+      
+      setMenuState(prev => prev.filter(m => m.id !== id));
+    } catch (err) {
+      console.error('Error deleting supply:', err);
+    }
+  };
+
+  const toggleSupplyAvailability = async (id: string) => {
+    const supply = supplies.find(s => s.id === id);
+    if (!supply) return;
+    const updated = { ...supply, available: !supply.available };
+    try {
+      const { error } = await supabase.from('menu_items').update({ available: updated.available }).eq('id', id);
+      if (error) throw error;
+
+      setMenuState(prev => prev.map(m => m.id === id ? { ...m, available: updated.available } : m));
+    } catch (err) {
+      console.error('Error toggling supply:', err);
+    }
   };
 
 // FIRST: Check if NOT authenticated - show password modal immediately
@@ -311,8 +377,10 @@ if (loading) return (
   return (
     <div className="flex-1 p-4 overflow-y-auto bg-black">
       <div className="flex gap-2 mb-6 border-b border-white/10">
+
         <button onClick={() => setActiveTab('menu')} className={`px-6 py-3 font-semibold transition-colors ${activeTab === 'menu' ? 'text-white border-b-2 border-white' : 'text-gray-400 hover:text-white'}`}>Menu Items</button>
         <button onClick={() => setActiveTab('addons')} className={`px-6 py-3 font-semibold transition-colors ${activeTab === 'addons' ? 'text-white border-b-2 border-white' : 'text-gray-400 hover:text-white'}`}>Add-Ons</button>
+        <button onClick={() => setActiveTab('supplies')} className={`px-6 py-3 font-semibold transition-colors ${activeTab === 'supplies' ? 'text-white border-b-2 border-white' : 'text-gray-400 hover:text-white'}`}>Supplies</button>
       </div>
 
       {activeTab === 'menu' && (
@@ -334,7 +402,8 @@ if (loading) return (
                 </tr>
               </thead>
               <tbody>
-                {menu.map(item => (
+                {menu.filter(m => m.category !== 'Supplies').map(item => (
+
                   <tr key={item.id} className="border-t border-white/10 hover:bg-white/5">
                     <td className="px-4 py-2 font-medium text-white">{item.name}</td>
                     <td className="px-4 py-2 text-gray-400">{item.category}</td>
@@ -419,15 +488,69 @@ if (loading) return (
         </>
       )}
 
+
+      {activeTab === 'supplies' && (
+        <>
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-bold text-white">Supplies Manager</h1>
+            <button onClick={startNewSupply} className="px-5 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200">+ Add Supply</button>
+          </div>
+          <div className="bg-black border border-white/20 rounded-xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-white/5 text-gray-300 border-b border-white/10">
+                <tr>
+                  <th className="px-4 py-3 text-left">Name</th>
+                  <th className="px-4 py-3 text-right">Price</th>
+                  <th className="px-4 py-3 text-center">Auto Deduct</th>
+                  <th className="px-4 py-3 text-center">Available</th>
+                  <th className="px-4 py-3 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {supplies.map(supply => (
+                  <tr key={supply.id} className="border-t border-white/10 hover:bg-white/5">
+                    <td className="px-4 py-2 font-medium text-white">{supply.name}</td>
+                    <td className="px-4 py-2 text-right">
+                      <input type="number" defaultValue={supply.priceR} onBlur={async (e) => {
+                        const newPrice = parseFloat(e.target.value);
+                        if (isNaN(newPrice) || newPrice === supply.priceR) return;
+                        const { error } = await supabase.from('menu_items').update({ pricer: newPrice }).eq('id', supply.id);
+                        if (!error) setMenuState(prev => prev.map(m => m.id === supply.id ? { ...m, priceR: newPrice } : m));
+                      }} className="w-20 text-right bg-transparent border border-white/20 rounded-lg px-2 py-1 text-white focus:border-white focus:outline-none" />
+                    </td>
+                    <td className="px-4 py-2 text-center">
+                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${supply.autoDeduct ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}`}>
+                        {supply.autoDeduct ? 'Yes' : 'No'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2 text-center">
+                      <button onClick={() => toggleSupplyAvailability(supply.id)} className={`px-3 py-1 rounded-full text-xs font-semibold ${supply.available ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}`}>
+                        {supply.available ? 'Yes' : 'No'}
+                      </button>
+                    </td>
+                    <td className="px-4 py-2 text-center">
+                      <button onClick={() => { setEditing(supply); setIsNew(false); }} className="text-gray-300 hover:text-white text-xs mr-2">Edit</button>
+                      <button onClick={() => deleteSupply(supply.id)} className="text-red-400 hover:text-red-300 text-xs">Delete</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
       {editing && (
         <AdminEditModal
           item={editing}
           isAddOn={activeTab === 'addons'}
+          isSupply={activeTab === 'supplies'}
           addOnsList={addOns}
-          onSave={activeTab === 'addons' ? saveAddOn : saveMenuItem}
+          onSave={activeTab === 'addons' ? saveAddOn : activeTab === 'supplies' ? saveSupply : saveMenuItem}
           onCancel={() => { setEditing(null); setIsNew(false); }}
         />
       )}
     </div>
   );
 }
+

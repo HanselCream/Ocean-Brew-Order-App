@@ -81,7 +81,7 @@ export default function InventoryScreen() {
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [stockLogs, setStockLogs] = useState<StockLog[]>([]);
-  const [menuItems, setMenuItems] = useState<any[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [showAddIngredient, setShowAddIngredient] = useState(false);
   const [showAdjustStock, setShowAdjustStock] = useState<string | null>(null);
@@ -89,10 +89,8 @@ export default function InventoryScreen() {
   const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
-  const [drinksLeft, setDrinksLeft] = useState<Record<string, number>>({});
-// AFTER
   const [usedDateRange, setUsedDateRange] = useState<DateRange>('30days');
-const [lowStockExpanded, setLowStockExpanded] = useState(false);
+
 const [sortByStatus, setSortByStatus] = useState<'off' | 'asc' | 'desc'>('off');
 
   // ── NEW: full-row edit state ──────────────────────────────────────────────
@@ -133,7 +131,7 @@ const [sortByStatus, setSortByStatus] = useState<'off' | 'asc' | 'desc'>('off');
 
 const loadRecipes = async () => {
   const { data, error } = await supabase.from('recipes').select(`
-    *, slot, menu_items:menu_item_id (name), ingredients:ingredient_id (name)
+    *, slot, menu_items:menu_item_id (name, category), ingredients:ingredient_id (name)
   `);
   if (error) throw error;
   setRecipes((data || []).map((r: any) => ({
@@ -160,35 +158,6 @@ const loadStockLogs = async () => {
     setStockLogs((data || []).map((l: any) => ({ ...l, ingredient_name: l.ingredients?.name })));
   };
 
-const loadMenuItems = async () => {
-  const EXCLUDED = ['Add Ons', 'Merchandise', 'Supplies', 'Food Supplies'];
-  const { data, error } = await supabase.from('menu_items')
-    .select('id, name, category')
-    .not('category', 'in', `(${EXCLUDED.map(c => `"${c}"`).join(',')})`)
-    .order('name');
-    if (error) throw error;
-    setMenuItems(data || []);
-  };
-
-  const calculateDrinksLeft = async () => {
-    const drinks: Record<string, number> = {};
-    for (const menuItem of menuItems) {
-const { data: recipeData, error } = await supabase.from('recipes')
-  .select(`quantity, ingredient_id, ingredients (current_stock)`)
-  .eq('menu_item_id', menuItem.id)
-  .eq('size', 'R');  // use Regular as default for drinks-left estimate
-      if (error) continue;
-      if (!recipeData || recipeData.length === 0) { drinks[menuItem.id] = 999; continue; }
-      let maxDrinks = Infinity;
-      for (const recipe of recipeData) {
-        const stock = (recipe.ingredients as any)?.current_stock || 0;
-        const possible = Math.floor(stock / recipe.quantity);
-        maxDrinks = Math.min(maxDrinks, possible);
-      }
-      drinks[menuItem.id] = maxDrinks === Infinity ? 999 : maxDrinks;
-    }
-    setDrinksLeft(drinks);
-  };
 
 //   const deductStockForOrder = async (orderItems: any[], orderId: string) => {
 //     for (const orderItem of orderItems) {
@@ -218,8 +187,7 @@ const { data: recipeData, error } = await supabase.from('recipes')
     setLoading(true);
     try {
       await loadIngredients(); await loadRecipes();
-      await loadStockLogs(); await loadMenuItems();
-      await calculateDrinksLeft();
+      await loadStockLogs();
     } catch (error) {
       console.error('Error loading inventory data:', error);
       alert('Failed to load inventory data');
@@ -270,7 +238,6 @@ const { data: recipeData, error } = await supabase.from('recipes')
     setShowAdjustStock(null); setAdjustAmount(0);
     await loadIngredients();
     await loadStockLogs();
-    await calculateDrinksLeft();
   };
 
   const addRecipe = async () => {
@@ -549,15 +516,11 @@ useEffect(() => {
     }, () => {
       loadStockLogs();
       loadIngredients();
-      calculateDrinksLeft();
     })
     .subscribe();
   return () => { supabase.removeChannel(channel); };
 }, []);
 
-  useEffect(() => {
-    if (menuItems.length > 0) calculateDrinksLeft();
-  }, [menuItems]);
 
   // ============================================
   // COMPUTED
@@ -581,11 +544,6 @@ useEffect(() => {
     });
     return map;
   }, [stockLogs, usedDateRange]);
-
-  const lowStockIngredients = ingredients.filter(ing => {
-    const pc = ing.unit_size ? Math.floor(ing.current_stock / ing.unit_size) : null;
-    return pc !== null ? pc <= ing.min_stock_threshold : ing.current_stock <= ing.min_stock_threshold;
-  });
 
 const filteredIngredients = useMemo(() => {
 const getStatusOrder = (ing: Ingredient) => {
@@ -612,15 +570,6 @@ if (sortByStatus !== 'off') {
   return list;
 }, [ingredients, searchTerm, categoryFilter, sortByStatus]);
 
-  const menuCategories = useMemo(() => {
-    const RECIPE_EXCLUDED_CATS = ['Add Ons', 'Merchandise', 'Supplies', 'Food Supplies'];
-    const cats = new Set(
-      menuItems
-        .map(item => item.category)
-        .filter(c => c && !RECIPE_EXCLUDED_CATS.includes(c))
-    );
-    return ['All', ...Array.from(cats).sort()];
-  }, [menuItems]);
 
   const allCategories = Array.from(new Set([
     ...INGREDIENT_CATEGORIES, ...ingredients.map(i => i.category).filter(Boolean),
@@ -646,12 +595,11 @@ const getIngName = (r: Recipe) => ingredients.find(i => i.id === r.ingredient_id
 
   Object.entries(grouped).forEach(([menuItemId, rows]) => {
     const menuItemName = rows[0]?.menu_item_name || '';
-    const menuItemObj = menuItems.find(m => m.id === menuItemId);
-    const category = menuItemObj?.category || '';
+    const category = (rows[0] as any)?.menu_items?.category || '';
 
     // separate packing vs non-packing
-const packingRows = rows.filter(r => IS_PACKING_ROW(r));
-  const ingRows = rows.filter(r => !IS_PACKING_ROW(r));
+    const packingRows = rows.filter(r => IS_PACKING_ROW(r));
+    const ingRows = rows.filter(r => !IS_PACKING_ROW(r));
 
     // build ingredient slots — merge R and L by ingredient_id
     const ingMap: Record<string, { name: string; qty_r: number | null; qty_l: number | null; unit: string }> = {};
@@ -706,7 +654,7 @@ result.push({ menuItemId, menuItemName, category, ingSlots, packing_supplies, ot
     if (a.category !== b.category) return a.category.localeCompare(b.category);
     return a.menuItemName.localeCompare(b.menuItemName);
   });
-}, [recipes, ingredients, menuItems]);
+}, [recipes, ingredients]);
 
 const filteredPivotedRecipes = useMemo(() => {
   let filtered = pivotedRecipes;
@@ -750,7 +698,8 @@ if (loading) return (
 <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white">Inventory Management</h1>
-          <p className="text-sm text-gray-400 mt-1">{lowStockIngredients.length} items low on stock</p>
+<p className="text-sm text-gray-400 mt-1">{ingredients.length} total ingredients</p>
+
         </div>
         <div className="flex gap-3">
           {activeTab === 'ingredients' && (
@@ -771,56 +720,6 @@ if (loading) return (
               </button>
             </>
           )}
-        </div>
-      </div>
-      {/* Low Stock Alert */}
-      {lowStockIngredients.length > 0 && (
-        <div className="mb-6 bg-red-900/30 border border-red-800 rounded-xl overflow-hidden">
-          <button
-            onClick={() => setLowStockExpanded(prev => !prev)}
-            className="w-full flex items-center justify-between p-4 hover:bg-red-900/20 transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-red-400 text-lg">⚠️</span>
-              <span className="font-semibold text-red-400">Low Stock Alert</span>
-              <span className="text-xs bg-red-900/60 text-red-300 px-2 py-0.5 rounded-full font-semibold">
-                {lowStockIngredients.length} items
-              </span>
-            </div>
-            <span className={`text-red-400 text-xs transition-transform duration-200 ${lowStockExpanded ? 'rotate-180' : ''}`}>▼</span>
-          </button>
-          {lowStockExpanded && (
-            <div className="px-4 pb-4 flex flex-wrap gap-2">
-              {lowStockIngredients.map(ing => (
-                <span key={ing.id} className="px-3 py-1 bg-red-900/50 rounded-lg text-sm text-red-300">
-                  {ing.name}: {(() => {
-                    const pc = ing.unit_size ? Math.floor(ing.current_stock / ing.unit_size) : null;
-                    return pc !== null ? `${pc}${ing.container_unit ? ' ' + ing.container_unit : ''}` : `${ing.current_stock} ${ing.unit}`;
-                  })()} left
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-      {/* Drinks Left */}
-      <div className="mb-6 p-4 bg-white/5 border border-white/10 rounded-xl">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-white">🍹 Drinks Left (based on current stock)</h3>
-          <button onClick={calculateDrinksLeft} className="text-xs text-gray-400 hover:text-white">🔄 Refresh</button>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2 max-h-48 overflow-y-auto">
-          {Object.entries(drinksLeft).filter(([,count]) => count < 50).slice(0, 12).map(([itemId, count]) => {
-            const menuItem = menuItems.find(m => m.id === itemId);
-            if (!menuItem) return null;
-            return (
-              <div key={itemId} className={`px-3 py-2 rounded-lg text-center ${count < 10 ? 'bg-red-900/30 border border-red-800' : 'bg-white/5'}`}>
-                <div className="text-xs text-gray-400 truncate">{menuItem.name}</div>
-                <div className={`text-lg font-bold ${count < 10 ? 'text-red-400' : 'text-white'}`}>{count === 999 ? '∞' : count}</div>
-                <div className="text-xs text-gray-500">left</div>
-              </div>
-            );
-          })}
         </div>
       </div>
 
@@ -898,7 +797,13 @@ const thresholdDisplay = packCount !== null
                       <td className="px-4 py-3 text-right">
                         <span className={`font-semibold ${isLowStock ? 'text-red-400' : 'text-white'}`}>{displayStock}</span>
                       </td>
-                      <td className="px-4 py-3 text-right text-gray-300">{ing.current_stock.toLocaleString()} {ing.unit}</td>
+<td className="px-4 py-3 text-right text-gray-300">
+  {(() => {
+    if (ing.unit === 'L') return (ing.current_stock * 1000).toLocaleString() + ' ml';
+    if (ing.unit === 'kg') return (ing.current_stock * 1000).toLocaleString() + ' g';
+    return ing.current_stock.toLocaleString() + ' ' + ing.unit;
+  })()}
+</td>
                       <td className="px-4 py-3 text-right text-gray-400">{usedDisplay}</td>
                       <td className="px-4 py-3 text-center">
                         {ing.current_stock === 0 ? <span className="px-2 py-1 rounded-full bg-red-900/60 text-red-300 text-xs font-semibold">NO STOCK</span>
@@ -935,16 +840,7 @@ const thresholdDisplay = packCount !== null
       className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:border-white/50 w-56"
     />
     <div className="flex flex-wrap gap-2">
-      {menuCategories.map(cat => (
-        <button key={cat} onClick={() => setRecipeCategoryFilter(cat)}
-          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
-            recipeCategoryFilter === cat
-              ? 'bg-white text-black'
-              : 'bg-white/10 text-gray-300 hover:bg-white/20'
-          }`}>
-          {cat === 'All' ? 'All' : cat}
-        </button>
-      ))}
+
     </div>
   </div>
   {/* Row 2: count + Add button */}
@@ -1334,10 +1230,6 @@ return true;
           <label className="block text-sm font-semibold text-gray-300 mb-1">Menu Item</label>
           <select value={newRecipe.menu_item_id} onChange={e => setNewRecipe({...newRecipe, menu_item_id: e.target.value})}
             className="w-full border border-white/20 rounded-xl px-3 py-2 bg-black text-white">
-            <option value="">Select menu item...</option>
-            {menuItems
-              .filter(item => !['Supplies','Add Ons'].includes(item.category))
-              .map(item => <option key={item.id} value={item.id}>{item.name} ({item.category})</option>)}
           </select>
         </div>
 
