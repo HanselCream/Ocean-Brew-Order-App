@@ -90,6 +90,7 @@ const [menuItems, setMenuItems] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [usedDateRange, setUsedDateRange] = useState<DateRange>('30days');
+// const [recipeCategories, setRecipeCategories] = useState<string[]>([]);
 
 const [sortByStatus, setSortByStatus] = useState<'off' | 'asc' | 'desc'>('off');
 const [sortByUsed, setSortByUsed] = useState<'off' | 'asc' | 'desc'>('off');  // ← ADD THIS
@@ -673,6 +674,11 @@ result.push({ menuItemId, menuItemName, category, ingSlots, packing_supplies, ot
   });
 }, [recipes, ingredients]);
 
+const recipeCategories = useMemo(() => {
+  const cats = new Set(pivotedRecipes.map(r => r.category));
+  return Array.from(cats).sort();
+}, [pivotedRecipes]);
+
 const filteredPivotedRecipes = useMemo(() => {
   let filtered = pivotedRecipes;
   if (recipeSearchTerm) filtered = filtered.filter(row => row.menuItemName.toLowerCase().includes(recipeSearchTerm.toLowerCase()));
@@ -753,25 +759,63 @@ if (loading) return (
       {/* ── INGREDIENTS TAB ── */}
       {activeTab === 'ingredients' && (
         <>
-          <div className="flex items-center gap-3 mb-4 flex-wrap">
-            <input type="text" placeholder="Search ingredients..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-              className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:border-white/50 w-56" />
-<div className="flex flex-wrap gap-2">
-  {['All', ...INGREDIENT_CATEGORIES].map(cat => (
-    <button key={cat} onClick={() => setCategoryFilter(cat)}
-      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+{/* Search + Add Row */}
+<div className="flex items-center gap-3 mb-3">
+  <div className="relative flex-1 min-w-[180px] max-w-xs">
+    <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+    </svg>
+    <input 
+      type="text" 
+      placeholder="Search ingredients..." 
+      value={searchTerm} 
+      onChange={e => setSearchTerm(e.target.value)}
+      className="w-full pl-9 pr-8 py-2 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:border-white/50 text-sm"
+    />
+    {searchTerm && (
+      <button 
+        onClick={() => setSearchTerm('')}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white text-sm"
+      >
+        ✕
+      </button>
+    )}
+  </div>
+  <button 
+    onClick={() => setShowAddIngredient(true)} 
+    className="px-4 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200 flex items-center gap-1 text-sm whitespace-nowrap"
+  >
+    <span className="text-lg leading-none">+</span> Add
+  </button>
+</div>
+
+{/* Category Buttons - Scrollable Row */}
+<div className="flex flex-wrap gap-1.5 mb-4">
+  <button 
+    key="all" 
+    onClick={() => setCategoryFilter('All')}
+    className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+      categoryFilter === 'All'
+        ? 'bg-white text-black'
+        : 'bg-white/10 text-gray-300 hover:bg-white/20'
+    }`}
+  >
+    All
+  </button>
+  {INGREDIENT_CATEGORIES.map(cat => (
+    <button 
+      key={cat} 
+      onClick={() => setCategoryFilter(cat)}
+      className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
         categoryFilter === cat
           ? 'bg-white text-black'
           : 'bg-white/10 text-gray-300 hover:bg-white/20'
-      }`}>
-      {cat === 'All' ? 'All' : cat}
+      }`}
+    >
+      {cat}
     </button>
   ))}
 </div>
-<button onClick={() => setShowAddIngredient(true)} className="px-5 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200">
-  + Add Ingredient
-</button>
-          </div>
           <div className="bg-black border border-white/20 rounded-xl overflow-x-auto">
             <table className="w-full text-sm min-w-[900px]">
               <thead className="bg-white/5 text-gray-300 border-b border-white/10">
@@ -914,37 +958,64 @@ const thresholdDisplay = packCount !== null
         </>
       )}
 
-      {/* ── RECIPES TAB ── */}
-      {activeTab === 'recipes' && (
-        <>
-<div className="flex flex-col gap-3 mb-4">
-  {/* Row 1: Search + category buttons */}
-  <div className="flex items-center gap-3 flex-wrap">
-    <input
-      type="text"
-      placeholder="Search recipes..."
-      value={recipeSearchTerm}
-      onChange={e => setRecipeSearchTerm(e.target.value)}
-      className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:border-white/50 w-56"
-    />
-    <div className="flex flex-wrap gap-2">
-
+{/* ── RECIPES TAB ── */}
+{activeTab === 'recipes' && (
+  <>
+    {/* Search + Add Row */}
+    <div className="flex items-center gap-3 mb-3">
+      <div className="relative flex-1 min-w-[180px] max-w-xs">
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input 
+          type="text" 
+          placeholder="Search recipes..." 
+          value={recipeSearchTerm} 
+          onChange={e => setRecipeSearchTerm(e.target.value)}
+          className="w-full pl-9 pr-8 py-2 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:border-white/50 text-sm"
+        />
+        {recipeSearchTerm && (
+          <button 
+            onClick={() => setRecipeSearchTerm('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white text-sm"
+          >
+            ✕
+          </button>
+        )}
+      </div>
+      <button 
+        onClick={() => { setShowAddRecipe(true); setEditableRows([{ id: null, ingredient_id: ingredients[0]?.id || '', quantity: 1, size: 'R', _isNew: true, _deleted: false }]); }}
+        className="px-4 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200 flex items-center gap-1 text-sm whitespace-nowrap"
+      >
+        <span className="text-lg leading-none">+</span> Add
+      </button>
     </div>
-  </div>
-  {/* Row 2: count + Add button */}
-  <div className="flex items-center justify-between">
-    <span className="text-xs text-gray-500">
-      {filteredPivotedRecipes.length} recipes
-      {recipeCategoryFilter !== 'All' && ` in ${recipeCategoryFilter}`}
-    </span>
-    <button onClick={() => { setShowAddRecipe(true); setEditableRows([{ id: null, ingredient_id: ingredients[0]?.id || '', quantity: 1, size: 'R', _isNew: true, _deleted: false }]); }}
-      className="px-5 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200">
-      + Add Recipe
+<div className="flex flex-wrap gap-1.5 mb-4">
+  <button onClick={() => setRecipeCategoryFilter('All')}
+    className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+      recipeCategoryFilter === 'All' ? 'bg-white text-black' : 'bg-white/10 text-gray-300 hover:bg-white/20'
+    }`}>
+    All
+  </button>
+  {recipeCategories.map(cat => (
+    <button key={cat} onClick={() => setRecipeCategoryFilter(cat)}
+      className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+        recipeCategoryFilter === cat ? 'bg-white text-black' : 'bg-white/10 text-gray-300 hover:bg-white/20'
+      }`}>
+      {cat}
     </button>
-  </div>
+  ))}
 </div>
 
-          <div className="bg-black border border-white/20 rounded-xl overflow-x-auto">
+    {/* Recipe count */}
+    <div className="flex items-center justify-between mb-3">
+      <span className="text-xs text-gray-500">
+        {filteredPivotedRecipes.length} recipes
+        {recipeCategoryFilter !== 'All' && ` in ${recipeCategoryFilter}`}
+      </span>
+    </div>
+
+    <div className="bg-black border border-white/20 rounded-xl overflow-x-auto">
             <table className="w-full text-sm min-w-[1000px]">
 <thead className="bg-white/5 text-gray-300 border-b border-white/10 sticky top-0">
   <tr>
