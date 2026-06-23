@@ -16,8 +16,9 @@ function NavBar({ screen, setScreen }: { screen: Screen; setScreen: (s: Screen) 
     { key: 'queue', label: 'Queue' },
     { key: 'dashboard', label: 'Dashboard' },
     { key: 'reports', label: 'Reports' },
-    { key: 'admin', label: 'Admin' },
     { key: 'inventory', label: 'Inventory' }, 
+    { key: 'admin', label: 'Admin' },
+
   ];
   return (
     <nav className="flex items-center bg-black text-white border-b border-white/20 px-4 h-14 shrink-0">
