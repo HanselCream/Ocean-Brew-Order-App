@@ -840,8 +840,8 @@ if (loading) return (
                 {filteredIngredients.map(ing => {
                   const packCount = ing.unit_size ? Math.floor(ing.current_stock / ing.unit_size) : null;
 const displayStock = (() => {
-  if (ing.unit === 'L') return (ing.current_stock * 1000).toLocaleString() + ' ml';
-  if (ing.unit === 'kg') return (ing.current_stock * 1000).toLocaleString() + ' g';
+  if (ing.unit === 'L') return ing.current_stock.toFixed(3) + ' L';
+  if (ing.unit === 'kg') return ing.current_stock.toFixed(3) + ' kg';
   if (packCount !== null) return `${packCount}${ing.container_unit ? ' ' + ing.container_unit : ''}`;
   return ing.current_stock.toLocaleString() + ' ' + ing.unit;
 })();
@@ -869,8 +869,9 @@ const thresholdDisplay = packCount !== null
                       </td>
 <td className="px-4 py-3 text-right text-gray-300">
   {(() => {
-    if (ing.unit === 'L') return ing.current_stock.toFixed(3) + ' L';
-    if (ing.unit === 'kg') return ing.current_stock.toFixed(3) + ' kg';
+    if (ing.unit === 'L') return (ing.current_stock * 1000).toLocaleString() + ' ml';
+    if (ing.unit === 'kg') return (ing.current_stock * 1000).toLocaleString() + ' g';
+    if (ing.unit === 'pieces') return ing.current_stock.toLocaleString() + ' pieces';
     return ing.current_stock.toLocaleString() + ' ' + ing.unit;
   })()}
 </td>
@@ -1010,13 +1011,20 @@ const thresholdDisplay = packCount !== null
 <td className="px-3 py-3 text-xs align-top">
   {row.ingSlots.length > 0 && (
     <div className="space-y-0.5">
-      {row.ingSlots.map((slot: any, i: number) => (
-        <div key={i} className="whitespace-nowrap">
-          <span className="text-gray-300">{slot.name}</span>
-          {slot.qty_r != null && <span className="text-white ml-1">{slot.qty_r}{slot.unit}</span>}
-          {slot.qty_l != null && <span className="text-gray-400 ml-1">/ {slot.qty_l}{slot.unit}</span>}
-        </div>
-      ))}
+{row.ingSlots.map((slot: any, i: number) => {
+  const formatQty = (qty: number, unit: string) => {
+    if (unit === 'kg') return (qty * 1000) + 'g';
+    if (unit === 'L') return (qty * 1000) + 'ml';
+    return qty + unit;
+  };
+  return (
+    <div key={i} className="whitespace-nowrap">
+      <span className="text-gray-300">{slot.name}</span>
+      {slot.qty_r != null && <span className="text-white ml-1">{formatQty(slot.qty_r, slot.unit)}</span>}
+      {slot.qty_l != null && <span className="text-gray-400 ml-1">/ {formatQty(slot.qty_l, slot.unit)}</span>}
+    </div>
+  );
+})}
     </div>
   )}
 </td>
