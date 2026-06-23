@@ -840,8 +840,8 @@ if (loading) return (
                 {filteredIngredients.map(ing => {
                   const packCount = ing.unit_size ? Math.floor(ing.current_stock / ing.unit_size) : null;
 const displayStock = (() => {
-  if (ing.unit === 'L') return ing.current_stock.toFixed(3) + ' L';
-  if (ing.unit === 'kg') return ing.current_stock.toFixed(3) + ' kg';
+  if (ing.unit === 'L') return ing.current_stock.toFixed(2) + ' L';
+  if (ing.unit === 'kg') return ing.current_stock.toFixed(2) + ' kg';
   if (packCount !== null) return `${packCount}${ing.container_unit ? ' ' + ing.container_unit : ''}`;
   return ing.current_stock.toLocaleString() + ' ' + ing.unit;
 })();
@@ -852,8 +852,8 @@ const usedDisplay = (() => {
   if (usedAmount === 0) return '—';
   const amount = ing.unit === 'L' || ing.unit === 'kg' ? usedAmount / 1000 : usedAmount;
   const unit = ing.unit;
-  if (unit === 'L') return amount.toFixed(3) + ' L';
-  if (unit === 'kg') return amount.toFixed(3) + ' kg';
+  if (unit === 'L') return amount.toFixed(2) + ' L';
+  if (unit === 'kg') return amount.toFixed(2) + ' kg';
   if (unit === 'ml') return amount.toFixed(0) + ' ml';
   if (unit === 'g') return amount.toFixed(0) + ' g';
   return amount.toLocaleString() + ' ' + unit;
