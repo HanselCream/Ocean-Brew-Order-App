@@ -839,35 +839,25 @@ if (loading) return (
               <tbody>
                 {filteredIngredients.map(ing => {
                   const packCount = ing.unit_size ? Math.floor(ing.current_stock / ing.unit_size) : null;
-                  const displayStock = packCount !== null ? `${packCount}${ing.container_unit ? ' ' + ing.container_unit : ''}` : `${ing.current_stock.toLocaleString()} ${ing.unit}`;
+const displayStock = (() => {
+  if (ing.unit === 'L') return (ing.current_stock * 1000).toLocaleString() + ' ml';
+  if (ing.unit === 'kg') return (ing.current_stock * 1000).toLocaleString() + ' g';
+  if (packCount !== null) return `${packCount}${ing.container_unit ? ' ' + ing.container_unit : ''}`;
+  return ing.current_stock.toLocaleString() + ' ' + ing.unit;
+})();
                   const isLowStock = packCount !== null ? packCount <= ing.min_stock_threshold : ing.current_stock <= ing.min_stock_threshold;
 const usedAmount = usedStockFiltered[ing.id] || 0;
 
-// Convert stock log values to proper units
-const convertedAmount = (() => {
-  if (ing.unit === 'L' || ing.unit === 'kg') {
-    return usedAmount / 1000; // Stock logs are in ml/g, convert to L/kg
-  }
-  return usedAmount; // pieces stay as-is
-})();
-
-const formatUsedAmount = (amount: number, unit: string) => {
+const usedDisplay = (() => {
+  if (usedAmount === 0) return '—';
+  const amount = ing.unit === 'L' || ing.unit === 'kg' ? usedAmount / 1000 : usedAmount;
+  const unit = ing.unit;
   if (unit === 'L') return amount.toFixed(3) + ' L';
   if (unit === 'kg') return amount.toFixed(3) + ' kg';
   if (unit === 'ml') return amount.toFixed(0) + ' ml';
   if (unit === 'g') return amount.toFixed(0) + ' g';
   return amount.toLocaleString() + ' ' + unit;
-};
-
-const packsOpened = usedAmount > 0 && ing.unit_size
-  ? Math.ceil(usedAmount / ing.unit_size)
-  : 0;
-
-const usedDisplay = usedAmount > 0
-  ? packsOpened > 0 
-    ? `${formatUsedAmount(convertedAmount, ing.unit)} (${packsOpened})`
-    : formatUsedAmount(convertedAmount, ing.unit)
-  : '—';
+})();
 const thresholdDisplay = packCount !== null 
   ? `${ing.min_stock_threshold} ${ing.container_unit ? ing.container_unit + 's' : ing.unit}` 
   : `${ing.min_stock_threshold} ${ing.unit}`;                  return (
@@ -879,16 +869,9 @@ const thresholdDisplay = packCount !== null
                       </td>
 <td className="px-4 py-3 text-right text-gray-300">
   {(() => {
-    // Convert usedAmount to proper unit for calculation
-    const usedInUnit = ing.unit === 'L' || ing.unit === 'kg' 
-      ? usedAmount / 1000 
-      : usedAmount;
-    
-    const remaining = Math.max(0, ing.current_stock - usedInUnit);
-    
-    if (ing.unit === 'L') return (remaining * 1000).toLocaleString() + ' ml';
-    if (ing.unit === 'kg') return (remaining * 1000).toLocaleString() + ' g';
-    return remaining.toLocaleString() + ' ' + ing.unit;
+    if (ing.unit === 'L') return ing.current_stock.toFixed(3) + ' L';
+    if (ing.unit === 'kg') return ing.current_stock.toFixed(3) + ' kg';
+    return ing.current_stock.toLocaleString() + ' ' + ing.unit;
   })()}
 </td>
 <td className="px-4 py-3 text-right">
@@ -1006,14 +989,6 @@ const thresholdDisplay = packCount !== null
     </button>
   ))}
 </div>
-
-    {/* Recipe count */}
-    <div className="flex items-center justify-between mb-3">
-      <span className="text-xs text-gray-500">
-        {filteredPivotedRecipes.length} recipes
-        {recipeCategoryFilter !== 'All' && ` in ${recipeCategoryFilter}`}
-      </span>
-    </div>
 
     <div className="bg-black border border-white/20 rounded-xl overflow-x-auto">
             <table className="w-full text-sm min-w-[1000px]">
