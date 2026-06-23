@@ -543,17 +543,16 @@ useEffect(() => {
     return null;
   };
 
-  const usedStockFiltered = useMemo(() => {
-    const map: Record<string, number> = {};
-    const sinceDate = getDateFilter(usedDateRange);
-    stockLogs.forEach(log => {
-      if (log.reason === 'order' && log.quantity_change < 0) {
-        if (sinceDate && new Date(log.created_at) < sinceDate) return;
-        map[log.ingredient_id] = (map[log.ingredient_id] || 0) + Math.abs(log.quantity_change);
-      }
-    });
-    return map;
-  }, [stockLogs, usedDateRange]);
+const usedStockFiltered = useMemo(() => {
+  const map: Record<string, number> = {};
+  stockLogs.forEach(log => {
+    // Remove the date filter to show ALL TIME
+    if ((log.reason === 'order' || log.reason === 'order_queue') && log.quantity_change < 0) {
+      map[log.ingredient_id] = (map[log.ingredient_id] || 0) + Math.abs(log.quantity_change);
+    }
+  });
+  return map;
+}, [stockLogs]);
 
 const filteredIngredients = useMemo(() => {
 const getStatusOrder = (ing: Ingredient) => {
@@ -800,8 +799,13 @@ if (loading) return (
                   const isLowStock = packCount !== null ? packCount <= ing.min_stock_threshold : ing.current_stock <= ing.min_stock_threshold;
 const usedAmount = usedStockFiltered[ing.id] || 0;
 
-// Convert if unit is kg (stock logs are in grams)
-const convertedAmount = ing.unit === 'kg' ? usedAmount / 1000 : usedAmount;
+// Convert stock log values to proper units
+const convertedAmount = (() => {
+  if (ing.unit === 'L' || ing.unit === 'kg') {
+    return usedAmount / 1000; // Stock logs are in ml/g, convert to L/kg
+  }
+  return usedAmount; // pieces stay as-is
+})();
 
 const formatUsedAmount = (amount: number, unit: string) => {
   if (unit === 'L') return amount.toFixed(3) + ' L';
@@ -831,9 +835,16 @@ const thresholdDisplay = packCount !== null
                       </td>
 <td className="px-4 py-3 text-right text-gray-300">
   {(() => {
-    if (ing.unit === 'L') return (ing.current_stock * 1000).toLocaleString() + ' ml';
-    if (ing.unit === 'kg') return (ing.current_stock * 1000).toLocaleString() + ' g';
-    return ing.current_stock.toLocaleString() + ' ' + ing.unit;
+    // Convert usedAmount to proper unit for calculation
+    const usedInUnit = ing.unit === 'L' || ing.unit === 'kg' 
+      ? usedAmount / 1000 
+      : usedAmount;
+    
+    const remaining = Math.max(0, ing.current_stock - usedInUnit);
+    
+    if (ing.unit === 'L') return (remaining * 1000).toLocaleString() + ' ml';
+    if (ing.unit === 'kg') return (remaining * 1000).toLocaleString() + ' g';
+    return remaining.toLocaleString() + ' ' + ing.unit;
   })()}
 </td>
 <td className="px-4 py-3 text-right">
