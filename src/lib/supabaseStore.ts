@@ -572,3 +572,48 @@ export async function getDailySales(): Promise<{ date: string; total: number; or
     .map(([date, val]) => ({ date, total: val.total, orderCount: val.count }))
     .sort((a, b) => b.date.localeCompare(a.date));
 }
+
+// ─────────────────────────────────────────────
+// CATEGORY FUNCTIONS
+// ─────────────────────────────────────────────
+export const getCategories = async (): Promise<string[]> => {
+  const { data, error } = await supabase
+    .from('categories')
+    .select('name')
+    .order('name');
+  if (error) {
+    console.error('Error fetching categories:', error);
+    return [];
+  }
+  return data.map(c => c.name);
+};
+
+export const addCategory = async (name: string): Promise<void> => {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error('Category name is required');
+  const { error } = await supabase
+    .from('categories')
+    .insert([{ name: trimmed }]);
+  if (error) throw error;
+};
+
+export const deleteCategory = async (name: string): Promise<void> => {
+  const { error } = await supabase
+    .from('categories')
+    .delete()
+    .eq('name', name);
+  if (error) throw error;
+};
+
+export const isCategoryUsed = async (name: string): Promise<boolean> => {
+  const { data, error } = await supabase
+    .from('menu_items')
+    .select('id')
+    .eq('category', name)
+    .limit(1);
+  if (error) {
+    console.error('Error checking category usage:', error);
+    return false;
+  }
+  return data && data.length > 0;
+};

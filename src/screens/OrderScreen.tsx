@@ -6,9 +6,7 @@ import {
   MenuItem, Order, OrderItem, OrderItemCustomization,
   Size, SugarLevel, IceLevel, CATEGORIES,
 } from '@/lib/types';
-import {
-  getMenu, getAddOnItems, saveOrder, getNextOrderNumber, getStoreSettings,
-} from '@/lib/supabaseStore';
+import { getMenu, getAddOnItems, saveOrder, getNextOrderNumber, getStoreSettings, getCategories } from '@/lib/supabaseStore';
 import PrinterService from '@/lib/printerService';
 
 // ─────────────────────────────────────────────

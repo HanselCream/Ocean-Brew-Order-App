@@ -45,35 +45,39 @@ export default function ReportsScreen() {
     setTimeout(() => setExportSuccess(''), 5000);
     setShowDatePicker(false);
   };
+// ─── WEEK NAVIGATION STATE ──────────────────────────────────────────────
+const [weekOffset, setWeekOffset] = useState(0); // 0 = current week, -1 = last week, 1 = next week
 
-  // ─── HELPER: Get Monday of current week ──────────────────────────────────
-  const getStartOfWeek = (date: Date): Date => {
-    const d = new Date(date);
-    const day = d.getDay(); // 0=Sun, 1=Mon
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust to Monday
-    d.setDate(diff);
-    d.setHours(0, 0, 0, 0);
-    return d;
-  };
+// ─── HELPER: Get Monday of week by offset ──────────────────────────────
+const getStartOfWeek = (date: Date, offset: number = 0): Date => {
+  const d = new Date(date);
+  // Add offset weeks
+  d.setDate(d.getDate() + (offset * 7));
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  d.setDate(diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
 
-  const getEndOfWeek = (startOfWeek: Date): Date => {
-    const d = new Date(startOfWeek);
-    d.setDate(d.getDate() + 6);
-    d.setHours(23, 59, 59, 999);
-    return d;
-  };
+const getEndOfWeek = (startOfWeek: Date): Date => {
+  const d = new Date(startOfWeek);
+  d.setDate(d.getDate() + 6);
+  d.setHours(23, 59, 59, 999);
+  return d;
+};
 
-  // ─── FILTER: Only orders from current week (Mon-Sun) ──────────────────
-  const currentWeekOrders = useMemo(() => {
-    const now = new Date();
-    const start = getStartOfWeek(now);
-    const end = getEndOfWeek(start);
-    
-    return orders.filter(o => {
-      const orderDate = new Date(o.createdAt);
-      return o.status === 'done' && orderDate >= start && orderDate <= end;
-    });
-  }, [orders]);
+// ─── FILTER: Orders from selected week ──────────────────────────────────
+const currentWeekOrders = useMemo(() => {
+  const now = new Date();
+  const start = getStartOfWeek(now, weekOffset);
+  const end = getEndOfWeek(start);
+  
+  return orders.filter(o => {
+    const orderDate = new Date(o.createdAt);
+    return o.status === 'done' && orderDate >= start && orderDate <= end;
+  });
+}, [orders, weekOffset]);
 
   // ─── WEEKLY SALES DATA ──────────────────────────────────────────────────
   const weekDays = useMemo(() => {
@@ -275,7 +279,7 @@ export default function ReportsScreen() {
         <div className="bg-black border border-white/20 rounded-2xl p-5 mb-6">
           <h2 className="font-bold text-lg text-white mb-4">Sales by Item</h2>
           <div className="space-y-2">
-            {sortedItems.slice(0, 20).map((item, index) => (
+            {sortedItems.map((item, index) => (
               <div key={`${item.name}-${index}`} className="flex items-center gap-3">
                 <span className="w-44 text-sm font-medium text-gray-400 shrink-0 truncate">{item.name}</span>
                 <div className="flex-1 bg-white/10 rounded-full h-6 overflow-hidden">

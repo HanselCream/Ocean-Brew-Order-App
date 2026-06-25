@@ -60,7 +60,7 @@ export default function OceanBrewApp() {
       {screen === 'queue' && <QueueScreen refreshKey={refreshKey} />}
       {screen === 'admin' && <AdminScreen />}
       {screen === 'dashboard' && <DashboardScreen />}
-      {screen === 'reports' && <ReportsScreen onSwitchToAdmin={() => handleSetScreen('admin')} />}
+      {screen === 'reports' && <ReportsScreen />}
       {screen === 'inventory' && <InventoryScreen />}
     </div>
   );

@@ -759,8 +759,9 @@ if (loading) return (
       {/* ── INGREDIENTS TAB ── */}
       {activeTab === 'ingredients' && (
         <>
-{/* Search + Add Row */}
-<div className="flex items-center gap-3 mb-3">
+{/* Search + Category Dropdown + Add Button - Inline */}
+<div className="flex items-center gap-3 mb-4 flex-wrap">
+  {/* Search */}
   <div className="relative flex-1 min-w-[180px] max-w-xs">
     <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -781,40 +782,34 @@ if (loading) return (
       </button>
     )}
   </div>
+
+  {/* Category Dropdown */}
+  <div className="flex items-center gap-2 shrink-0">
+    <label className="text-sm text-gray-400 hidden sm:block">Category:</label>
+    <div className="relative">
+      <select
+        value={categoryFilter}
+        onChange={e => setCategoryFilter(e.target.value)}
+        className="px-3 py-2 pr-8 rounded-xl bg-black border border-white/20 text-white text-sm focus:outline-none focus:border-white/50 appearance-none cursor-pointer min-w-[140px]"
+      >
+        <option value="All" className="bg-black text-white">All</option>
+        {INGREDIENT_CATEGORIES.map(cat => (
+          <option key={cat} value={cat} className="bg-black text-white">{cat}</option>
+        ))}
+      </select>
+      <svg className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+      </svg>
+    </div>
+  </div>
+
+  {/* Add Button */}
   <button 
     onClick={() => setShowAddIngredient(true)} 
-    className="px-4 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200 flex items-center gap-1 text-sm whitespace-nowrap"
+    className="px-4 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200 flex items-center gap-1 text-sm whitespace-nowrap ml-auto shrink-0"
   >
     <span className="text-lg leading-none">+</span> Add
   </button>
-</div>
-
-{/* Category Buttons - Scrollable Row */}
-<div className="flex flex-wrap gap-1.5 mb-4">
-  <button 
-    key="all" 
-    onClick={() => setCategoryFilter('All')}
-    className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
-      categoryFilter === 'All'
-        ? 'bg-white text-black'
-        : 'bg-white/10 text-gray-300 hover:bg-white/20'
-    }`}
-  >
-    All
-  </button>
-  {INGREDIENT_CATEGORIES.map(cat => (
-    <button 
-      key={cat} 
-      onClick={() => setCategoryFilter(cat)}
-      className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
-        categoryFilter === cat
-          ? 'bg-white text-black'
-          : 'bg-white/10 text-gray-300 hover:bg-white/20'
-      }`}
-    >
-      {cat}
-    </button>
-  ))}
 </div>
           <div className="bg-black border border-white/20 rounded-xl overflow-x-auto">
             <table className="w-full text-sm min-w-[900px]">
@@ -951,50 +946,58 @@ const thresholdDisplay = packCount !== null
 {/* ── RECIPES TAB ── */}
 {activeTab === 'recipes' && (
   <>
-    {/* Search + Add Row */}
-    <div className="flex items-center gap-3 mb-3">
-      <div className="relative flex-1 min-w-[180px] max-w-xs">
-        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
-        <input 
-          type="text" 
-          placeholder="Search recipes..." 
-          value={recipeSearchTerm} 
-          onChange={e => setRecipeSearchTerm(e.target.value)}
-          className="w-full pl-9 pr-8 py-2 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:border-white/50 text-sm"
-        />
-        {recipeSearchTerm && (
-          <button 
-            onClick={() => setRecipeSearchTerm('')}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white text-sm"
-          >
-            ✕
-          </button>
-        )}
-      </div>
+
+{/* Search + Category Dropdown + Add Button - Inline */}
+<div className="flex items-center gap-3 mb-4 flex-wrap">
+  {/* Search */}
+  <div className="relative flex-1 min-w-[180px] max-w-xs">
+    <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+    </svg>
+    <input 
+      type="text" 
+      placeholder="Search recipes..." 
+      value={recipeSearchTerm} 
+      onChange={e => setRecipeSearchTerm(e.target.value)}
+      className="w-full pl-9 pr-8 py-2 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:border-white/50 text-sm"
+    />
+    {recipeSearchTerm && (
       <button 
-        onClick={() => { setShowAddRecipe(true); setEditableRows([{ id: null, ingredient_id: ingredients[0]?.id || '', quantity: 1, size: 'R', _isNew: true, _deleted: false }]); }}
-        className="px-4 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200 flex items-center gap-1 text-sm whitespace-nowrap"
+        onClick={() => setRecipeSearchTerm('')}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white text-sm"
       >
-        <span className="text-lg leading-none">+</span> Add
+        ✕
       </button>
+    )}
+  </div>
+
+  {/* Category Dropdown */}
+  <div className="flex items-center gap-2 shrink-0">
+    <label className="text-sm text-gray-400 hidden sm:block">Category:</label>
+    <div className="relative">
+      <select
+        value={recipeCategoryFilter}
+        onChange={e => setRecipeCategoryFilter(e.target.value)}
+        className="px-3 py-2 pr-8 rounded-xl bg-black border border-white/20 text-white text-sm focus:outline-none focus:border-white/50 appearance-none cursor-pointer min-w-[140px]"
+      >
+        <option value="All" className="bg-black text-white">All</option>
+        {recipeCategories.map(cat => (
+          <option key={cat} value={cat} className="bg-black text-white">{cat}</option>
+        ))}
+      </select>
+      <svg className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+      </svg>
     </div>
-<div className="flex flex-wrap gap-1.5 mb-4">
-  <button onClick={() => setRecipeCategoryFilter('All')}
-    className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
-      recipeCategoryFilter === 'All' ? 'bg-white text-black' : 'bg-white/10 text-gray-300 hover:bg-white/20'
-    }`}>
-    All
+  </div>
+
+  {/* Add Button */}
+  <button 
+    onClick={() => { setShowAddRecipe(true); setEditableRows([{ id: null, ingredient_id: ingredients[0]?.id || '', quantity: 1, size: 'R', _isNew: true, _deleted: false }]); }}
+    className="px-4 py-2 rounded-xl bg-white text-black font-semibold hover:bg-gray-200 flex items-center gap-1 text-sm whitespace-nowrap ml-auto shrink-0"
+  >
+    <span className="text-lg leading-none">+</span> Add
   </button>
-  {recipeCategories.map(cat => (
-    <button key={cat} onClick={() => setRecipeCategoryFilter(cat)}
-      className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
-        recipeCategoryFilter === cat ? 'bg-white text-black' : 'bg-white/10 text-gray-300 hover:bg-white/20'
-      }`}>
-      {cat}
-    </button>
-  ))}
 </div>
 
     <div className="bg-black border border-white/20 rounded-xl overflow-x-auto">
