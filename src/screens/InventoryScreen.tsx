@@ -668,10 +668,8 @@ const other_supplies = packingRows
 result.push({ menuItemId, menuItemName, category, ingSlots, packing_supplies, other_supplies });
   });
 
-  return result.sort((a, b) => {
-    if (a.category !== b.category) return a.category.localeCompare(b.category);
-    return a.menuItemName.localeCompare(b.menuItemName);
-  });
+return result.sort((a, b) => a.menuItemName.localeCompare(b.menuItemName));
+
 }, [recipes, ingredients]);
 
 const recipeCategories = useMemo(() => {

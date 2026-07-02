@@ -460,10 +460,10 @@ onOrderPlaced();
       <div className="flex-1 p-4 overflow-y-auto bg-black">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
           {filteredItems.map(item => (
-            <button key={item.id} onClick={() => setModalItem(item)} className="bg-black border border-white/20 rounded-xl p-4 flex flex-col items-center justify-center text-center active:scale-95 transition-transform min-h-[100px] hover:border-white/50">
-              <span className="font-bold text-white text-sm leading-tight">{item.name}</span>
-              <span className="text-gray-400 font-bold mt-1 text-base">₱{item.priceR}{item.priceL ? <span className="text-gray-500 text-xs"> / ₱{item.priceL}</span> : ''}</span>
-            </button>
+<button key={item.id} onClick={() => setModalItem(item)} className="bg-gradient-to-br from-gray-800 to-black border border-white/20 rounded-2xl p-4 flex flex-col items-center justify-center text-center active:scale-95 transition-transform min-h-[100px] hover:border-white/50 hover:from-gray-700 shadow-lg">
+  <span className="font-bold text-white text-sm leading-tight">{item.name}</span>
+  <span className="text-gray-400 font-bold mt-1 text-base">₱{item.priceR}{item.priceL ? <span className="text-gray-500 text-xs"> / ₱{item.priceL}</span> : ''}</span>
+</button>
           ))}
           {filteredItems.length === 0 && <p className="col-span-full text-center text-gray-500 py-12">No items in this category</p>}
         </div>
