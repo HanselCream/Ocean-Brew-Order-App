@@ -12,8 +12,9 @@ export default function ReportsScreen() {
   const [dailySales, setDailySales] = useState<{ date: string; total: number; orderCount: number }[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [exportSuccess, setExportSuccess] = useState('');
+   const [exportSuccess, setExportSuccess] = useState('');
   const [loading, setLoading] = useState(true);
+  const [showAllItems, setShowAllItems] = useState(false);
 
   useEffect(() => {
     loadOrders();
@@ -246,72 +247,7 @@ const currentWeekOrders = useMemo(() => {
         </div>
       </div>
 
-      {/* ─── DAILY SALES (7 Days) ────────────────────────────────────── */}
-      <div className="bg-black border border-white/20 rounded-2xl p-5 mb-6">
-        <h2 className="font-bold text-lg text-white mb-4">
-          This Week <span className="text-sm font-normal text-gray-400">(Mon - Sun)</span>
-        </h2>
-        <div className="space-y-2">
-          {weekDays.map((day) => (
-            <div key={day.date} className={`flex items-center gap-3 ${day.isToday ? 'bg-white/5 rounded-lg px-3 py-1 -mx-3' : ''}`}>
-              <span className={`w-28 text-sm font-medium shrink-0 ${day.isToday ? 'text-white font-bold' : 'text-gray-400'}`}>
-                {day.fullDisplay} {day.isToday && <span className="text-xs text-green-400">← Today</span>}
-              </span>
-              <div className="flex-1 bg-white/10 rounded-full h-6 overflow-hidden">
-                <div 
-                  className={`h-full rounded-full transition-all ${day.total > 0 ? 'bg-white' : 'bg-white/20'}`} 
-                  style={{ width: `${maxDayRevenue > 0 ? (day.total / maxDayRevenue) * 100 : 0}%` }} 
-                />
-              </div>
-              <span className="w-24 text-right text-sm font-bold text-white">₱{day.total.toFixed(0)}</span>
-              <span className="w-12 text-right text-xs text-gray-500">{day.orderCount}</span>
-            </div>
-          ))}
-        </div>
-        <div className="mt-3 pt-3 border-t border-white/10 flex justify-between text-sm">
-          <span className="text-gray-400">Total: {weekOrderCount} orders</span>
-          <span className="font-bold text-white">₱{weekTotal.toFixed(2)}</span>
-        </div>
-      </div>
-
-      {/* ─── SALES BY ITEM ────────────────────────────────────────────── */}
-      {sortedItems.length > 0 && (
-        <div className="bg-black border border-white/20 rounded-2xl p-5 mb-6">
-          <h2 className="font-bold text-lg text-white mb-4">Sales by Item</h2>
-          <div className="space-y-2">
-            {sortedItems.map((item, index) => (
-              <div key={`${item.name}-${index}`} className="flex items-center gap-3">
-                <span className="w-44 text-sm font-medium text-gray-400 shrink-0 truncate">{item.name}</span>
-                <div className="flex-1 bg-white/10 rounded-full h-6 overflow-hidden">
-                  <div className="bg-green-500 h-full rounded-full transition-all" style={{ width: `${(item.revenue / maxItemRevenue) * 100}%` }} />
-                </div>
-                <span className="w-16 text-right text-xs text-gray-500">{item.qty} sold</span>
-                <span className="w-24 text-right text-sm font-bold text-white">₱{item.revenue.toFixed(0)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ─── SALES BY CATEGORY ────────────────────────────────────────── */}
-      {sortedCats.length > 0 && (
-        <div className="bg-black border border-white/20 rounded-2xl p-5 mb-6">
-          <h2 className="font-bold text-lg text-white mb-4">Sales by Category</h2>
-          <div className="space-y-2">
-            {sortedCats.map(([cat, total]) => (
-              <div key={cat} className="flex items-center gap-3">
-                <span className="w-44 text-sm font-medium text-gray-400 shrink-0">{cat}</span>
-                <div className="flex-1 bg-white/10 rounded-full h-6 overflow-hidden">
-                  <div className="bg-amber-600 h-full rounded-full transition-all" style={{ width: `${(total / maxCatRevenue) * 100}%` }} />
-                </div>
-                <span className="w-24 text-right text-sm font-bold text-white">₱{total.toFixed(0)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ─── STAFF PERFORMANCE ────────────────────────────────────────── */}
+       {/* ─── STAFF PERFORMANCE ────────────────────────────────────────── */}
       <div className="bg-black border border-white/20 rounded-2xl p-5 mb-6">
         <h2 className="font-bold text-lg text-white mb-4">👥 Staff Performance</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -355,6 +291,79 @@ const currentWeekOrders = useMemo(() => {
           </div>
         </div>
       </div>
+
+      {/* ─── DAILY SALES (7 Days) ────────────────────────────────────── */}
+      <div className="bg-black border border-white/20 rounded-2xl p-5 mb-6">
+        <h2 className="font-bold text-lg text-white mb-4">
+          This Week <span className="text-sm font-normal text-gray-400">(Mon - Sun)</span>
+        </h2>
+        <div className="space-y-2">
+          {weekDays.map((day) => (
+            <div key={day.date} className={`flex items-center gap-3 ${day.isToday ? 'bg-white/5 rounded-lg px-3 py-1 -mx-3' : ''}`}>
+              <span className={`w-28 text-sm font-medium shrink-0 ${day.isToday ? 'text-white font-bold' : 'text-gray-400'}`}>
+                {day.fullDisplay} {day.isToday && <span className="text-xs text-green-400">← Today</span>}
+              </span>
+              <div className="flex-1 bg-white/10 rounded-full h-6 overflow-hidden">
+                <div 
+                  className={`h-full rounded-full transition-all ${day.total > 0 ? 'bg-white' : 'bg-white/20'}`} 
+                  style={{ width: `${maxDayRevenue > 0 ? (day.total / maxDayRevenue) * 100 : 0}%` }} 
+                />
+              </div>
+              <span className="w-24 text-right text-sm font-bold text-white">₱{day.total.toFixed(0)}</span>
+              <span className="w-12 text-right text-xs text-gray-500">{day.orderCount}</span>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 pt-3 border-t border-white/10 flex justify-between text-sm">
+          <span className="text-gray-400">Total: {weekOrderCount} orders</span>
+          <span className="font-bold text-white">₱{weekTotal.toFixed(2)}</span>
+        </div>
+      </div>
+
+      {/* ─── SALES BY ITEM ────────────────────────────────────────────── */}
+     {sortedItems.length > 0 && (
+        <div className="bg-black border border-white/20 rounded-2xl p-5 mb-6">
+          <h2 className="font-bold text-lg text-white mb-4">Sales by Item</h2>
+          <div className="space-y-2">
+            {(showAllItems ? sortedItems : sortedItems.slice(0, 15)).map((item, index) => (
+              <div key={`${item.name}-${index}`} className="flex items-center gap-3">
+                <span className="w-44 text-sm font-medium text-gray-400 shrink-0 truncate">{item.name}</span>
+                <div className="flex-1 bg-white/10 rounded-full h-6 overflow-hidden">
+                  <div className="bg-green-500 h-full rounded-full transition-all" style={{ width: `${(item.revenue / maxItemRevenue) * 100}%` }} />
+                </div>
+                <span className="w-16 text-right text-xs text-gray-500">{item.qty} sold</span>
+                <span className="w-24 text-right text-sm font-bold text-white">₱{item.revenue.toFixed(0)}</span>
+              </div>
+            ))}
+          </div>
+          {sortedItems.length > 15 && (
+            <button
+              onClick={() => setShowAllItems(prev => !prev)}
+              className="mt-3 w-full py-2 rounded-lg text-xs font-semibold text-gray-400 hover:text-white hover:bg-white/5 border border-white/10 transition-colors"
+            >
+              {showAllItems ? '▲ Show Less' : `▼ Show More (${sortedItems.length - 15} more)`}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ─── SALES BY CATEGORY ────────────────────────────────────────── */}
+      {sortedCats.length > 0 && (
+        <div className="bg-black border border-white/20 rounded-2xl p-5 mb-6">
+          <h2 className="font-bold text-lg text-white mb-4">Sales by Category</h2>
+          <div className="space-y-2">
+            {sortedCats.map(([cat, total]) => (
+              <div key={cat} className="flex items-center gap-3">
+                <span className="w-44 text-sm font-medium text-gray-400 shrink-0">{cat}</span>
+                <div className="flex-1 bg-white/10 rounded-full h-6 overflow-hidden">
+                  <div className="bg-amber-600 h-full rounded-full transition-all" style={{ width: `${(total / maxCatRevenue) * 100}%` }} />
+                </div>
+                <span className="w-24 text-right text-sm font-bold text-white">₱{total.toFixed(0)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {showDatePicker && <DateRangePicker onExport={handleExport} onClose={() => setShowDatePicker(false)} />}
     </div>

@@ -472,7 +472,7 @@ if (loading) return (
                     <td className="px-4 py-2 font-medium text-white">{item.name}</td>
                     <td className="px-4 py-2 text-gray-400">{item.category}</td>
                     <td className="px-4 py-2 text-right">
-                      <input type="number" defaultValue={item.priceR} onBlur={async (e) => {
+                      <input key={item.priceR} type="number" defaultValue={item.priceR} onBlur={async (e) => {
                         const newPrice = parseFloat(e.target.value);
                         if (isNaN(newPrice) || newPrice === item.priceR) return;
                         const { error } = await supabase.from('menu_items').update({ pricer: newPrice }).eq('id', item.id);
@@ -480,7 +480,7 @@ if (loading) return (
                       }} className="w-20 text-right bg-transparent border border-white/20 rounded-lg px-2 py-1 text-white focus:border-white focus:outline-none" />
                     </td>
                     <td className="px-4 py-2 text-right">
-                      <input type="number" defaultValue={item.priceL ?? ''} placeholder="—" onBlur={async (e) => {
+                      <input key={item.priceL ?? 'null'} type="number" defaultValue={item.priceL ?? ''} placeholder="—" onBlur={async (e) => {
 // AFTER
 const newPrice = e.target.value === '' ? null : parseFloat(e.target.value);
 if (newPrice === item.priceL) return;

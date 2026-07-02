@@ -376,7 +376,7 @@ export default function OrderScreen({ onOrderPlaced }: { onOrderPlaced: () => vo
   const [orderType, setOrderType] = useState<'Dine In' | 'Takeout' | 'Delivery'>('Dine In');
   const [punchedBy, setPunchedBy] = useState<string>('');
   const [madeBy, setMadeBy] = useState<string>('');
-  const STAFF_LIST = ['Staff 1', 'Staff 2', 'Staff 3', 'Staff 4'];
+  const STAFF_LIST = ['Mary Joy', 'Richard', 'Cherry'];
   useEffect(() => {
     const loadMenu = async () => {
       try {
