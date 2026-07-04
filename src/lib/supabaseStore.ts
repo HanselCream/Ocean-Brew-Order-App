@@ -282,9 +282,7 @@ const orderData = {
   printed_count: order.printedCount || 0,
   last_printed_at: order.lastPrintedAt ?? null,
   completed_at: order.completedAt ?? null,
-  payment_method: order.amountPaid 
-    ? `Cash|${order.amountPaid}|${order.change ?? 0}` 
-    : null,
+payment_method: order.paymentMethod || null,
   punched_by: (order as any).punchedBy ?? null,
   made_by: (order as any).madeBy ?? null,
   order_type: (order as any).orderType ?? null,

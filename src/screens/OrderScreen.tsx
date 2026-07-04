@@ -222,7 +222,7 @@ function AmountPaidModal({
 }: {
   cart: OrderItem[];
   subtotal: number;
-  onConfirm: (amountPaid: number) => void;
+  onConfirm: (amountPaid: number, method: 'Cash' | 'QR') => void;
   onCancel: () => void;
   punchedBy: string;
   madeBy: string;
@@ -230,8 +230,10 @@ function AmountPaidModal({
   setMadeBy: (v: string) => void;
   staffList: string[];
 }) {
+  const [paymentType, setPaymentType] = useState<'Cash' | 'QR'>('Cash');
   const [amountPaid, setAmountPaid] = useState<number>(0);
-  const change = amountPaid - subtotal;
+  const effectiveAmountPaid = paymentType === 'QR' ? subtotal : amountPaid;
+  const change = effectiveAmountPaid - subtotal;
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4 overflow-y-auto">
@@ -253,11 +255,23 @@ function AmountPaidModal({
               ))}
             </div>
           </div>
-          <div className="bg-white/5 rounded-xl p-4 mb-4">
+<div className="bg-white/5 rounded-xl p-4 mb-4">
             <div className="flex justify-between font-bold text-white text-lg">
               <span>Total</span><span>₱{subtotal.toFixed(2)}</span>
             </div>
           </div>
+
+<div className="mb-4">
+  <label className="block text-sm font-medium text-gray-300 mb-2">Payment Method</label>
+  <div className="flex gap-2">
+    {(['Cash', 'QR'] as const).map(method => (
+      <button key={method} onClick={() => { setPaymentType(method); setAmountPaid(0); }}
+        className={`flex-1 py-3 rounded-xl text-sm font-bold border-2 transition-colors ${paymentType === method ? 'border-white bg-white text-black' : 'border-white/30 text-gray-300 hover:border-white/50'}`}>
+        {method === 'Cash' ? '💵 Cash' : '📱 QR'}
+      </button>
+    ))}
+  </div>
+</div>
 
 <div className="mb-4">
   <div className="flex gap-2 mb-3">
@@ -272,31 +286,41 @@ function AmountPaidModal({
       {staffList.map(s => <option key={s} value={s} className="bg-black">{s}</option>)}
     </select>
   </div>
-  <label className="block text-sm font-medium text-gray-300 mb-2">Amount Paid</label>
-  <input type="number" value={amountPaid === 0 ? '' : amountPaid} onChange={(e) => setAmountPaid(e.target.value === '' ? 0 : parseFloat(e.target.value))} className="w-full border border-white/20 rounded-xl px-4 py-3 bg-black text-white text-lg focus:border-white/50 focus:outline-none" placeholder="Enter amount received" autoFocus />
-  <div className="flex gap-2 mt-2">
-    {[100, 200, 500, 1000].map(amt => (
-      <button key={amt} onClick={() => setAmountPaid(amt)}
-        className={`flex-1 py-2 rounded-xl text-sm font-bold border-2 transition-colors ${amountPaid === amt ? 'border-white bg-white text-black' : 'border-white/30 text-gray-300 hover:border-white/50'}`}>
-        ₱{amt}
-      </button>
-    ))}
-  </div>
+{paymentType === 'Cash' ? (
+    <>
+      <label className="block text-sm font-medium text-gray-300 mb-2">Amount Paid</label>
+      <input type="number" value={amountPaid === 0 ? '' : amountPaid} onChange={(e) => setAmountPaid(e.target.value === '' ? 0 : parseFloat(e.target.value))} className="w-full border border-white/20 rounded-xl px-4 py-3 bg-black text-white text-lg focus:border-white/50 focus:outline-none" placeholder="Enter amount received" autoFocus />
+      <div className="flex gap-2 mt-2">
+        {[100, 200, 500, 1000].map(amt => (
+          <button key={amt} onClick={() => setAmountPaid(amt)}
+            className={`flex-1 py-2 rounded-xl text-sm font-bold border-2 transition-colors ${amountPaid === amt ? 'border-white bg-white text-black' : 'border-white/30 text-gray-300 hover:border-white/50'}`}>
+            ₱{amt}
+          </button>
+        ))}
+      </div>
+    </>
+  ) : (
+    <div className="bg-white/5 border border-white/20 rounded-xl p-4 text-center">
+      <p className="text-4xl mb-2">📱</p>
+      <p className="text-gray-300 text-sm">Customer pays exact amount via QR</p>
+      <p className="text-2xl font-bold text-white mt-1">₱{subtotal.toFixed(2)}</p>
+    </div>
+  )}
 </div>
-          {amountPaid >= subtotal && amountPaid > 0 && (
+          {paymentType === 'Cash' && amountPaid >= subtotal && amountPaid > 0 && (
             <div className="bg-green-900/30 border border-green-800 rounded-xl p-4 mb-4">
               <p className="text-gray-300 text-sm mb-1">Change</p>
               <p className="text-2xl font-bold text-green-400">₱{change.toFixed(2)}</p>
             </div>
           )}
-          {amountPaid > 0 && amountPaid < subtotal && (
+          {paymentType === 'Cash' && amountPaid > 0 && amountPaid < subtotal && (
             <div className="bg-red-900/30 border border-red-800 rounded-xl p-4 mb-4">
               <p className="text-red-400 text-sm">Short: ₱{(subtotal - amountPaid).toFixed(2)}</p>
             </div>
           )}
           <div className="flex gap-3">
             <button onClick={onCancel} className="flex-1 py-3 rounded-xl bg-white/10 font-semibold text-white hover:bg-white/20">Cancel</button>
-            <button onClick={() => onConfirm(amountPaid)} disabled={amountPaid < subtotal} className="flex-1 py-3 rounded-xl bg-white font-semibold text-black hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed">Continue</button>
+            <button onClick={() => onConfirm(effectiveAmountPaid, paymentType)} disabled={paymentType === 'Cash' && amountPaid < subtotal} className="flex-1 py-3 rounded-xl bg-white font-semibold text-black hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed">Continue</button>
           </div>
         </div>
       </div>
@@ -523,10 +547,10 @@ onOrderPlaced();
 
 
 {showAmountModal && (
-  <AmountPaidModal cart={cart} subtotal={total} onConfirm={(paid) => {
+  <AmountPaidModal cart={cart} subtotal={total} onConfirm={(paid, method) => {
     setAmountPaid(paid);
     setChangeAmount(paid - total);
-    setPaymentMethod(`Cash|${paid}|${paid - total}`);
+    setPaymentMethod(`${method}|${paid}|${paid - total}`);
     setShowAmountModal(false);
     setShowFinalConfirmModal(true);
   }} onCancel={() => setShowAmountModal(false)}

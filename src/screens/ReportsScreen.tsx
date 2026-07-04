@@ -148,8 +148,22 @@ const currentWeekOrders = useMemo(() => {
   currentWeekOrders.forEach(o => {
     o.items.forEach(i => { salesByCat[i.category] = (salesByCat[i.category] || 0) + i.lineTotal; });
   });
-  const sortedCats = Object.entries(salesByCat).sort((a, b) => b[1] - a[1]);
+const sortedCats = Object.entries(salesByCat).sort((a, b) => b[1] - a[1]);
   const maxCatRevenue = sortedCats.length > 0 ? Math.max(...sortedCats.map(c => c[1])) : 1;
+
+  // ─── SALES BY PAYMENT METHOD (Current Week Only) ───────────────────────
+const salesByPaymentMethod = useMemo(() => {
+    const totals: Record<string, { total: number; count: number }> = { Cash: { total: 0, count: 0 }, QR: { total: 0, count: 0 } };
+    currentWeekOrders.forEach(o => {
+      const method = (o.paymentMethod || 'Cash').split('|')[0] || 'Cash';
+      if (!totals[method]) totals[method] = { total: 0, count: 0 };
+      totals[method].total += o.total;
+      totals[method].count += 1;
+    });
+    return totals;
+  }, [currentWeekOrders]);
+  const totalRevenueAllMethods = (salesByPaymentMethod.Cash?.total || 0) + (salesByPaymentMethod.QR?.total || 0);
+  const totalOrdersAllMethods = (salesByPaymentMethod.Cash?.count || 0) + (salesByPaymentMethod.QR?.count || 0);
 
   // ─── WEEK RANGE DISPLAY ─────────────────────────────────────────────────
   const weekStart = getStartOfWeek(new Date());
@@ -247,14 +261,33 @@ const currentWeekOrders = useMemo(() => {
         </div>
       </div>
 
+{/* ─── PAYMENT METHOD BREAKDOWN ────────────────────────────────── */}
+<div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="bg-gradient-to-br from-gray-800 to-black rounded-2xl border border-white/20 p-5 text-white">
+            <p className="text-sm text-gray-400 mb-1">💰 Total Revenue</p>
+            <p className="text-2xl font-bold">₱{totalRevenueAllMethods.toFixed(2)}</p>
+            <p className="text-xs text-gray-500 mt-1">{totalOrdersAllMethods} orders</p>
+          </div>
+          <div className="bg-black border border-white/20 rounded-2xl p-5 text-white">
+            <p className="text-sm text-gray-400 mb-1">💵 Cash</p>
+            <p className="text-2xl font-bold">₱{(salesByPaymentMethod.Cash?.total || 0).toFixed(2)}</p>
+            <p className="text-xs text-gray-500 mt-1">{salesByPaymentMethod.Cash?.count || 0} orders</p>
+          </div>
+          <div className="bg-black border border-white/20 rounded-2xl p-5 text-white">
+            <p className="text-sm text-gray-400 mb-1">📱 QR</p>
+            <p className="text-2xl font-bold">₱{(salesByPaymentMethod.QR?.total || 0).toFixed(2)}</p>
+            <p className="text-xs text-gray-500 mt-1">{salesByPaymentMethod.QR?.count || 0} orders</p>
+          </div>
+        </div>
+
        {/* ─── STAFF PERFORMANCE ────────────────────────────────────────── */}
-      <div className="bg-black border border-white/20 rounded-2xl p-5 mb-6">
-        <h2 className="font-bold text-lg text-white mb-4">👥 Staff Performance</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div className="bg-black border border-white/20 rounded-2xl p-6 mb-6">
+        <h2 className="font-bold text-lg text-white mb-5">👥 Staff Performance</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
           <div>
-            <h3 className="text-sm font-semibold text-gray-400 mb-3">🖊️ Orders Punched</h3>
+            <h3 className="text-sm font-semibold text-gray-400 mb-4">🖊️ Orders Punched</h3>
             {sortedPunched.length === 0 && <p className="text-gray-500 text-sm">No data yet</p>}
-            <div className="space-y-2">
+            <div className="space-y-4">
               {sortedPunched.map(([name, count], i) => (
                 <div key={name}>
                   <div className="flex items-center gap-2 mb-1">
@@ -271,9 +304,9 @@ const currentWeekOrders = useMemo(() => {
             </div>
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-gray-400 mb-3">☕ Drinks Made</h3>
+            <h3 className="text-sm font-semibold text-gray-400 mb-4">☕ Drinks Made</h3>
             {sortedMade.length === 0 && <p className="text-gray-500 text-sm">No data yet</p>}
-            <div className="space-y-2">
+            <div className="space-y-4">
               {sortedMade.map(([name, count], i) => (
                 <div key={name}>
                   <div className="flex items-center gap-2 mb-1">
