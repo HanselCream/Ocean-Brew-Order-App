@@ -202,7 +202,7 @@ const salesByPaymentMethod = useMemo(() => {
         <div>
           <h1 className="text-2xl font-bold text-white">Sales Reports</h1>
           <p className="text-sm text-gray-400 mt-1">
-            Week of {weekRangeStr} • {currentWeekOrders.length} orders • ₱{weekTotal.toFixed(2)} total
+            Week of {weekRangeStr}
           </p>
         </div>
         <div className="flex gap-3">
@@ -213,10 +213,10 @@ const salesByPaymentMethod = useMemo(() => {
             }}
             className="px-4 py-2 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20 transition-colors flex items-center gap-2 border border-white/20"
           >
-            <span>📊</span> DB Stats
+           DB Stats
           </button>
           <button onClick={() => setShowDatePicker(true)} className="px-4 py-2 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20 transition-colors flex items-center gap-2 border border-white/20">
-            <span>⬇️</span> Export Orders
+            Export Orders
           </button>
         </div>
       </div>
@@ -230,8 +230,8 @@ const salesByPaymentMethod = useMemo(() => {
           <p className="text-3xl font-bold">₱{weekTotal.toFixed(2)}</p>
           <p className="text-sm text-gray-400 mt-1">{weekOrderCount} orders</p>
         </div>
-        <div className="bg-black border border-white/20 rounded-2xl p-5 text-white">
-          <p className="text-sm text-gray-400 mb-1">Best Day</p>
+<div className="bg-black border border-white/20 rounded-2xl p-5 text-white">
+          <p className="text-sm text-gray-400 mb-1">Top Performing Day</p>
           {weekDays.length > 0 && (() => {
             const best = weekDays.reduce((a, b) => a.total > b.total ? a : b);
             return (
@@ -248,8 +248,8 @@ const salesByPaymentMethod = useMemo(() => {
           <p className="text-2xl font-bold">₱{(weekTotal / 7).toFixed(2)}</p>
           <p className="text-xs text-gray-500">{Math.round(weekOrderCount / 7)} orders/day</p>
         </div>
-        <div className="bg-black border border-white/20 rounded-2xl p-5 text-white">
-          <p className="text-sm text-gray-400 mb-1">Top Item</p>
+<div className="bg-black border border-white/20 rounded-2xl p-5 text-white">
+          <p className="text-sm text-gray-400 mb-1">Best Selling Item</p>
           {sortedItems.length > 0 ? (
             <>
               <p className="text-lg font-bold truncate">{sortedItems[0].name}</p>
@@ -262,21 +262,14 @@ const salesByPaymentMethod = useMemo(() => {
       </div>
 
 {/* ─── PAYMENT METHOD BREAKDOWN ────────────────────────────────── */}
-<div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-gradient-to-br from-gray-800 to-black rounded-2xl border border-white/20 p-5 text-white">
-            <p className="text-sm text-gray-400 mb-1">💰 Total Revenue</p>
-            <p className="text-2xl font-bold">₱{totalRevenueAllMethods.toFixed(2)}</p>
-            <p className="text-xs text-gray-500 mt-1">{totalOrdersAllMethods} orders</p>
+<div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+          <div className="bg-black border border-white/20 rounded-lg px-3 py-1 text-white flex items-center justify-between">
+            <p className="text-xs text-gray-400">Cash</p>
+            <p className="text-sm font-bold">₱{(salesByPaymentMethod.Cash?.total || 0).toFixed(0)}</p>
           </div>
-          <div className="bg-black border border-white/20 rounded-2xl p-5 text-white">
-            <p className="text-sm text-gray-400 mb-1">💵 Cash</p>
-            <p className="text-2xl font-bold">₱{(salesByPaymentMethod.Cash?.total || 0).toFixed(2)}</p>
-            <p className="text-xs text-gray-500 mt-1">{salesByPaymentMethod.Cash?.count || 0} orders</p>
-          </div>
-          <div className="bg-black border border-white/20 rounded-2xl p-5 text-white">
-            <p className="text-sm text-gray-400 mb-1">📱 QR</p>
-            <p className="text-2xl font-bold">₱{(salesByPaymentMethod.QR?.total || 0).toFixed(2)}</p>
-            <p className="text-xs text-gray-500 mt-1">{salesByPaymentMethod.QR?.count || 0} orders</p>
+          <div className="bg-black border border-white/20 rounded-lg px-3 py-1 text-white flex items-center justify-between">
+            <p className="text-xs text-gray-400">GCash / Maya</p>
+            <p className="text-sm font-bold">₱{(salesByPaymentMethod.QR?.total || 0).toFixed(0)}</p>
           </div>
         </div>
 
@@ -334,7 +327,7 @@ const salesByPaymentMethod = useMemo(() => {
           {weekDays.map((day) => (
             <div key={day.date} className={`flex items-center gap-3 ${day.isToday ? 'bg-white/5 rounded-lg px-3 py-1 -mx-3' : ''}`}>
               <span className={`w-28 text-sm font-medium shrink-0 ${day.isToday ? 'text-white font-bold' : 'text-gray-400'}`}>
-                {day.fullDisplay} {day.isToday && <span className="text-xs text-green-400">← Today</span>}
+                {day.fullDisplay} {day.isToday && <span className="text-xs text-green-400">(Today)</span>}
               </span>
               <div className="flex-1 bg-white/10 rounded-full h-6 overflow-hidden">
                 <div 

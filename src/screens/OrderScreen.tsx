@@ -400,7 +400,7 @@ export default function OrderScreen({ onOrderPlaced }: { onOrderPlaced: () => vo
   const [orderType, setOrderType] = useState<'Dine In' | 'Takeout' | 'Delivery'>('Dine In');
   const [punchedBy, setPunchedBy] = useState<string>('');
   const [madeBy, setMadeBy] = useState<string>('');
-  const STAFF_LIST = ['Mary Joy', 'Richard', 'Cherry'];
+  const STAFF_LIST = ['Mary Joy Miole', 'Richard Espinar', 'Cherry Salvaleon'];
   useEffect(() => {
     const loadMenu = async () => {
       try {
