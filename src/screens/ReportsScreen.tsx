@@ -275,10 +275,10 @@ const salesByPaymentMethod = useMemo(() => {
 
        {/* ─── STAFF PERFORMANCE ────────────────────────────────────────── */}
 <div className="bg-black border border-white/20 rounded-2xl p-6 mb-6">
-        <h2 className="font-bold text-lg text-white mb-5">👥 Staff Performance</h2>
+        <h2 className="font-bold text-lg text-white mb-5">Staff Performance</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
           <div>
-            <h3 className="text-sm font-semibold text-gray-400 mb-4">🖊️ Orders Punched</h3>
+            <h3 className="text-sm font-semibold text-gray-400 mb-4">Orders Punched</h3>
             {sortedPunched.length === 0 && <p className="text-gray-500 text-sm">No data yet</p>}
             <div className="space-y-4">
               {sortedPunched.map(([name, count], i) => (
@@ -297,7 +297,7 @@ const salesByPaymentMethod = useMemo(() => {
             </div>
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-gray-400 mb-4">☕ Drinks Made</h3>
+            <h3 className="text-sm font-semibold text-gray-400 mb-4">Drinks Made</h3>
             {sortedMade.length === 0 && <p className="text-gray-500 text-sm">No data yet</p>}
             <div className="space-y-4">
               {sortedMade.map(([name, count], i) => (
