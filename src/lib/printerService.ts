@@ -279,14 +279,19 @@ private generateReceiptText(order: any, settings: any): string {
   receipt += `${SEP}\n`;
 
   // Items
+// Items
   if (order.items && order.items.length > 0) {
     for (const item of order.items) {
       const qty = item.quantity || 1;
       const name = item.name || 'Item';
       const price = item.lineTotal ?? (item.basePrice * qty);
 
-      // Main line
-      receipt += ` ${qty} ${name.padEnd(24)} ${Math.round(price)}\n`;
+      // Main line — truncate name so it never pushes AMT out of column
+      const qtyStr = qty.toString().padStart(2);
+      const amtStr = Math.round(price).toString().padStart(3);
+      const nameWidth = 32 - qtyStr.length - 1 - 1 - amtStr.length;
+      const truncatedName = name.substring(0, nameWidth).padEnd(nameWidth);
+      receipt += `${qtyStr} ${truncatedName} ${amtStr}\n`;
 
       // Customization line
       const cust = item.customization;
