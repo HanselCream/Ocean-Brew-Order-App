@@ -8,6 +8,14 @@ import {
   getOrders, getDatabaseStats, getOrdersByDateRange, getDailySales,
 } from '@/lib/supabaseStore';
 
+// Get YYYY-MM-DD using LOCAL calendar date, not UTC (avoids timezone shift)
+const toLocalDateStr = (date: Date): string => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
 export default function ReportsScreen() {
   const [dailySales, setDailySales] = useState<{ date: string; total: number; orderCount: number }[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -84,10 +92,10 @@ const currentWeekOrders = useMemo(() => {
   const weekDays = useMemo(() => {
     const start = getStartOfWeek(new Date());
     const days = [];
-    for (let i = 0; i < 7; i++) {
+for (let i = 0; i < 7; i++) {
       const d = new Date(start);
       d.setDate(d.getDate() + i);
-      const dateStr = d.toISOString().split('T')[0];
+      const dateStr = toLocalDateStr(d);
       const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
       const dayNum = d.getDate();
       const month = d.toLocaleDateString('en-US', { month: 'short' });
@@ -97,9 +105,9 @@ const currentWeekOrders = useMemo(() => {
       const total = daySales?.total || 0;
       const count = daySales?.orderCount || 0;
       
-      // Also count from currentWeekOrders directly
+      // Also count from currentWeekOrders directly (compare using LOCAL date)
       const orderCount = currentWeekOrders.filter(o => 
-        new Date(o.createdAt).toISOString().split('T')[0] === dateStr
+        toLocalDateStr(new Date(o.createdAt)) === dateStr
       ).length;
       
       days.push({
@@ -108,7 +116,7 @@ const currentWeekOrders = useMemo(() => {
         fullDisplay: `${dayName} ${month} ${dayNum}`,
         total,
         orderCount: orderCount || count,
-        isToday: dateStr === new Date().toISOString().split('T')[0],
+        isToday: dateStr === toLocalDateStr(new Date()),
       });
     }
     return days;
