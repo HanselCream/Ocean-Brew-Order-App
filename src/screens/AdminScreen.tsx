@@ -33,6 +33,8 @@ const [priceL, setPriceL] = useState(item.priceL?.toString() ?? '');
   const [autoDeduct, setAutoDeduct] = useState(item.autoDeduct ?? false);
   const [showNewCategoryInput, setShowNewCategoryInput] = useState(false);
 const [newCategoryInput, setNewCategoryInput] = useState('');
+const [showDeleteCategoryConfirm, setShowDeleteCategoryConfirm] = useState(false);
+const [deletingCategory, setDeletingCategory] = useState(false);
 
 
   const handleSave = () => {
@@ -87,7 +89,54 @@ onSave({
       >
         +
       </button>
+        <button
+      type="button"
+       onClick={() => setShowDeleteCategoryConfirm(true)}
+      className="px-4 py-2 rounded-xl bg-red-500/10 text-red-400 font-semibold hover:bg-red-500/20 transition-colors border border-red-500/20 whitespace-nowrap"
+      title={`Delete "${category}"`}
+     >
+       🗑️
+     </button>
     </div>
+
+   {/* ── DELETE CATEGORY CONFIRMATION ── */}
+   {showDeleteCategoryConfirm && (
+     <div className="mt-3 p-4 bg-red-500/5 rounded-xl border border-red-500/20">
+       <p className="text-sm text-gray-300 mb-1">
+         Delete category <span className="text-white font-semibold">"{category}"</span>?
+       </p>
+       <p className="text-xs text-gray-500 mb-3">
+         Items already assigned to this category won't be deleted — you'll need to reassign them after.
+       </p>
+       <div className="flex gap-2">
+         <button
+           onClick={async () => {
+             setDeletingCategory(true);
+             try {
+               await deleteCategory(category);
+               await onCategoryAdded();
+               setShowDeleteCategoryConfirm(false);
+             } catch (err) {
+               alert('Failed to delete category: ' + (err as any).message);
+             } finally {
+               setDeletingCategory(false);
+             }
+           }}
+           disabled={deletingCategory}
+           className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-semibold hover:bg-red-600 disabled:opacity-50"
+         >
+           {deletingCategory ? 'Deleting...' : 'Confirm Delete'}
+         </button>
+         <button
+           onClick={() => setShowDeleteCategoryConfirm(false)}
+           className="px-4 py-2 rounded-lg bg-white/10 text-white text-sm hover:bg-white/20"
+         >
+           Cancel
+         </button>
+       </div>
+     </div>
+   )}
+
     
     {/* ── NEW CATEGORY INPUT POPUP ── */}
     {showNewCategoryInput && (
@@ -237,6 +286,19 @@ const loadData = async () => {
     setMenuState([]); setAddOns([]);
   } finally {
     setLoading(false);
+  }
+};
+
+// Refreshes categories (and menu, since deleted categories can orphan items)
+// without touching the page-level loading flag.
+const refreshCategories = async () => {
+  try {
+    const cats = await getCategories();
+    setCategories(cats);
+    const menuData = await getMenu();
+    setMenuState(Array.isArray(menuData) ? menuData : []);
+  } catch (error) {
+    console.error('Failed to refresh categories:', error);
   }
 };
 
@@ -575,7 +637,7 @@ if (!error) setMenuState(menu.map(m => m.id === item.id ? { ...m, priceL: newPri
     isSupply={false}
     addOnsList={addOns}
     categories={categories}
-    onCategoryAdded={loadData}  // ← Pass reload function
+    onCategoryAdded={refreshCategories}
     onSave={activeTab === 'addons' ? saveAddOn : saveMenuItem}
     onCancel={() => { setEditing(null); setIsNew(false); }}
   />
