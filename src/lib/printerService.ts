@@ -345,7 +345,7 @@ receipt += `${SEP}\n`;
   if (order.discount && order.discount > 0) {
     receipt += `Discount${String('-' + Math.round(order.discount)).padStart(24)}\n`;
   }
-  receipt += `TOTAL${String('P' + Math.round(order.total || 0)).padStart(27)}\n`;
+  receipt += `TOTAL${String('₱' + Math.round(order.total || 0)).padStart(27)}\n`;
 
   // Cash / Change (parsed from paymentMethod string "Cash|paid|change")
   let paidAmt = 0;
@@ -356,8 +356,8 @@ receipt += `${SEP}\n`;
     changeAmt = parseFloat(parts[2]) || 0;
   }
   if (paidAmt > 0) {
-    receipt += `Cash${String('P' + Math.round(paidAmt)).padStart(28)}\n`;
-    receipt += `Change${String('P' + Math.round(changeAmt)).padStart(26)}\n`;
+    receipt += `Cash${String('₱' + Math.round(paidAmt)).padStart(28)}\n`;
+    receipt += `Change${String('₱' + Math.round(changeAmt)).padStart(26)}\n`;
   }
   receipt += `${SEP}\n`;
 
