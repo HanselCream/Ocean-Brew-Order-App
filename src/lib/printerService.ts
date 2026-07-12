@@ -300,7 +300,6 @@ async printRawText(text: string): Promise<void> {
     receipt += `${SEP}\n`;
 
     // Order info
-  // Order info
     receipt += `Order #: ${order.orderNumber}\n`;
     receipt += `Type: ${order.orderType || 'Dine In'}\n`;
     receipt += `Date: ${date}\n`;
