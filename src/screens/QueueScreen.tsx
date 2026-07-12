@@ -107,6 +107,24 @@ const deleteTestOrder = async (id: string) => {
     }
   };
 
+  const wrapText = (text: string, width: number): string[] => {
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let currentLine = '';
+
+  for (const word of words) {
+    const testLine = currentLine ? `${currentLine} ${word}` : word;
+    if (testLine.length > width) {
+      if (currentLine) lines.push(currentLine);
+      currentLine = word;
+    } else {
+      currentLine = testLine;
+    }
+  }
+  if (currentLine) lines.push(currentLine);
+  return lines;
+};
+
   const printReceipt = async (order: Order) => {
     console.log('🧾 Printing order:', order.orderNumber);
     const settings = await getStoreSettings();
@@ -130,7 +148,9 @@ const deleteTestOrder = async (id: string) => {
 
     receiptText += `${settings.storeName}\n`;
     receiptText += SEPARATOR + '\n';
-    receiptText += `${settings.storeAddress || 'Lopez Jaena St. Brgy. 9 Dapa, Siargao Island'}\n`;
+    wrapText(settings.storeAddress || 'Lopez Jaena St. Brgy. 9 Dapa, Dapa Island', 32).forEach(line => {
+      receiptText += `${line}\n`;
+    });
     receiptText += `Tel: ${settings.storePhone}\n`;
     if (settings.storeEmail) receiptText += `${settings.storeEmail}\n`;
     receiptText += SEPARATOR + '\n\n';

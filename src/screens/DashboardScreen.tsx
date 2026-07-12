@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import PrinterSettingsModal from '@/components/PrinterSettingsModal';
 import { Order } from '@/lib/types';
 import { getOrders, getStoreSettings } from '@/lib/supabaseStore';
+import printerService from '@/lib/printerService';
+
 
 export default function DashboardScreen() {
   const [completedOrders, setCompletedOrders] = useState<Order[]>([]);
@@ -37,6 +39,24 @@ export default function DashboardScreen() {
   });
   const bestSelling = Object.values(itemCounts).sort((a, b) => b.count - a.count)[0];
 
+  const wrapText = (text: string, width: number): string[] => {
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let currentLine = '';
+
+  for (const word of words) {
+    const testLine = currentLine ? `${currentLine} ${word}` : word;
+    if (testLine.length > width) {
+      if (currentLine) lines.push(currentLine);
+      currentLine = word;
+    } else {
+      currentLine = testLine;
+    }
+  }
+  if (currentLine) lines.push(currentLine);
+  return lines;
+};
+
   const handleReprint = async (order: Order) => {
     setReprinting(order.id);
     try {
@@ -56,8 +76,10 @@ export default function DashboardScreen() {
         return `${qtyStr} ${name.substring(0, nameWidth).padEnd(nameWidth)} ${amtStr}`;
       };
 
-      receiptText += `${settings.storeName}\n${SEPARATOR}\n`;
-      receiptText += `${settings.storeAddress || 'Lopez Jaena St. Brgy. 9 Dapa, Siargao Island'}\n`;
+receiptText += `${settings.storeName}\n${SEPARATOR}\n`;
+      wrapText(settings.storeAddress || 'Lopez Jaena St. Brgy. 9 Dapa, Siargao Island', LINE_WIDTH).forEach(line => {
+        receiptText += `${line}\n`;
+      });
       receiptText += `Tel: ${settings.storePhone}\n`;
       if (settings.storeEmail) receiptText += `${settings.storeEmail}\n`;
       receiptText += `${SEPARATOR}\n\nOrder #: ${order.orderNumber}\nDate: ${date}\n${SEPARATOR}\n`;
@@ -99,10 +121,8 @@ export default function DashboardScreen() {
       receiptText += `${SEPARATOR}\n\n`;
       if (settings.wifiSSID && settings.wifiPassword) receiptText += `WiFi: ${settings.wifiSSID}\nPass: ${settings.wifiPassword}\n\n`;
       receiptText += `Thank you for choosing\n${settings.storeName}!\nVisit us again!\n\n`;
-
       console.log('🧾 RECEIPT PREVIEW\n' + receiptText);
-      alert('🧾 RECEIPT PREVIEW\n\n' + receiptText);
-      // Uncomment when printer ready: await printerService.printRawText(receiptText);
+      await printerService.printRawText(receiptText); 
     } catch (error) {
       alert('Failed to reprint: ' + error);
     } finally {

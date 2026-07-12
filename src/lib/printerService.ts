@@ -230,6 +230,7 @@ async printReceipt(order: any, settings: any): Promise<void> {
 console.log('🖨️ Printing with settings:', safeSettings); // Debug
 
   const receipt = this.generateReceiptText(order, safeSettings);
+  
 
   console.log('🧾 RECEIPT PREVIEW START');
   console.log('----------------------------');
@@ -241,6 +242,24 @@ console.log('🖨️ Printing with settings:', safeSettings); // Debug
   // so we don't overflow the printer's BLE buffer like the old 512-byte
   // chunking did — that was causing dropped/garbled characters.
   await this.printRawText(receipt);
+}
+
+private wrapText(text: string, width: number): string[] {
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let currentLine = '';
+
+  for (const word of words) {
+    const testLine = currentLine ? `${currentLine} ${word}` : word;
+    if (testLine.length > width) {
+      if (currentLine) lines.push(currentLine);
+      currentLine = word;
+    } else {
+      currentLine = testLine;
+    }
+  }
+  if (currentLine) lines.push(currentLine);
+  return lines;
 }
   /**
    * SHOW TEST RECEIPT - For phone testing
@@ -264,7 +283,9 @@ private generateReceiptText(order: any, settings: any): string {
   // Header
   receipt += `${settings.storeName}\n`;
   receipt += `${SEP}\n`;
-  receipt += `${settings.storeAddress}\n`;
+this.wrapText(settings.storeAddress, 32).forEach(line => {
+    receipt += `${line}\n`;
+  });
   receipt += `Tel: ${settings.storePhone}\n`;
   if (settings.storeEmail) receipt += `${settings.storeEmail}\n`;
   receipt += `${SEP}\n`;
