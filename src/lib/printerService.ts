@@ -181,13 +181,15 @@ async printRawText(text: string): Promise<void> {
     const fullText = text + '\n\n\n\n';
 
     if (this.printerCharacteristic) {
+      // Replace ₱ with plain "P" before printing — ₱ is a multi-byte
+      // UTF-8 character, so padStart() (which counts it as 1 char)
+      // undercounts its real byte length, causing lines to exceed the
+      // printer's 32-byte width and hardware-wrap mid-line.
+      const printableText = fullText.replace(/₱/g, 'P');
       const encoder = new TextEncoder();
-      const lines = fullText.split('\n');
+      const lines = printableText.split('\n');
       const chunkSize = 32;
 
-      // Send one line at a time so a chunk boundary is never split
-      // in the middle of a label/value pair (this was causing dropped
-      // leading characters on TOTAL/Cash/Change, e.g. "₱130" -> "30").
       for (const line of lines) {
         const data = encoder.encode(line + '\n');
         for (let i = 0; i < data.length; i += chunkSize) {
@@ -198,7 +200,7 @@ async printRawText(text: string): Promise<void> {
       }
       console.log('✅ Full receipt sent successfully');
     } else {
-      // Test mode - show in alert
+      // Test mode - show in alert (₱ is fine here, this is just on-screen text)
       alert(`🧾 RECEIPT PREVIEW\n\n${text}`);
     }
   }
