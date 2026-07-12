@@ -82,8 +82,7 @@ receiptText += `${settings.storeName}\n${SEPARATOR}\n`;
       });
       receiptText += `Tel: ${settings.storePhone}\n`;
       if (settings.storeEmail) receiptText += `${settings.storeEmail}\n`;
-      receiptText += `${SEPARATOR}\n\nOrder #: ${order.orderNumber}\nDate: ${date}\n${SEPARATOR}\n`;
-
+receiptText += `${SEPARATOR}\n\nOrder #: ${order.orderNumber}\nType: ${(order as any).orderType || 'Dine In'}\nDate: ${date}\n${SEPARATOR}\n`;
       const qtyH = 'QTY', amtH = 'AMT';
       const nameWidth = LINE_WIDTH - qtyH.length - 1 - 1 - amtH.length;
       receiptText += `${qtyH} ${'ITEM'.padEnd(nameWidth)} ${amtH}\n${SEPARATOR}\n`;
@@ -99,14 +98,14 @@ receiptText += `${settings.storeName}\n${SEPARATOR}\n`;
         if (c?.sugar && c.sugar !== '100%') details.push(`${c.sugar} sugar`);
         if (c?.ice && c.ice !== 'Normal Ice') details.push(c.ice);
         if (details.length > 0) receiptText += `   [${details.join(', ')}]\n`;
-        if (c?.discount) receiptText += `   Discount: ${c.discount.type === 'percent' ? `-${c.discount.value}%` : `-P${c.discount.value}`}\n`;
-        if (c?.addOns?.length > 0) c.addOns.forEach(ao => { receiptText += `   + ${ao.name} +P${ao.price}\n`; });
+        if (c?.discount) receiptText += `   Discount: ${c.discount.type === 'percent' ? `-${c.discount.value}%` : `-₱${c.discount.value}`}\n`;
+        if (c?.addOns?.length > 0) c.addOns.forEach(ao => { receiptText += `   + ${ao.name} +₱${ao.price}\n`; });
       });
 
       receiptText += `${SEPARATOR}\n`;
       receiptText += rightAlign('Subtotal', order.subtotal.toFixed(0)) + '\n';
       if (order.discount > 0) receiptText += rightAlign('Discount', `-${order.discount.toFixed(0)}`) + '\n';
-      receiptText += rightAlign('TOTAL', `P${order.total.toFixed(0)}`) + '\n';
+      receiptText += rightAlign('TOTAL', `₱${order.total.toFixed(0)}`) + '\n';
 
       let paidAmt = 0, changeAmt = 0;
       if (order.paymentMethod?.startsWith('Cash|')) {
@@ -115,8 +114,8 @@ receiptText += `${settings.storeName}\n${SEPARATOR}\n`;
         changeAmt = parseFloat(parts[2]) || 0;
       }
       if (paidAmt > 0) {
-        receiptText += rightAlign('Cash', `P${paidAmt.toFixed(0)}`) + '\n';
-        receiptText += rightAlign('Change', `P${changeAmt.toFixed(0)}`) + '\n';
+        receiptText += rightAlign('Cash', `₱${paidAmt.toFixed(0)}`) + '\n';
+        receiptText += rightAlign('Change', `₱${changeAmt.toFixed(0)}`) + '\n';
       }
       receiptText += `${SEPARATOR}\n\n`;
       if (settings.wifiSSID && settings.wifiPassword) receiptText += `WiFi: ${settings.wifiSSID}\nPass: ${settings.wifiPassword}\n\n`;

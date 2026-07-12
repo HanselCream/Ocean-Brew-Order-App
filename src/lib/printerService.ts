@@ -331,7 +331,7 @@ this.wrapText(settings.storeAddress, 32).forEach(line => {
         // Per-item discount
         if (cust.discount) {
           const d = cust.discount;
-          const dLabel = d.type === 'percent' ? `${d.value}%` : `P${d.value}`;
+          const dLabel = d.type === 'percent' ? `${d.value}%` : `₱${d.value}`;
           receipt += `   Discount: -${dLabel}\n`;
         }
       }

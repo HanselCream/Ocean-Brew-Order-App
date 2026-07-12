@@ -155,7 +155,6 @@ const deleteTestOrder = async (id: string) => {
     if (settings.storeEmail) receiptText += `${settings.storeEmail}\n`;
     receiptText += SEPARATOR + '\n\n';
 receiptText += `Order #: ${order.orderNumber}\nType: ${(order as any).orderType || 'Dine In'}\nDate: ${date}\n${SEPARATOR}\n`;
-    receiptText += SEPARATOR + '\n';
 
     const qtyH = 'QTY';
     const amtH = 'AMT';
@@ -179,18 +178,18 @@ receiptText += `Order #: ${order.orderNumber}\nType: ${(order as any).orderType 
 
       if (c?.discount) {
         const d = c.discount;
-        receiptText += `   Discount: ${d.type === 'percent' ? `-${d.value}%` : `-P${d.value}`}\n`;
+        receiptText += `   Discount: ${d.type === 'percent' ? `-${d.value}%` : `-₱${d.value}`}\n`;
       }
 
       if (c?.addOns?.length > 0) {
-        c.addOns.forEach(ao => { receiptText += `   + ${ao.name} +P${ao.price}\n`; });
+        c.addOns.forEach(ao => { receiptText += `   + ${ao.name} +₱${ao.price}\n`; });
       }
     });
 
     receiptText += SEPARATOR + '\n';
     receiptText += rightAlign('Subtotal', order.subtotal.toFixed(0)) + '\n';
     if (order.discount > 0) receiptText += rightAlign('Discount', `-${order.discount.toFixed(0)}`) + '\n';
-    receiptText += rightAlign('TOTAL', `P${order.total.toFixed(0)}`) + '\n';
+    receiptText += rightAlign('TOTAL', `₱${order.total.toFixed(0)}`) + '\n';
 
     let paidAmt = 0;
     let changeAmt = 0;
@@ -200,24 +199,22 @@ receiptText += `Order #: ${order.orderNumber}\nType: ${(order as any).orderType 
       changeAmt = parseFloat(parts[2]) || 0;
     }
     if (paidAmt > 0) {
-      receiptText += rightAlign('Cash', `P${paidAmt.toFixed(0)}`) + '\n';
-      receiptText += rightAlign('Change', `P${changeAmt.toFixed(0)}`) + '\n';
+      receiptText += rightAlign('Cash', `₱${paidAmt.toFixed(0)}`) + '\n';
+      receiptText += rightAlign('Change', `₱${changeAmt.toFixed(0)}`) + '\n';
     }
     receiptText += SEPARATOR + '\n\n';
 
     if (settings.wifiSSID && settings.wifiPassword) {
       receiptText += `WiFi: ${settings.wifiSSID}\nPass: ${settings.wifiPassword}\n\n`;
     }
-    receiptText += `Thank you for choosing\n${settings.storeName}!\nVisit us again!\n\n`;
-// Uncomment when printer is ready:
-try {
-  await printerService.printRawText(receiptText);
-} catch (error) {
-  console.error('Print failed:', error);
-}
+  receiptText += `Thank you for choosing\n${settings.storeName}!\nVisit us again!\n\n`;
 
     console.log('🧾 RECEIPT PREVIEW\n' + receiptText);
-    alert('🧾 RECEIPT PREVIEW\n\n' + receiptText);
+    try {
+      await printerService.printRawText(receiptText);
+    } catch (error) {
+      console.error('Print failed:', error);
+    }
   };
   
 const deductStock = async (orderItems: any[], orderId: string) => {
