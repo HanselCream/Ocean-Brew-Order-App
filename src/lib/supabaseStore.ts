@@ -560,7 +560,9 @@ export async function getDailySales(): Promise<{ date: string; total: number; or
 
   const byDay: Record<string, { total: number; count: number }> = {};
   data.forEach(row => {
-    const date = row.created_at.slice(0, 10);
+    // Convert UTC timestamp to Manila-local calendar date (YYYY-MM-DD)
+    // so orders placed before 8AM Manila time aren't miscounted on the previous day.
+    const date = new Date(row.created_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
     if (!byDay[date]) byDay[date] = { total: 0, count: 0 };
     byDay[date].total += parseFloat(row.total) || 0;
     byDay[date].count += 1;

@@ -291,7 +291,9 @@ this.wrapText(settings.storeAddress, 32).forEach(line => {
   receipt += `${SEP}\n`;
 
   // Order info
+// Order info
   receipt += `Order #: ${order.orderNumber}\n`;
+  receipt += `Type: ${order.orderType || 'Dine In'}\n`;
   receipt += `Date: ${date}\n`;
   receipt += `${SEP}\n`;
 
@@ -338,12 +340,25 @@ this.wrapText(settings.storeAddress, 32).forEach(line => {
     receipt += `*** NO ITEMS ***\n`;
   }
 
-  receipt += `${SEP}\n`;
+receipt += `${SEP}\n`;
   receipt += `Subtotal${String(Math.round(order.subtotal || 0)).padStart(24)}\n`;
   if (order.discount && order.discount > 0) {
     receipt += `Discount${String('-' + Math.round(order.discount)).padStart(24)}\n`;
   }
   receipt += `TOTAL${String('P' + Math.round(order.total || 0)).padStart(27)}\n`;
+
+  // Cash / Change (parsed from paymentMethod string "Cash|paid|change")
+  let paidAmt = 0;
+  let changeAmt = 0;
+  if (order.paymentMethod?.startsWith('Cash|')) {
+    const parts = order.paymentMethod.split('|');
+    paidAmt = parseFloat(parts[1]) || 0;
+    changeAmt = parseFloat(parts[2]) || 0;
+  }
+  if (paidAmt > 0) {
+    receipt += `Cash${String('P' + Math.round(paidAmt)).padStart(28)}\n`;
+    receipt += `Change${String('P' + Math.round(changeAmt)).padStart(26)}\n`;
+  }
   receipt += `${SEP}\n`;
 
   // WiFi
