@@ -227,7 +227,7 @@ async printReceipt(order: any, settings: any): Promise<void> {
     ...(settings || {})
   };
 
-  console.log('🖨️ Printing with settings:', safeSettings); // Debug
+console.log('🖨️ Printing with settings:', safeSettings); // Debug
 
   const receipt = this.generateReceiptText(order, safeSettings);
 
@@ -236,28 +236,11 @@ async printReceipt(order: any, settings: any): Promise<void> {
   console.log(receipt);
   console.log('----------------------------');
   console.log('🧾 RECEIPT PREVIEW END');
-  // CASE 1: REAL THERMAL PRINTER CONNECTED
-  if (this.printerCharacteristic) {
-    try {
-      console.log('🖨️ Printing to thermal printer...');
-      const commands = this.createESCPOSCommands(receipt);
-      
-      const chunkSize = 512;
-      for (let i = 0; i < commands.length; i += chunkSize) {
-        const chunk = commands.slice(i, i + chunkSize);
-        await this.printerCharacteristic.writeValue(chunk);
-        await new Promise(resolve => setTimeout(resolve, 20));
-      }
-      
-      console.log('✅ Receipt printed successfully!');
-      return;
-    } catch (error) {
-      console.error('❌ Thermal printer error:', error);
-    }
-  }
-  
-  // CASE 2: TEST MODE
-  this.showTestReceipt(order, safeSettings, receipt);
+
+  // Use the same send path as printRawText (small chunks, longer delay)
+  // so we don't overflow the printer's BLE buffer like the old 512-byte
+  // chunking did — that was causing dropped/garbled characters.
+  await this.printRawText(receipt);
 }
   /**
    * SHOW TEST RECEIPT - For phone testing
