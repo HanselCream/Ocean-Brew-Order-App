@@ -848,14 +848,13 @@ const usedAmount = usedStockFiltered[ing.id] || 0;
 
 const usedDisplay = (() => {
   if (usedAmount === 0) return '—';
-  const amount = ing.unit === 'L' || ing.unit === 'kg' ? usedAmount / 1000 : usedAmount;
   const unit = ing.unit;
   if (unit === 'L' || unit === 'kg') {
-    if (Number.isInteger(amount)) return amount + ' ' + unit;
-    return amount.toFixed(2) + ' ' + unit;
+    if (Number.isInteger(usedAmount)) return usedAmount + ' ' + unit;
+    return usedAmount.toFixed(2) + ' ' + unit;
   }
-  if (unit === 'ml' || unit === 'g') return amount.toFixed(0) + ' ' + unit;
-  return amount.toLocaleString() + ' ' + unit;
+  if (unit === 'ml' || unit === 'g') return usedAmount.toFixed(0) + ' ' + unit;
+  return usedAmount.toLocaleString() + ' ' + unit;
 })();
 const thresholdDisplay = packCount !== null 
   ? `${ing.min_stock_threshold} ${ing.container_unit ? ing.container_unit + 's' : ing.unit}` 
