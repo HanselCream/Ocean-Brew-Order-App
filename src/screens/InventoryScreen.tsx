@@ -875,11 +875,12 @@ const thresholdDisplay = packCount !== null
   })()}
 </td>
 <td className="px-4 py-3 text-right">
-  <input
-    type="text"
-    defaultValue={usedDisplay || ''}
-    onFocus={(e) => e.target.select()}
-    onBlur={async (e) => {
+<input
+  key={`${ing.id}-${usedAmount}`}
+  type="text"
+  defaultValue={usedDisplay || ''}
+  onFocus={(e) => e.target.select()}
+  onBlur={async (e) => {
       const val = e.target.value.trim();
       if (val === '—' || val === usedDisplay) return;
       
