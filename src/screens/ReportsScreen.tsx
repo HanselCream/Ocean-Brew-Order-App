@@ -136,8 +136,8 @@ for (let i = 0; i < 7; i++) {
     staffPunched[p] = (staffPunched[p] || 0) + 1;
     staffMade[m] = (staffMade[m] || 0) + drinkCount;
   });
-  const sortedPunched = Object.entries(staffPunched).sort((a, b) => b[1] - a[1]);
-  const sortedMade = Object.entries(staffMade).sort((a, b) => b[1] - a[1]);
+const sortedPunched = Object.entries(staffPunched).filter(([name]) => name !== 'Unattributed').sort((a, b) => b[1] - a[1]);
+  const sortedMade = Object.entries(staffMade).filter(([name]) => name !== 'Unattributed').sort((a, b) => b[1] - a[1]);
 
   // ─── SALES BY ITEM (Current Week Only) ────────────────────────────────
   const salesByItem: Record<string, { name: string; qty: number; revenue: number }> = {};
@@ -294,7 +294,7 @@ const salesByPaymentMethod = useMemo(() => {
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-xs text-gray-500 w-4">{i + 1}</span>
                     <span className="text-sm font-semibold text-white flex-1">{name}</span>
-                    <span className="text-xs font-bold text-white">{count} orders</span>
+                    <span className="text-xs font-bold text-white">{count} punched</span>
                   </div>
                   <div className="ml-6 bg-white/10 rounded-full h-2 overflow-hidden">
                     <div className="bg-white h-full rounded-full"
@@ -305,7 +305,7 @@ const salesByPaymentMethod = useMemo(() => {
             </div>
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-gray-400 mb-4">Drinks Made</h3>
+            <h3 className="text-sm font-semibold text-gray-400 mb-4">Orders Made</h3>
             {sortedMade.length === 0 && <p className="text-gray-500 text-sm">No data yet</p>}
             <div className="space-y-4">
               {sortedMade.map(([name, count], i) => (
@@ -313,7 +313,7 @@ const salesByPaymentMethod = useMemo(() => {
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-xs text-gray-500 w-4">{i + 1}</span>
                     <span className="text-sm font-semibold text-white flex-1">{name}</span>
-                    <span className="text-xs font-bold text-white">{count} drinks</span>
+                    <span className="text-xs font-bold text-white">{count} order</span>
                   </div>
                   <div className="ml-6 bg-white/10 rounded-full h-2 overflow-hidden">
                     <div className="bg-amber-500 h-full rounded-full"
@@ -349,7 +349,7 @@ const salesByPaymentMethod = useMemo(() => {
           ))}
         </div>
         <div className="mt-3 pt-3 border-t border-white/10 flex justify-between text-sm">
-          <span className="text-gray-400">Total: {weekOrderCount} orders</span>
+          <span className="text-gray-400">Total: {weekOrderCount} punched</span>
           <span className="font-bold text-white">₱{weekTotal.toFixed(2)}</span>
         </div>
       </div>
