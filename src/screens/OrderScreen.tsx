@@ -318,9 +318,12 @@ function AmountPaidModal({
               <p className="text-red-400 text-sm">Short: ₱{(subtotal - amountPaid).toFixed(2)}</p>
             </div>
           )}
+{(!punchedBy || !madeBy) && (
+            <p className="text-xs text-red-400 mb-2 text-center">Please select both Cashier and Barista before continuing.</p>
+          )}
           <div className="flex gap-3">
             <button onClick={onCancel} className="flex-1 py-3 rounded-xl bg-white/10 font-semibold text-white hover:bg-white/20">Cancel</button>
-            <button onClick={() => onConfirm(effectiveAmountPaid, paymentType)} disabled={paymentType === 'Cash' && amountPaid < subtotal} className="flex-1 py-3 rounded-xl bg-white font-semibold text-black hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed">Continue</button>
+            <button onClick={() => onConfirm(effectiveAmountPaid, paymentType)} disabled={(paymentType === 'Cash' && amountPaid < subtotal) || !punchedBy || !madeBy} className="flex-1 py-3 rounded-xl bg-white font-semibold text-black hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed">Continue</button>
           </div>
         </div>
       </div>

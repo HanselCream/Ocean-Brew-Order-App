@@ -126,15 +126,15 @@ for (let i = 0; i < 7; i++) {
   const weekOrderCount = weekDays.reduce((sum, d) => sum + d.orderCount, 0);
   const maxDayRevenue = weekDays.length > 0 ? Math.max(...weekDays.map(d => d.total)) : 1;
 
-  // ─── STAFF PERFORMANCE (Current Week Only) ────────────────────────────
+// ─── STAFF PERFORMANCE (Current Week Only) ────────────────────────────
   const staffPunched: Record<string, number> = {};
   const staffMade: Record<string, number> = {};
   currentWeekOrders.forEach(o => {
-    const p = o.punchedBy;
-    const m = o.madeBy;
+    const p = o.punchedBy?.trim() || 'Unattributed';
+    const m = o.madeBy?.trim() || 'Unattributed';
     const drinkCount = o.items.reduce((s, i) => s + i.quantity, 0);
-    if (p) staffPunched[p] = (staffPunched[p] || 0) + 1;
-    if (m) staffMade[m] = (staffMade[m] || 0) + drinkCount;
+    staffPunched[p] = (staffPunched[p] || 0) + 1;
+    staffMade[m] = (staffMade[m] || 0) + drinkCount;
   });
   const sortedPunched = Object.entries(staffPunched).sort((a, b) => b[1] - a[1]);
   const sortedMade = Object.entries(staffMade).sort((a, b) => b[1] - a[1]);
