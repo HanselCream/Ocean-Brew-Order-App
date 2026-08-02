@@ -126,6 +126,10 @@ for (let i = 0; i < 7; i++) {
   const weekOrderCount = weekDays.reduce((sum, d) => sum + d.orderCount, 0);
   const maxDayRevenue = weekDays.length > 0 ? Math.max(...weekDays.map(d => d.total)) : 1;
 
+  console.log('week range:', getStartOfWeek(new Date()), getEndOfWeek(getStartOfWeek(new Date())));
+  console.log('total orders:', orders.length, 'in week:', currentWeekOrders.length);
+  console.log('sample createdAt:', orders[0]?.createdAt, typeof orders[0]?.createdAt);
+  console.log('statuses:', [...new Set(orders.map(o => o.status))]);
   // ─── STAFF PERFORMANCE (Current Week Only) ────────────────────────────
   const staffPunched: Record<string, number> = {};
   const staffMade: Record<string, number> = {};
