@@ -209,24 +209,21 @@ const weekEnd = getEndOfWeek(weekStart);
 
   return (
     <div className="flex-1 p-6 overflow-y-auto bg-black">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Sales Reports</h1>
-<p className="text-sm text-gray-400 mt-1">
-            Week of {weekRangeStr}
-          </p>
-          <div className="flex items-center gap-2 mt-2">
-            <button onClick={() => setWeekOffset(prev => prev - 1)}
-              className="px-3 py-1 rounded-lg bg-white/10 text-white text-sm hover:bg-white/20">← Prev</button>
-            <span className="text-xs text-gray-400 px-2">
-              {weekOffset === 0 ? 'This Week' : weekOffset === -1 ? 'Last Week' : `${Math.abs(weekOffset)} weeks ago`}
-            </span>
-            <button onClick={() => setWeekOffset(prev => Math.min(0, prev + 1))}
-              disabled={weekOffset === 0}
-              className="px-3 py-1 rounded-lg bg-white/10 text-white text-sm hover:bg-white/20 disabled:opacity-30">Next →</button>
-          </div>
-        </div>
-        <div className="flex gap-3">
+<div className="flex items-start justify-between mb-6">
+  <div>
+    <h1 className="text-2xl font-bold text-white">Sales Reports</h1>
+    <div className="flex items-center gap-3 mt-1">
+      <button onClick={() => setWeekOffset(prev => prev - 1)}
+        className="px-3 py-1 rounded-lg bg-white/10 text-white text-sm hover:bg-white/20">← Prev</button>
+      <p className="text-sm text-gray-400">
+        {weekOffset === 0 ? 'This Week' : weekOffset === -1 ? 'Last Week' : `${Math.abs(weekOffset)} weeks ago`} · {weekRangeStr}
+      </p>
+      <button onClick={() => setWeekOffset(prev => Math.min(0, prev + 1))}
+        disabled={weekOffset === 0}
+        className="px-3 py-1 rounded-lg bg-white/10 text-white text-sm hover:bg-white/20 disabled:opacity-30">Next →</button>
+    </div>
+  </div>
+  <div className="flex gap-3">
           <button
             onClick={async () => {
               const stats = await getDatabaseStats();
