@@ -89,8 +89,8 @@ const currentWeekOrders = useMemo(() => {
 }, [orders, weekOffset]);
 
   // ─── WEEKLY SALES DATA ──────────────────────────────────────────────────
-  const weekDays = useMemo(() => {
-    const start = getStartOfWeek(new Date());
+const weekDays = useMemo(() => {
+  const start = getStartOfWeek(new Date(), weekOffset);
     const days = [];
 for (let i = 0; i < 7; i++) {
       const d = new Date(start);
@@ -127,12 +127,15 @@ for (let i = 0; i < 7; i++) {
   const maxDayRevenue = weekDays.length > 0 ? Math.max(...weekDays.map(d => d.total)) : 1;
 
 // ─── STAFF PERFORMANCE (Current Week Only) ────────────────────────────
+  const NON_DRINK_CATEGORIES = ['Add Ons', 'Appetizers', 'Merchandise', 'Pasalubong', 'Routine', 'Supplies'];
   const staffPunched: Record<string, number> = {};
   const staffMade: Record<string, number> = {};
   currentWeekOrders.forEach(o => {
     const p = o.punchedBy?.trim() || 'Unattributed';
     const m = o.madeBy?.trim() || 'Unattributed';
-    const drinkCount = o.items.reduce((s, i) => s + i.quantity, 0);
+    const drinkCount = o.items
+      .filter(i => !NON_DRINK_CATEGORIES.includes(i.category))
+      .reduce((s, i) => s + i.quantity, 0);
     staffPunched[p] = (staffPunched[p] || 0) + 1;
     staffMade[m] = (staffMade[m] || 0) + drinkCount;
   });
@@ -174,8 +177,8 @@ const salesByPaymentMethod = useMemo(() => {
   const totalOrdersAllMethods = (salesByPaymentMethod.Cash?.count || 0) + (salesByPaymentMethod.QR?.count || 0);
 
   // ─── WEEK RANGE DISPLAY ─────────────────────────────────────────────────
-  const weekStart = getStartOfWeek(new Date());
-  const weekEnd = getEndOfWeek(weekStart);
+const weekStart = getStartOfWeek(new Date(), weekOffset);
+const weekEnd = getEndOfWeek(weekStart);
   const weekRangeStr = `${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
 
   if (loading) return (
@@ -209,9 +212,19 @@ const salesByPaymentMethod = useMemo(() => {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white">Sales Reports</h1>
-          <p className="text-sm text-gray-400 mt-1">
+<p className="text-sm text-gray-400 mt-1">
             Week of {weekRangeStr}
           </p>
+          <div className="flex items-center gap-2 mt-2">
+            <button onClick={() => setWeekOffset(prev => prev - 1)}
+              className="px-3 py-1 rounded-lg bg-white/10 text-white text-sm hover:bg-white/20">← Prev</button>
+            <span className="text-xs text-gray-400 px-2">
+              {weekOffset === 0 ? 'This Week' : weekOffset === -1 ? 'Last Week' : `${Math.abs(weekOffset)} weeks ago`}
+            </span>
+            <button onClick={() => setWeekOffset(prev => Math.min(0, prev + 1))}
+              disabled={weekOffset === 0}
+              className="px-3 py-1 rounded-lg bg-white/10 text-white text-sm hover:bg-white/20 disabled:opacity-30">Next →</button>
+          </div>
         </div>
         <div className="flex gap-3">
           <button
@@ -294,7 +307,7 @@ const salesByPaymentMethod = useMemo(() => {
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-xs text-gray-500 w-4">{i + 1}</span>
                     <span className="text-sm font-semibold text-white flex-1">{name}</span>
-                    <span className="text-xs font-bold text-white">{count} punched</span>
+                    <span className="text-xs font-bold text-white">{count} orders</span>
                   </div>
                   <div className="ml-6 bg-white/10 rounded-full h-2 overflow-hidden">
                     <div className="bg-white h-full rounded-full"
@@ -305,7 +318,7 @@ const salesByPaymentMethod = useMemo(() => {
             </div>
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-gray-400 mb-4">Orders Made</h3>
+            <h3 className="text-sm font-semibold text-gray-400 mb-4">Drinks Made</h3>
             {sortedMade.length === 0 && <p className="text-gray-500 text-sm">No data yet</p>}
             <div className="space-y-4">
               {sortedMade.map(([name, count], i) => (
@@ -313,7 +326,7 @@ const salesByPaymentMethod = useMemo(() => {
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-xs text-gray-500 w-4">{i + 1}</span>
                     <span className="text-sm font-semibold text-white flex-1">{name}</span>
-                    <span className="text-xs font-bold text-white">{count} order</span>
+                    <span className="text-xs font-bold text-white">{count} drinks</span>
                   </div>
                   <div className="ml-6 bg-white/10 rounded-full h-2 overflow-hidden">
                     <div className="bg-amber-500 h-full rounded-full"
